@@ -6,9 +6,9 @@ export function primitiveSchemaMatch(skill: SkillDefinition): LintDiagnostic[] {
 
   for (const [stepName, stepDef] of Object.entries(skill.steps)) {
     const { ask } = stepDef.config;
-    if (!ask) continue;
+    if (!ask || ask.type !== 'structured') continue;
 
-    const optionValues = ask.options.map((o) => o.value);
+    const optionValues = ask.options.map((o: { value: string }) => o.value);
 
     let schemaJson: Record<string, unknown> | null = null;
     try {

@@ -5,6 +5,7 @@ import { askUser } from './ask-user.js';
 import type { Handshake } from '../types.js';
 
 const config = askUser({
+  type: 'structured',
   question: 'Which deployment target?',
   options: [
     { value: 'production', label: 'Production' },

@@ -5,7 +5,6 @@ export { fragment, prompt } from './fragment.js';
 export { action } from './action.js';
 export { render } from './render/index.js';
 export { askUser } from './primitives/ask-user.js';
-export { openQuestion } from './primitives/open-question.js';
 export { confirm } from './primitives/confirm.js';
 export { plan } from './primitives/plan.js';
 export { tasks } from './primitives/tasks.js';
@@ -34,8 +33,9 @@ export type {
   ModelAdapter,
   ModuleDefinition,
   AskUserConfig,
+  AskStructuredConfig,
+  AskOpenConfig,
   AskUserOption,
-  OpenQuestionConfig,
   ConfirmConfig,
   PlanConfig,
   TasksConfig,

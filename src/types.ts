@@ -46,12 +46,21 @@ export interface AskUserOption {
   description?: string;
 }
 
-export interface AskUserConfig {
+export interface AskStructuredConfig {
   readonly kind: 'askUser';
+  readonly type: 'structured';
   question: string;
   options: AskUserOption[];
   multiSelect?: boolean;
 }
+
+export interface AskOpenConfig {
+  readonly kind: 'askUser';
+  readonly type: 'open';
+  question: string;
+}
+
+export type AskUserConfig = AskStructuredConfig | AskOpenConfig;
 
 export interface ConfirmConfig {
   readonly kind: 'confirm';
@@ -78,18 +87,7 @@ export interface SubtaskConfig {
   contextBudget?: 'narrow' | 'normal' | 'wide';
 }
 
-export interface OpenQuestionConfig {
-  readonly kind: 'openQuestion';
-  question: string;
-}
-
-export type PrimitiveConfig =
-  | AskUserConfig
-  | ConfirmConfig
-  | PlanConfig
-  | TasksConfig
-  | SubtaskConfig
-  | OpenQuestionConfig;
+export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | TasksConfig | SubtaskConfig;
 
 // --- Capabilities ---
 
@@ -136,7 +134,6 @@ export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = an
   maxVisits?: number;
   onMaxVisits?: string;
   ask?: AskUserConfig;
-  openQuestion?: OpenQuestionConfig;
   confirm?: ConfirmConfig;
   plan?: PlanConfig;
   tasks?: TasksConfig;

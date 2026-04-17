@@ -1,6 +1,10 @@
 import type { AskUserConfig, ConfirmConfig, PlanConfig, TasksConfig, SubtaskConfig } from '../../types.js';
 
 export function askUserProse(config: AskUserConfig): string {
+  if (config.type === 'open') {
+    return `ASK_FREEFORM: "${config.question}"`;
+  }
+
   const optionsList = config.options
     .map((o) => `"${o.label}" (value: ${o.value}${o.description ? `, ${o.description}` : ''})`)
     .join(', ');

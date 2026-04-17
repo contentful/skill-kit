@@ -1,12 +1,4 @@
-import type {
-  Handshake,
-  AskUserConfig,
-  ConfirmConfig,
-  PlanConfig,
-  TasksConfig,
-  SubtaskConfig,
-  OpenQuestionConfig,
-} from '../../types.js';
+import type { Handshake, AskUserConfig, ConfirmConfig, PlanConfig, TasksConfig, SubtaskConfig } from '../../types.js';
 import * as claudeCode from './claude-code.js';
 import * as codex from './codex.js';
 import * as opencode from './opencode.js';
@@ -14,21 +6,15 @@ import * as generic from './generic.js';
 
 export interface ProseGenerator {
   askUser(config: AskUserConfig): string;
-  openQuestion(config: OpenQuestionConfig): string;
   confirm(config: ConfirmConfig): string;
   plan(config: PlanConfig): string;
   tasks(config: TasksConfig): string;
   subtask(config: SubtaskConfig): string;
 }
 
-function openQuestionProse(config: OpenQuestionConfig): string {
-  return `ASK_FREEFORM: "${config.question}"`;
-}
-
 function wrap(mod: typeof claudeCode): ProseGenerator {
   return {
     askUser: mod.askUserProse,
-    openQuestion: openQuestionProse,
     confirm: mod.confirmProse,
     plan: mod.planProse,
     tasks: mod.tasksProse,

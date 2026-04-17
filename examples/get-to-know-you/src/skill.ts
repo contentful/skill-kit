@@ -1,14 +1,4 @@
-import {
-  skill,
-  step,
-  z,
-  action,
-  fragment,
-  prompt,
-  render,
-  askUser,
-  openQuestion as oq,
-} from '../../../src/index.js';
+import { skill, step, z, action, fragment, prompt, render, askUser } from '../../../src/index.js';
 
 // --- Fragments ---
 
@@ -98,6 +88,7 @@ export default skill({
 
   .step('ask-role', {
     ask: askUser({
+      type: 'structured',
       question: "What's your primary role?",
       options: [
         { value: 'dev', label: 'Developer', description: 'I write code for a living' },
@@ -125,7 +116,7 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
-    openQuestion: oq({ question: "What's your go-to tech stack?" }),
+    ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     prompt: ({ stash }) =>
       prompt`
         ${playfulTone}
@@ -140,7 +131,7 @@ export default skill({
   })
 
   .extend('ask-tools', openQuestionStep, {
-    openQuestion: oq({ question: 'What design tools do you live in?' }),
+    ask: askUser({ type: 'open', question: 'What design tools do you live in?' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -154,7 +145,7 @@ export default skill({
   })
 
   .extend('ask-team-size', openQuestionStep, {
-    openQuestion: oq({ question: 'Tell me about your team.' }),
+    ask: askUser({ type: 'open', question: 'Tell me about your team.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -168,7 +159,7 @@ export default skill({
   })
 
   .extend('ask-specialty', openQuestionStep, {
-    openQuestion: oq({ question: 'Describe what you do in one sentence.' }),
+    ask: askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -182,7 +173,7 @@ export default skill({
   })
 
   .step('ask-hobby', {
-    openQuestion: oq({ question: 'What are your hobbies or side projects?' }),
+    ask: askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     prompt: ({ attempts }) =>
       prompt`
         ${playfulTone}
