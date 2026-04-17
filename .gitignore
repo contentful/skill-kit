@@ -3,3 +3,4 @@ dist
 *.tsbuildinfo
 .idea
 /tmp
+examples/*/skill/bin/

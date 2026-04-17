@@ -31,7 +31,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test --import tsx/esm 'src/**/*.test.ts'",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "build:examples": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill"
   },
   "dependencies": {
     "zod": "^4.3.6"
