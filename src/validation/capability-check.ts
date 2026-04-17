@@ -7,10 +7,7 @@ export class CapabilityError extends Error {
   }
 }
 
-export function validateCapabilities(
-  actionName: string,
-  _capabilities: CapabilityManifest | undefined,
-): void {
+export function validateCapabilities(actionName: string, _capabilities: CapabilityManifest | undefined): void {
   if (!_capabilities) return;
   // For v0.1, capability validation is a placeholder.
   // Actions are declared in the manifest but enforcement of fs/net/subprocess/env

@@ -37,21 +37,9 @@ export function planProse(config: PlanConfig): string {
 
 export function tasksProse(config: TasksConfig): string {
   const taskList = config.create.map((t) => `- "${t.title}" (${t.status})`).join('\n');
-  return [
-    'Use todowrite to register these todos:',
-    '',
-    taskList,
-    '',
-    'Update status as each completes.',
-  ].join('\n');
+  return ['Use todowrite to register these todos:', '', taskList, '', 'Update status as each completes.'].join('\n');
 }
 
 export function subtaskProse(config: SubtaskConfig): string {
-  return [
-    `Use the task tool to spawn a subagent for:`,
-    '',
-    config.prompt,
-    '',
-    'Return its final output.',
-  ].join('\n');
+  return [`Use the task tool to spawn a subagent for:`, '', config.prompt, '', 'Return its final output.'].join('\n');
 }

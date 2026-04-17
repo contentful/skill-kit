@@ -23,17 +23,7 @@ test('CLI start returns first step prompt as JSON', async () => {
 test('CLI advance returns done for terminal step', async () => {
   const { stdout } = await exec(
     'npx',
-    [
-      'tsx',
-      fixturePath,
-      'advance',
-      '--step',
-      'greet',
-      '--output',
-      '{"message":"hello"}',
-      '--history',
-      '[]',
-    ],
+    ['tsx', fixturePath, 'advance', '--step', 'greet', '--output', '{"message":"hello"}', '--history', '[]'],
     { cwd: join(__dirname, '..', '..') },
   );
 

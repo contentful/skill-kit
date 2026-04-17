@@ -9,6 +9,8 @@ export { confirm } from './primitives/confirm.js';
 export { plan } from './primitives/plan.js';
 export { tasks } from './primitives/tasks.js';
 export { subtask } from './primitives/subtask.js';
+export { checkSkill } from './lint/index.js';
+export type { LintDiagnostic } from './lint/types.js';
 export type {
   SkillConfig,
   SkillDefinition,

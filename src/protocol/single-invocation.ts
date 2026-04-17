@@ -2,11 +2,7 @@ import type { SkillDefinition } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { resolveHost } from './host.js';
 
-export async function handleStart(
-  skill: SkillDefinition,
-  context: unknown,
-  hostName?: string,
-): Promise<void> {
+export async function handleStart(skill: SkillDefinition, context: unknown, hostName?: string): Promise<void> {
   const handshake = resolveHost(hostName);
   const engine = new WorkflowEngine(skill, handshake, context);
   const result = engine.start();

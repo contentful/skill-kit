@@ -146,11 +146,7 @@ export interface ObserverMap {
     attempt: number;
   }) => void | Promise<void>;
   onTransition?: (ctx: { from: string; to: string; reason: string }) => void | Promise<void>;
-  onSkillComplete?: (ctx: {
-    path: string[];
-    finalOutput: unknown;
-    durationMs: number;
-  }) => void | Promise<void>;
+  onSkillComplete?: (ctx: { path: string[]; finalOutput: unknown; durationMs: number }) => void | Promise<void>;
 }
 
 // --- Skill ---

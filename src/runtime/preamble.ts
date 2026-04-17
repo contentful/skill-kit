@@ -8,15 +8,11 @@ export function generatePreamble(handshake: Handshake): string {
   ];
 
   if (handshake.toolsAvailable.includes('AskUserQuestion')) {
-    lines.push(
-      'When a step says "ask the user", use the AskUserQuestion tool with the exact options provided.',
-    );
+    lines.push('When a step says "ask the user", use the AskUserQuestion tool with the exact options provided.');
   }
 
   if (handshake.toolsAvailable.includes('EnterPlanMode')) {
-    lines.push(
-      'When a step presents a plan for approval, use EnterPlanMode/ExitPlanMode to present it.',
-    );
+    lines.push('When a step presents a plan for approval, use EnterPlanMode/ExitPlanMode to present it.');
   }
 
   if (handshake.toolsAvailable.includes('TaskCreate')) {

@@ -34,12 +34,7 @@ export class WorkflowEngine {
   private startTime: number = 0;
   private currentStep: string;
 
-  constructor(
-    skill: SkillDefinition,
-    handshake: Handshake,
-    context: unknown,
-    refs?: ReferenceLoader,
-  ) {
+  constructor(skill: SkillDefinition, handshake: Handshake, context: unknown, refs?: ReferenceLoader) {
     this.skill = skill;
     this.handshake = handshake;
     this.refs = refs ?? NOOP_REFS;
@@ -63,6 +58,7 @@ export class WorkflowEngine {
 
   start(): PromptResult {
     this.startTime = Date.now();
+    this.validateParentSentinels();
     validateCycleGuards(this.skill.steps);
     const prompt = this.buildPrompt(this.currentStep);
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
@@ -227,6 +223,17 @@ export class WorkflowEngine {
     }
 
     return { step: stepName, prompt: promptText, schema };
+  }
+
+  private validateParentSentinels(): void {
+    for (const [name, stepDef] of Object.entries(this.skill.steps)) {
+      if (stepDef.config.next === '__parent__') {
+        throw new Error(
+          `Step "${name}" has next: "__parent__" which must be overridden via .extend(). ` +
+            `This step was likely imported from a shared module without setting a transition.`,
+        );
+      }
+    }
   }
 
   private buildPrimitiveProse(stepDef: StepDefinition): string | null {

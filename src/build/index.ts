@@ -48,9 +48,7 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
   try {
     await exec('bun', ['--version']);
   } catch {
-    throw new Error(
-      'bun is not installed. Install it from https://bun.sh to build skill executables.',
-    );
+    throw new Error('bun is not installed. Install it from https://bun.sh to build skill executables.');
   }
 
   // Generate bun wrapper
@@ -67,15 +65,7 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
     process.stderr.write(`Building ${target.name}...\n`);
 
     try {
-      await exec('bun', [
-        'build',
-        '--compile',
-        '--target',
-        target.bunTarget,
-        wrapperPath,
-        '--outfile',
-        binPath,
-      ]);
+      await exec('bun', ['build', '--compile', '--target', target.bunTarget, wrapperPath, '--outfile', binPath]);
       binaries.push(binPath);
       process.stderr.write(`  ✓ ${binPath}\n`);
     } catch (err) {

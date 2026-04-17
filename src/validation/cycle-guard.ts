@@ -25,18 +25,13 @@ export function validateCycleGuards(steps: Readonly<Record<string, StepDefinitio
       }
 
       if (!(onMaxVisits in steps)) {
-        throw new CycleGuardError(
-          `Step "${stepName}" has onMaxVisits "${onMaxVisits}" which does not exist in steps.`,
-        );
+        throw new CycleGuardError(`Step "${stepName}" has onMaxVisits "${onMaxVisits}" which does not exist in steps.`);
       }
     }
   }
 }
 
-function buildGraph(
-  steps: Readonly<Record<string, StepDefinition>>,
-  stepNames: string[],
-): Map<string, Set<string>> {
+function buildGraph(steps: Readonly<Record<string, StepDefinition>>, stepNames: string[]): Map<string, Set<string>> {
   const graph = new Map<string, Set<string>>();
 
   for (const name of stepNames) {

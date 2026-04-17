@@ -20,7 +20,8 @@ export function resolveTargets(targetNames?: string[]): BuildTarget[] {
 
   return targetNames.map((name) => {
     const target = ALL_TARGETS.find((t) => t.name === name);
-    if (!target) throw new Error(`Unknown build target: "${name}". Known: ${ALL_TARGETS.map((t) => t.name).join(', ')}`);
+    if (!target)
+      throw new Error(`Unknown build target: "${name}". Known: ${ALL_TARGETS.map((t) => t.name).join(', ')}`);
     return target;
   });
 }

@@ -65,15 +65,9 @@ test('step.extend() overrides prompt', () => {
 });
 
 test('step() throws on missing output', () => {
-  assert.throws(
-    () => step({ prompt: 'x', output: undefined as never, next: 'y' }),
-    /output schema is required/,
-  );
+  assert.throws(() => step({ prompt: 'x', output: undefined as never, next: 'y' }), /output schema is required/);
 });
 
 test('step() throws on missing next', () => {
-  assert.throws(
-    () => step({ prompt: 'x', output: z.object({}), next: undefined as never }),
-    /next is required/,
-  );
+  assert.throws(() => step({ prompt: 'x', output: z.object({}), next: undefined as never }), /next is required/);
 });

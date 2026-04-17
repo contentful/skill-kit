@@ -8,10 +8,7 @@ test('table() returns empty string for empty rows', () => {
 
 test('table() renders a single row', () => {
   const result = table([{ name: 'ci', status: 'pass' }]);
-  assert.equal(
-    result,
-    ['| name | status |', '| --- | --- |', '| ci | pass |'].join('\n'),
-  );
+  assert.equal(result, ['| name | status |', '| --- | --- |', '| ci | pass |'].join('\n'));
 });
 
 test('table() renders multiple rows', () => {

@@ -37,13 +37,9 @@ export function planProse(config: PlanConfig): string {
 
 export function tasksProse(config: TasksConfig): string {
   const taskList = config.create.map((t) => `- "${t.title}" (${t.status})`).join('\n');
-  return [
-    'Use update_plan with these checklist items:',
-    '',
-    taskList,
-    '',
-    'Update status as each completes.',
-  ].join('\n');
+  return ['Use update_plan with these checklist items:', '', taskList, '', 'Update status as each completes.'].join(
+    '\n',
+  );
 }
 
 export function subtaskProse(config: SubtaskConfig): string {
