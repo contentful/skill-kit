@@ -1,214 +1,320 @@
-# @contentful/skill-kit
+<p align="center">
+  <strong>@contentful/skill-kit</strong><br>
+  <em>Typed state machines for agent skills. Define steps, validate outputs, compile to executables.</em>
+</p>
 
-TypeScript SDK for building agent skills with CLI-driven workflows. Skills are typed state machines — each step has a prompt, a schema-validated output, and explicit transitions. The SDK compiles skills into self-contained executables that work with any agent host.
+<p align="center">
+  <a href="#quick-start">Quick Start</a> · <a href="#how-it-works">How It Works</a> · <a href="#api">API</a> · <a href="./SPEC.md">Spec</a>
+</p>
 
-## Install
+---
+
+A prose skill is a blob of markdown the agent reads all at once. That works for simple tasks — and falls apart for multi-step workflows where you need branching, validation, and deterministic output.
+
+skill-kit replaces the blob with a **typed state machine**. You define steps with prompts, Zod schemas for outputs, and explicit transitions. The SDK compiles it into a self-contained binary that agents invoke via Bash — one call per step, JSON in and out.
+
+```typescript
+import { skill, step, z } from '@contentful/skill-kit';
+
+export default skill({
+  name: 'repo-doctor',
+  entry: 'diagnose',
+  steps: {
+    diagnose: step({
+      prompt: 'Inspect the repository. Report health checks for CI, linting, and test coverage.',
+      output: z.object({
+        checks: z.array(
+          z.object({
+            name: z.string(),
+            status: z.enum(['pass', 'fail']),
+            detail: z.string(),
+          }),
+        ),
+      }),
+      next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+    }),
+    remediate: step({
+      /* fix failing checks */
+    }),
+    report: step({
+      /* render results, terminal */
+    }),
+  },
+});
+```
+
+That's a skill. The agent sees one step at a time, returns structured output, and the CLI decides what happens next.
+
+## Quick Start
 
 ```bash
 pnpm add @contentful/skill-kit
 ```
 
-## Quick start
+**Define** → **Test** → **Build** → **Ship**
 
-### 1. Define a skill
+### Define a skill
 
 ```typescript
-// src/skills/repo-doctor/skill.ts
-import { skill, step, z, render } from '@contentful/skill-kit';
-
-const CheckResult = z.object({
-  name: z.string(),
-  status: z.enum(['pass', 'fail']),
-  detail: z.string(),
-});
+// src/skills/deploy-check/skill.ts
+import { skill, step, z, askUser } from '@contentful/skill-kit';
 
 export default skill({
-  name: 'repo-doctor',
-  version: '1.0.0',
-  description: 'Inspects a repository and reports health check results.',
-  entry: 'diagnose',
+  name: 'deploy-check',
+  entry: 'choose',
   steps: {
-    diagnose: step({
-      prompt: 'Inspect the repository and report health checks for CI, linting, and test coverage.',
-      output: z.object({ checks: z.array(CheckResult) }),
-      next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
-    }),
-    remediate: step({
-      prompt: ({ prev }) =>
-        `Fix these failing checks:\n${JSON.stringify(
-          prev.checks.filter((c: any) => c.status === 'fail'),
-          null,
-          2,
-        )}`,
-      output: z.object({
-        remediations: z.array(z.object({ check: z.string(), action: z.string() })),
+    choose: step({
+      ask: askUser({
+        question: 'Which environment?',
+        options: [
+          { value: 'production', label: 'Production' },
+          { value: 'staging', label: 'Staging' },
+        ],
       }),
-      next: 'report',
+      output: z.object({ target: z.enum(['production', 'staging']) }),
+      next: 'verify',
     }),
-    report: step({
-      prompt: ({ rendered }) => `Output the following report exactly as shown:\n\n${rendered}`,
+    verify: step({
+      prompt: ({ prev }) => `Run pre-deploy checks for ${prev.target}. Report any blockers.`,
+      output: z.object({ blockers: z.array(z.string()), safe: z.boolean() }),
+      next: ({ output }) => (output.safe ? 'deploy' : 'abort'),
+    }),
+    deploy: step({
+      prompt: 'Execute the deployment.',
+      output: z.object({ url: z.string() }),
+      next: { terminal: true },
+    }),
+    abort: step({
+      prompt: 'Report the blockers to the user and explain why deployment was aborted.',
       output: z.object({ summary: z.string() }),
-      render: ({ history }) => {
-        const diagnose = history.find((s) => s.step === 'diagnose')!;
-        return render.table((diagnose.output as any).checks, {
-          columns: ['name', 'status', 'detail'],
-          statusIcons: { pass: '✅', fail: '❌' },
-        });
-      },
       next: { terminal: true },
     }),
   },
 });
 ```
 
-### 2. Test it
+### Test without an agent
 
 ```typescript
-// src/skills/repo-doctor/skill.test.ts
-import test from 'node:test';
-import assert from 'node:assert/strict';
+// src/skills/deploy-check/skill.test.ts
 import { runSkill, mockModel } from '@contentful/skill-kit/test';
-import doctor from './skill.ts';
+import deploy from './skill.ts';
 
-test('routes to remediate when checks fail', async () => {
-  const result = await runSkill(doctor, {
-    model: mockModel({
-      diagnose: { checks: [{ name: 'ci', status: 'fail', detail: 'no CI config' }] },
-      remediate: { remediations: [{ check: 'ci', action: 'add workflow file' }] },
-      report: { summary: 'CI config added' },
-    }),
-  });
-
-  assert.deepEqual(result.path, ['diagnose', 'remediate', 'report']);
+const result = await runSkill(deploy, {
+  model: mockModel({
+    choose: { target: 'staging' },
+    verify: { blockers: [], safe: true },
+    deploy: { url: 'https://staging.example.com' },
+  }),
 });
 
-test('skips remediation when all checks pass', async () => {
-  const result = await runSkill(doctor, {
-    model: mockModel({
-      diagnose: { checks: [{ name: 'ci', status: 'pass', detail: 'ok' }] },
-      report: { summary: 'All good' },
-    }),
-  });
-
-  assert.deepEqual(result.path, ['diagnose', 'report']);
-});
+// result.path → ['choose', 'verify', 'deploy']
+// result.output → { url: 'https://staging.example.com' }
 ```
 
 ```bash
-node --test --import tsx/esm src/skills/repo-doctor/skill.test.ts
+node --test --import tsx/esm src/skills/deploy-check/skill.test.ts
 ```
 
-### 3. Build it
+### Build a distributable skill
 
 ```bash
-npx skill-kit build src/skills/repo-doctor/skill.ts -o skills/repo-doctor
+npx skill-kit build src/skills/deploy-check/skill.ts -o skills/deploy-check
 ```
 
-This produces a complete [agentskills.io](https://agentskills.io/specification)-compliant skill directory:
+Output is an [agentskills.io](https://agentskills.io/specification)-compliant directory:
 
 ```
-skills/repo-doctor/
-  SKILL.md                       # Generated — agents read this
-  package.json                   # Generated
+skills/deploy-check/
+  SKILL.md               ← Generated. Agents read this.
+  package.json
   scripts/
-    run                          # Platform dispatcher (public interface)
+    run                  ← Shell wrapper. The public interface.
   bin/
-    repo-doctor-darwin-arm64     # macOS binary
-    repo-doctor-linux-x64       # Linux binary
-  references/                    # Copied from source (if any)
+    deploy-check-darwin-arm64
+    deploy-check-linux-x64
 ```
 
-### 4. Use it
+Install it anywhere — `skills add`, `agents-kit install`, or just `git clone`.
 
-The generated `SKILL.md` instructs agents how to invoke the skill. Agents call `scripts/run` via Bash:
+## How It Works
 
-```bash
-# Start the workflow
-scripts/run start --context '{"repoPath":"."}'
-# → {"step":"diagnose","prompt":"Inspect the repository...","schema":{...}}
-
-# Advance with agent's response
-scripts/run advance --step diagnose --output '{"checks":[...]}' --history '[...]'
-# → {"step":"remediate","prompt":"Fix these failing checks...","schema":{...}}
-
-# Continue until done
-scripts/run advance --step report --output '{"summary":"..."}' --history '[...]'
-# → {"done":true,"finalOutput":{...}}
+```
+┌─────────┐  scripts/run start   ┌─────────────┐
+│         │ ───────────────────► │             │
+│  Agent  │  ◄ JSON: prompt,     │  Skill CLI  │
+│         │    schema            │  (compiled) │
+│         │                      │             │
+│         │  scripts/run advance │             │
+│         │ ───────────────────► │             │
+│         │  ◄ JSON: next prompt │             │
+│         │       ...or done     │             │
+└─────────┘                      └─────────────┘
 ```
 
-## Repo layout
+Each invocation is **stateless**. The agent passes the full conversation history via `--history` on every `advance` call. The binary reconstructs state, validates the output against the Zod schema, and returns the next step's prompt as JSON.
 
-Source and built skills live in separate directories:
+No persistent processes. No stdin piping. Just Bash calls that every agent host already supports.
+
+### Host-aware primitives
+
+Primitives like `askUser`, `confirm`, and `plan` generate different prose depending on the agent:
+
+| Primitive | Claude Code                 | Codex                        | Generic                |
+| --------- | --------------------------- | ---------------------------- | ---------------------- |
+| `askUser` | Uses `AskUserQuestion` tool | Prose with option list       | Prose with option list |
+| `plan`    | Uses `EnterPlanMode`        | Uses `update_plan`           | Numbered list          |
+| `tasks`   | Uses `TaskCreate`           | Uses `update_plan` checklist | Markdown checklist     |
+
+Same skill definition, calibrated UX per host. The `--host` flag controls which prose variant is emitted.
+
+## Repo Layout
+
+Source and build output live in separate directories:
 
 ```
 my-repo/
-  package.json                # @contentful/skill-kit as devDep
-  src/skills/                 # Source — where you write TypeScript
-    repo-doctor/
+  src/skills/              ← Where you write TypeScript
+    deploy-check/
       skill.ts
       skill.test.ts
-      references/
-  skills/                     # Build output — each subdir is an installable skill
-    repo-doctor/
+      references/          ← Docs the skill can load on demand
+  skills/                  ← Build output. Each subdir is installable.
+    deploy-check/          ← Built by: skill-kit build ... -o skills/deploy-check
       SKILL.md
-      package.json
       scripts/run
       bin/...
-    some-prose-skill/         # Prose skills coexist
+    some-prose-skill/      ← Traditional prose skills coexist
       SKILL.md
+```
+
+Wire it up in `package.json`:
+
+```json
+{
+  "scripts": {
+    "build": "skill-kit build src/skills/deploy-check/skill.ts -o skills/deploy-check",
+    "test": "node --test --import tsx/esm 'src/skills/**/*.test.ts'"
+  }
+}
 ```
 
 ## API
 
 ### Core
 
-| Export                    | Description                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `skill(config)`           | Define a skill — name, entry step, steps map                                                |
-| `step(config)`            | Define a step — prompt, output schema, transition                                           |
-| `z`                       | Zod re-export for schema definitions                                                        |
-| `fragment(name, content)` | Named reusable prose partial                                                                |
-| `` prompt`...` ``         | Tagged template with dedent and fragment interpolation                                      |
-| `action(config)`          | CLI-side deterministic effect                                                               |
-| `render`                  | Built-in renderers: `.table()`, `.checklist()`, `.diff()`, `.code()`, `.kv()`, `.section()` |
+```typescript
+import { skill, step, z, fragment, prompt, action, render } from '@contentful/skill-kit';
+```
 
-### Primitives (host-aware)
+| Export                                                                   | What it does                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------ |
+| `skill({ name, entry, steps })`                                          | Define a skill with named steps and an entry point     |
+| `step({ prompt, output, next })`                                         | Define a step — prompt, Zod schema, transition         |
+| `z`                                                                      | Zod re-export — one schema library, no extra deps      |
+| `fragment(name, content)`                                                | Reusable prose partial                                 |
+| `` prompt`...` ``                                                        | Tagged template with dedent + fragment interpolation   |
+| `action({ name, input, output, run })`                                   | Deterministic CLI-side effect (file writes, API calls) |
+| `render.table()` `.checklist()` `.diff()` `.code()` `.kv()` `.section()` | Markdown renderers for deterministic output            |
 
-These generate calibrated prose per agent host — naming the right tool on Claude Code, falling back to generic instructions elsewhere.
+### Primitives
 
-| Export                              | Description                          |
-| ----------------------------------- | ------------------------------------ |
-| `askUser({ question, options })`    | Structured multiple-choice question  |
-| `confirm({ message, destructive })` | Binary approval with safety defaults |
-| `plan({ summary, steps })`          | Show plan, wait for approval         |
-| `tasks({ create })`                 | Tracked subtask list                 |
-| `subtask({ prompt, output })`       | Spawn isolated sub-agent             |
+```typescript
+import { askUser, confirm, plan, tasks, subtask } from '@contentful/skill-kit';
+```
 
-### Testing (`@contentful/skill-kit/test`)
+These attach to a step and generate host-aware prose automatically:
 
-| Export                                        | Description                                 |
-| --------------------------------------------- | ------------------------------------------- |
-| `runSkill(skill, { model, context?, host? })` | Run a skill to completion                   |
-| `mockModel({ stepName: output })`             | Canned outputs (static, array, or function) |
+```typescript
+step({
+  ask: askUser({ question: 'Pick one', options: [...] }),
+  output: z.object({ choice: z.enum([...]) }),
+  next: ({ output }) => `handle-${output.choice}`,
+})
+```
+
+### Testing
+
+```typescript
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+```
+
+| Export                                        | What it does                                                   |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| `runSkill(skill, { model, context?, host? })` | Drive a skill to completion                                    |
+| `mockModel({ stepName: output })`             | Canned outputs — static values, arrays for loops, or functions |
 
 ### CLI
 
 ```bash
-skill-kit build <entry.ts> -o <dir>    # Build distributable skill directory
-skill-kit run <skill.ts> start|advance  # Run skill in dev mode
-skill-kit check <skill.ts>              # Lint skill definition
+skill-kit build <entry.ts> -o <dir>       # Compile to distributable skill
+skill-kit build ... --targets linux-arm64  # Override platform targets
+skill-kit build ... --single               # Current platform only (fast)
+skill-kit run <skill.ts> start --context   # Dev mode — run without compiling
+skill-kit check <skill.ts>                 # Lint for portability issues
 ```
 
-## Key concepts
+<details>
+<summary><strong>Step config reference</strong></summary>
 
-**Steps are the workflow.** Each step has a prompt the agent follows, a Zod schema for its output, and a transition to the next step. The SDK validates outputs and routes between steps — the agent just reads prompts and produces answers.
+```typescript
+step({
+  // What the agent sees (string or function of context)
+  prompt: string | (ctx: PromptContext) => string,
 
-**Primitives are portable.** `askUser`, `confirm`, `plan` etc. generate different prose depending on the agent host. On Claude Code, `askUser` emits "Use the AskUserQuestion tool..."; on Codex or generic hosts, it falls back to prose instructions. Same skill, every host.
+  // Zod schema — agent output is validated against this
+  output: z.ZodType,
 
-**Single-invocation protocol.** Each call to the binary is stateless. The agent passes full conversation history via `--history` on every `advance` call. The binary reconstructs state and returns one JSON response. No persistent processes.
+  // Where to go next
+  next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
 
-**Build produces agentskills.io skills.** The output is a standard skill directory with `SKILL.md` at root, executables in `scripts/`, and binaries in `bin/`. Install via `skills add`, `agents-kit install`, or git.
+  // Deterministic rendered output (agent pastes verbatim)
+  render?: (ctx: PromptContext) => string,
 
-## Reference
+  // CLI-side effect after validation, before transition
+  action?: ActionDefinition,
 
-See [SPEC.md](./SPEC.md) for the full SDK specification.
+  // Stash data for later steps (not shown to agent)
+  stash?: (ctx: { output }) => unknown,
+
+  // Loop guards
+  maxVisits?: number,
+  onMaxVisits?: string,
+
+  // Host-aware primitives (attach one per step)
+  ask?: AskUserConfig,
+  confirm?: ConfirmConfig,
+  plan?: PlanConfig,
+  tasks?: TasksConfig,
+  subtask?: SubtaskConfig,
+})
+```
+
+The `PromptContext` available in dynamic prompts and render functions:
+
+| Field      | Type                      | Description                               |
+| ---------- | ------------------------- | ----------------------------------------- |
+| `prev`     | `unknown`                 | Output of the previous step               |
+| `history`  | `StepResult[]`            | All prior step results                    |
+| `context`  | `unknown`                 | Global skill context                      |
+| `rendered` | `string?`                 | Output of this step's `render()`          |
+| `refs`     | `ReferenceLoader`         | Lazy loader for `references/` files       |
+| `attempts` | `number`                  | How many times this step has been visited |
+| `host`     | `Handshake`               | Current host info                         |
+| `stash`    | `Record<string, unknown>` | Data stashed by prior steps               |
+
+</details>
+
+## Key Decisions
+
+- **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
+- **State is append-only.** No mutation of prior step outputs. Enables replay.
+- **Cycles require guards.** Every loop must declare `maxVisits` + `onMaxVisits`. Enforced at load time.
+- **Actions are declared.** CLI-side effects are named and explicit — never inferred.
+- **Single invocation.** No persistent processes. Each call reconstructs from history. Agents pipe nothing.
+
+---
+
+<p align="center">
+  <a href="./SPEC.md">Full specification</a> · <a href="https://agentskills.io/specification">agentskills.io format</a>
+</p>
