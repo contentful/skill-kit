@@ -8,12 +8,18 @@ import { generatePackageJson } from './package-json-template.js';
 import { resolveTargets } from './targets.js';
 import { skill } from '../skill.js';
 
-test('generateBunWrapper produces valid import structure', () => {
-  const result = generateBunWrapper('/abs/path/skill.ts');
-  assert.ok(result.includes("import skill from '/abs/path/skill.ts'"));
-  assert.ok(result.includes("import { main } from '"));
-  assert.ok(result.includes('cli.ts'));
-  assert.ok(result.includes('main(skill)'));
+test('generateBunWrapper produces valid import for skill', () => {
+  const result = generateBunWrapper('/abs/path/skill.ts', 'skill');
+  assert.ok(result.includes("import def from '/abs/path/skill.ts'"));
+  assert.ok(result.includes('import { main }'));
+  assert.ok(result.includes('main(def)'));
+});
+
+test('generateBunWrapper produces valid import for reference', () => {
+  const result = generateBunWrapper('/abs/path/ref.ts', 'reference');
+  assert.ok(result.includes("import def from '/abs/path/ref.ts'"));
+  assert.ok(result.includes('import { referenceMain }'));
+  assert.ok(result.includes('referenceMain(def)'));
 });
 
 test('generateScriptsRun produces valid bash dispatcher', () => {

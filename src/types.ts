@@ -204,6 +204,29 @@ export interface ModuleDefinition<TModuleStash extends z.ZodType = z.ZodType> {
   readonly steps: Record<string, StepDefinition>;
 }
 
+// --- Reference Definition ---
+
+export interface TopicConfig {
+  label: string;
+  content: (ctx: { refs: ReferenceLoader }) => string;
+}
+
+export interface ReferenceBuilderConfig {
+  name: string;
+  version?: string;
+  description: string;
+}
+
+export interface ReferenceDefinition {
+  readonly kind: 'reference';
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly topics: Readonly<Record<string, TopicConfig>>;
+}
+
+export type Buildable = SkillDefinition | ReferenceDefinition;
+
 // --- Protocol (CLI output) ---
 
 export interface PromptResult {

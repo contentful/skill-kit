@@ -10,7 +10,9 @@ export { plan } from './primitives/plan.js';
 export { tasks } from './primitives/tasks.js';
 export { subtask } from './primitives/subtask.js';
 export { module } from './module.js';
+export { reference } from './reference.js';
 export { SkillBuilder } from './skill-builder.js';
+export { ReferenceBuilder } from './reference-builder.js';
 export { ModuleBuilder } from './module.js';
 export { checkSkill } from './lint/index.js';
 export type { LintDiagnostic } from './lint/types.js';
@@ -46,4 +48,8 @@ export type {
   DoneResult,
   ValidationErrorResult,
   ReferenceLoader,
+  ReferenceDefinition,
+  ReferenceBuilderConfig,
+  TopicConfig,
+  Buildable,
 } from './types.js';

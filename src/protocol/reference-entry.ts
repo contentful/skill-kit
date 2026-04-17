@@ -1,0 +1,58 @@
+import type { ReferenceDefinition } from '../types.js';
+import { createReferenceLoader } from '../runtime/reference-loader.js';
+
+export function referenceMain(def: ReferenceDefinition, refsBasePath?: string): void {
+  const args = process.argv.slice(2);
+  const command = args[0];
+
+  if (!command || command === '--help' || command === '-h') {
+    printHelp(def);
+    return;
+  }
+
+  const refs = createReferenceLoader(refsBasePath ?? process.cwd());
+
+  if (command === 'topics') {
+    for (const [name, topic] of Object.entries(def.topics)) {
+      process.stdout.write(`${name}: ${topic.label}\n`);
+    }
+    return;
+  }
+
+  if (command === 'topic') {
+    const topicName = args[1];
+    if (!topicName) {
+      process.stderr.write('error: topic name required. Run with "topics" to list.\n');
+      process.exit(1);
+    }
+
+    const topic = def.topics[topicName];
+    if (!topic) {
+      process.stderr.write(`error: unknown topic "${topicName}". Run with "topics" to list.\n`);
+      process.exit(1);
+    }
+
+    const content = topic.content({ refs });
+    process.stdout.write(content);
+    if (!content.endsWith('\n')) process.stdout.write('\n');
+    return;
+  }
+
+  process.stderr.write(`error: unknown command "${command}". Run with --help.\n`);
+  process.exit(1);
+}
+
+function printHelp(def: ReferenceDefinition): void {
+  const lines = [
+    `${def.name} — reference skill`,
+    '',
+    'Commands:',
+    '  topics              List all available topics',
+    '  topic <name>        Load a specific topic',
+    '  --help              Print this message',
+    '',
+    'Topics:',
+    ...Object.entries(def.topics).map(([name, t]) => `  ${name.padEnd(20)} ${t.label}`),
+  ];
+  process.stderr.write(lines.join('\n') + '\n');
+}

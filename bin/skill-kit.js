@@ -42,58 +42,67 @@ if (command === 'build') {
     process.exit(1);
   }
 } else if (command === 'run') {
-  const skillPath = args[1];
-  if (!skillPath) {
-    process.stderr.write('Usage: skill-kit run <skill.ts> start|advance [flags]\n');
+  const defPath = args[1];
+  if (!defPath) {
+    process.stderr.write('Usage: skill-kit run <entry.ts> <subcommand> [flags]\n');
     process.exit(1);
   }
 
-  const absPath = resolve(skillPath);
+  const absPath = resolve(defPath);
   if (!existsSync(absPath)) {
-    process.stderr.write(`error: skill file not found: ${absPath}\n`);
+    process.stderr.write(`error: file not found: ${absPath}\n`);
     process.exit(1);
   }
 
   const mod = await import(absPath);
-  const skill = mod.default;
-  if (!skill || skill.kind !== 'skill') {
-    process.stderr.write(`error: ${absPath} does not export a default skill\n`);
+  const def = mod.default;
+  if (!def || (def.kind !== 'skill' && def.kind !== 'reference')) {
+    process.stderr.write(`error: ${absPath} does not export a default skill or reference\n`);
     process.exit(1);
   }
 
-  const { main } = await import('../src/protocol/cli-entry.js');
-  // Shift argv so the skill sees: [node, skill, subcommand, ...flags]
   process.argv = [process.argv[0], absPath, ...args.slice(2)];
-  await main(skill);
-} else if (command === 'check') {
-  const skillPath = args[1];
-  if (!skillPath) {
-    process.stderr.write('Usage: skill-kit check <skill.ts>\n');
-    process.exit(1);
-  }
 
-  const absPath = resolve(skillPath);
-  const mod = await import(absPath);
-  const skill = mod.default;
-
-  const { dirname } = await import('node:path');
-  const { checkSkill } = await import('../src/lint/index.js');
-  const diagnostics = checkSkill(skill, dirname(absPath));
-
-  for (const d of diagnostics) {
-    const prefix = d.severity === 'error' ? '✗' : '⚠';
-    const location = d.step ? ` [${d.step}]` : d.file ? ` [${d.file}]` : '';
-    process.stderr.write(`${prefix} ${d.rule}${location}: ${d.message}\n`);
-  }
-
-  const errors = diagnostics.filter((d) => d.severity === 'error');
-  if (errors.length > 0) {
-    process.stderr.write(`\n${errors.length} error(s) found.\n`);
-    process.exit(1);
-  } else if (diagnostics.length > 0) {
-    process.stderr.write(`\n${diagnostics.length} warning(s).\n`);
+  if (def.kind === 'reference') {
+    const { referenceMain } = await import('../src/protocol/reference-entry.js');
+    referenceMain(def);
   } else {
-    process.stderr.write('✓ No issues found.\n');
+    const { main } = await import('../src/protocol/cli-entry.js');
+    await main(def);
+  }
+} else if (command === 'check') {
+  const defPath = args[1];
+  if (!defPath) {
+    process.stderr.write('Usage: skill-kit check <entry.ts>\n');
+    process.exit(1);
+  }
+
+  const absPath = resolve(defPath);
+  const mod = await import(absPath);
+  const def = mod.default;
+
+  if (def.kind === 'skill') {
+    const { dirname } = await import('node:path');
+    const { checkSkill } = await import('../src/lint/index.js');
+    const diagnostics = checkSkill(def, dirname(absPath));
+
+    for (const d of diagnostics) {
+      const prefix = d.severity === 'error' ? '✗' : '⚠';
+      const location = d.step ? ` [${d.step}]` : d.file ? ` [${d.file}]` : '';
+      process.stderr.write(`${prefix} ${d.rule}${location}: ${d.message}\n`);
+    }
+
+    const errors = diagnostics.filter((d) => d.severity === 'error');
+    if (errors.length > 0) {
+      process.stderr.write(`\n${errors.length} error(s) found.\n`);
+      process.exit(1);
+    } else if (diagnostics.length > 0) {
+      process.stderr.write(`\n${diagnostics.length} warning(s).\n`);
+    } else {
+      process.stderr.write('✓ No issues found.\n');
+    }
+  } else if (def.kind === 'reference') {
+    process.stderr.write('✓ Reference skill — no lint rules to check.\n');
   }
 } else {
   process.stderr.write(
@@ -101,9 +110,9 @@ if (command === 'build') {
       'skill-kit — CLI for @contentful/skill-kit',
       '',
       'Commands:',
-      '  build <entry.ts> -o <dir>   Build a distributable skill directory',
-      '  run <skill.ts> <subcommand> Run a skill in dev mode',
-      '  check <skill.ts>            Lint a skill definition',
+      '  build <entry.ts> -o <dir>   Build a distributable skill or reference',
+      '  run <entry.ts> <subcommand> Run in dev mode',
+      '  check <entry.ts>            Lint a skill definition',
       '',
       'Run any command with --help for details.',
       '',

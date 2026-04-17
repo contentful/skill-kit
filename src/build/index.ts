@@ -3,9 +3,11 @@ import { promisify } from 'node:util';
 import { existsSync, mkdirSync, writeFileSync, cpSync, chmodSync, unlinkSync } from 'node:fs';
 import { resolve, dirname, basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Buildable } from '../types.js';
 import { generateBunWrapper } from './bun-wrapper-template.js';
 import { generateScriptsRun } from './scripts-run-template.js';
 import { generateSkillMd } from './skillmd-template.js';
+import { generateReferenceMd } from './reference-md-template.js';
 import { generatePackageJson } from './package-json-template.js';
 import { resolveTargets, type BuildTarget } from './targets.js';
 
@@ -27,42 +29,37 @@ export interface BuildResult {
 export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
   const entryPath = resolve(opts.entry);
   if (!existsSync(entryPath)) {
-    throw new Error(`Skill entry file not found: ${entryPath}`);
+    throw new Error(`Entry file not found: ${entryPath}`);
   }
 
-  // Dynamically import the skill to extract metadata
   const mod = await import(entryPath);
-  const skill = mod.default;
-  if (!skill || skill.kind !== 'skill') {
-    throw new Error(`${entryPath} does not export a default skill definition`);
+  const def: Buildable = mod.default;
+  if (!def || (def.kind !== 'skill' && def.kind !== 'reference')) {
+    throw new Error(`${entryPath} does not export a default skill or reference definition`);
   }
 
   const outDir = resolve(opts.outDir);
-  const skillName = skill.name as string;
+  const defName = def.name;
 
-  // Ensure output directories exist
   mkdirSync(join(outDir, 'scripts'), { recursive: true });
   mkdirSync(join(outDir, 'bin'), { recursive: true });
 
-  // Check for bun
   try {
     await exec('bun', ['--version']);
   } catch {
     throw new Error('bun is not installed. Install it from https://bun.sh to build skill executables.');
   }
 
-  // Generate bun wrapper
-  const wrapperContent = generateBunWrapper(entryPath);
+  const wrapperContent = generateBunWrapper(entryPath, def.kind);
   const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-  const wrapperPath = join(sdkRoot, `.skill-kit-build-${skillName}.ts`);
+  const wrapperPath = join(sdkRoot, `.skill-kit-build-${defName}.ts`);
   writeFileSync(wrapperPath, wrapperContent);
 
-  // Build targets
   const targets = opts.single ? [getCurrentTarget()] : resolveTargets(opts.targets);
   const binaries: string[] = [];
 
   for (const target of targets) {
-    const binPath = join(outDir, 'bin', `${skillName}-${target.name}`);
+    const binPath = join(outDir, 'bin', `${defName}-${target.name}`);
     process.stderr.write(`Building ${target.name}...\n`);
 
     try {
@@ -79,28 +76,23 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
     throw new Error('No binaries were built successfully');
   }
 
-  // Generate scripts/run
-  const runScript = generateScriptsRun(skillName);
+  const runScript = generateScriptsRun(defName);
   const runPath = join(outDir, 'scripts', 'run');
   writeFileSync(runPath, runScript);
   chmodSync(runPath, 0o755);
 
-  // Generate SKILL.md
-  const skillMdContent = generateSkillMd(skill);
+  const skillMdContent = def.kind === 'reference' ? generateReferenceMd(def) : generateSkillMd(def);
   const skillMdPath = join(outDir, 'SKILL.md');
   writeFileSync(skillMdPath, skillMdContent);
 
-  // Generate package.json
-  const pkgJson = generatePackageJson(skillName, skill.version as string);
+  const pkgJson = generatePackageJson(defName, def.version);
   writeFileSync(join(outDir, 'package.json'), pkgJson);
 
-  // Copy references if they exist
   const refsDir = join(dirname(entryPath), 'references');
   if (existsSync(refsDir)) {
     cpSync(refsDir, join(outDir, 'references'), { recursive: true });
   }
 
-  // Clean up temp wrapper
   try {
     unlinkSync(wrapperPath);
   } catch {}
