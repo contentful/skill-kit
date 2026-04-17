@@ -97,28 +97,29 @@ export interface StepResult<TOutput = unknown> {
   readonly action?: unknown;
 }
 
-export interface PromptContext<TPrev = unknown, TContext = unknown> {
-  prev: TPrev;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface PromptContext<TContext = any, TStash = any> {
+  prev: unknown;
   history: readonly StepResult[];
   context: TContext;
   rendered: string | undefined;
   refs: ReferenceLoader;
   attempts: number;
   host: Handshake;
-  stash: Readonly<Record<string, unknown>>;
+  stash: Readonly<TStash>;
 }
 
-export type PromptFn<TPrev = unknown, TContext = unknown> = (ctx: PromptContext<TPrev, TContext>) => string;
+export type PromptFn<TContext = any, TStash = any> = (ctx: PromptContext<TContext, TStash>) => string;
 
 export type TransitionFn<TOutput = unknown> = (ctx: { output: TOutput; attempts: number }) => string;
 
-export interface StepConfig<TOutput extends z.ZodType = z.ZodType> {
-  prompt?: string | PromptFn;
+export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = any, TStash = any> {
+  prompt?: string | PromptFn<TContext, TStash>;
   output: TOutput;
   next: string | TransitionFn<z.infer<TOutput>> | { terminal: true };
-  render?: (ctx: PromptContext) => string;
+  render?: (ctx: PromptContext<TContext, TStash>) => string;
   action?: ActionDefinition;
-  stash?: (ctx: { output: z.infer<TOutput> }) => unknown;
+  stash?: (ctx: { output: z.infer<TOutput> }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
   ask?: AskUserConfig;
@@ -128,10 +129,10 @@ export interface StepConfig<TOutput extends z.ZodType = z.ZodType> {
   subtask?: SubtaskConfig;
 }
 
-export interface StepDefinition<TOutput extends z.ZodType = z.ZodType> {
+export interface StepDefinition<TOutput extends z.ZodType = z.ZodType, TContext = any, TStash = any> {
   readonly kind: 'step';
-  readonly config: StepConfig<TOutput>;
-  extend(overrides: Partial<StepConfig<TOutput>>): StepDefinition<TOutput>;
+  readonly config: StepConfig<TOutput, TContext, TStash>;
+  extend(overrides: Partial<StepConfig<TOutput, TContext, TStash>>): StepDefinition<TOutput, TContext, TStash>;
 }
 
 // --- Observers ---
@@ -151,12 +152,13 @@ export interface ObserverMap {
 
 // --- Skill ---
 
-export interface SkillConfig<TContext extends z.ZodType = z.ZodType> {
+export interface SkillConfig<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
   name: string;
   version?: string;
   description?: string;
   entry: string;
   context?: TContext;
+  stash?: TStash;
   steps: Record<string, StepDefinition>;
   capabilities?: CapabilityManifest;
   observers?: ObserverMap;
@@ -164,13 +166,14 @@ export interface SkillConfig<TContext extends z.ZodType = z.ZodType> {
   skillMd?: string | ((skill: SkillDefinition) => string);
 }
 
-export interface SkillDefinition<TContext extends z.ZodType = z.ZodType> {
+export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
   readonly kind: 'skill';
   readonly name: string;
   readonly version: string;
   readonly description: string;
   readonly entry: string;
   readonly context: TContext | undefined;
+  readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;
   readonly capabilities: CapabilityManifest | undefined;
   readonly observers: ObserverMap | undefined;

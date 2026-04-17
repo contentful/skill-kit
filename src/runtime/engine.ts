@@ -91,7 +91,7 @@ export class WorkflowEngine {
     const output = Object.freeze(validation.data);
 
     if (stepDef.config.stash) {
-      this.stash.set(stepName, stepDef.config.stash({ output }));
+      this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
     }
 
     let actionOutput: unknown = undefined;
@@ -143,7 +143,7 @@ export class WorkflowEngine {
       const output = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.output);
 
       if (stepDef.config.stash) {
-        this.stash.set(entry.step, stepDef.config.stash({ output }));
+        this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
       }
 
       this.history.append(entry.step, output, entry.action);

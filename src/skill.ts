@@ -1,9 +1,9 @@
 import type { z } from 'zod';
 import type { SkillConfig, SkillDefinition } from './types.js';
 
-export function skill<TContext extends z.ZodType = z.ZodType>(
-  config: SkillConfig<TContext>,
-): SkillDefinition<TContext> {
+export function skill<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType>(
+  config: SkillConfig<TContext, TStash>,
+): SkillDefinition<TContext, TStash> {
   const { name, entry, steps } = config;
 
   if (!name) throw new Error('skill: name is required');
@@ -11,13 +11,14 @@ export function skill<TContext extends z.ZodType = z.ZodType>(
   if (!steps || Object.keys(steps).length === 0) throw new Error('skill: at least one step is required');
   if (!(entry in steps)) throw new Error(`skill: entry step "${entry}" not found in steps`);
 
-  const definition: SkillDefinition<TContext> = {
+  const definition: SkillDefinition<TContext, TStash> = {
     kind: 'skill',
     name,
     version: config.version ?? '0.0.0',
     description: config.description ?? '',
     entry,
     context: config.context,
+    stash: config.stash,
     steps: Object.freeze({ ...steps }),
     capabilities: config.capabilities,
     observers: config.observers,

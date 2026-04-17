@@ -18,6 +18,19 @@ const ProfileSchema = z.object({
   funFact: z.string(),
 });
 
+const ContextSchema = z.object({
+  greeting: z.string().default('Hey there!'),
+});
+
+const StashSchema = z.object({
+  name: z.string(),
+  role: z.string(),
+  latestHobby: z.string(),
+});
+
+type Context = z.infer<typeof ContextSchema>;
+type Stash = z.infer<typeof StashSchema>;
+
 // --- Action: write profile to disk ---
 
 const writeProfile = action({
@@ -26,7 +39,6 @@ const writeProfile = action({
   output: z.object({ path: z.string() }),
   run: async ({ input }) => {
     const path = `/tmp/profile-${Date.now()}.json`;
-    // In a real skill this would write to disk via Bun.write or fs.writeFileSync
     process.stderr.write(`[get-to-know-you] Would write profile to ${path}\n`);
     void input;
     return { path };
@@ -35,9 +47,11 @@ const writeProfile = action({
 
 // --- Reusable open-ended question step ---
 
-const openQuestion = step({
+const answerOutput = z.object({ answer: z.string() });
+
+const openQuestion = step<typeof answerOutput, Context, Stash>({
   prompt: '__override_me__',
-  output: z.object({ answer: z.string() }),
+  output: answerOutput,
   next: '__parent__',
 });
 
@@ -51,9 +65,8 @@ export default skill({
     'Use when the user wants to introduce themselves or when you want to break the ice.',
   entry: 'greet',
 
-  context: z.object({
-    greeting: z.string().default('Hey there!'),
-  }),
+  context: ContextSchema,
+  stash: StashSchema,
 
   finalOutput: z.object({
     card: z.string(),
@@ -68,11 +81,11 @@ export default skill({
 
   steps: {
     greet: step({
-      prompt: ({ context }) =>
+      prompt: ({ context }: { context: Context }) =>
         prompt`
           ${playfulTone}
 
-          ${(context as { greeting: string }).greeting} You're about to interview the user
+          ${context.greeting} You're about to interview the user
           to build their developer trading card. Start by asking their name. Be warm and
           enthusiastic — first impressions matter!
         `,
@@ -112,11 +125,11 @@ export default skill({
     }),
 
     'ask-stack': openQuestion.extend({
-      prompt: ({ stash }) =>
+      prompt: ({ stash }: { stash: Stash }) =>
         prompt`
           ${playfulTone}
 
-          ${(stash as Record<string, unknown>)['name']} is a developer — nice!
+          ${stash.name} is a developer — nice!
           Ask what their go-to tech stack is. Languages, frameworks, the works.
           Get specific — "JavaScript" is boring, "TypeScript + Bun + Zod" is a personality.
         `,
@@ -184,8 +197,7 @@ export default skill({
     'confirm-profile': step({
       confirm: {
         kind: 'confirm',
-        message:
-          "Got enough for a great trading card! Ready to see it, or want to add one more hobby?",
+        message: "Got enough for a great trading card! Ready to see it, or want to add one more hobby?",
         destructive: false,
         defaultAnswer: 'yes',
       },
@@ -207,12 +219,16 @@ export default skill({
         card: z.string(),
         profile: ProfileSchema,
       }),
-      render: ({ history, refs, stash }) => {
-        const name = (stash as Record<string, unknown>)['name'] as string ?? 'Mystery Person';
-        const role = (stash as Record<string, unknown>)['role'] as string ?? 'Enigma';
+      render: ({ history, refs, stash }: { history: readonly { step: string; output: unknown }[]; refs: { load(f: string): string }; stash: Stash }) => {
+        const name = stash.name ?? 'Mystery Person';
+        const role = stash.role ?? 'Enigma';
 
         const specialtyStep = history.find(
-          (s) => s.step === 'ask-stack' || s.step === 'ask-tools' || s.step === 'ask-team-size' || s.step === 'ask-specialty',
+          (s) =>
+            s.step === 'ask-stack' ||
+            s.step === 'ask-tools' ||
+            s.step === 'ask-team-size' ||
+            s.step === 'ask-specialty',
         );
         const specialty = (specialtyStep?.output as { answer: string })?.answer ?? 'Classified';
 
