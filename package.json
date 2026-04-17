@@ -24,6 +24,9 @@
     "dist",
     "bin"
   ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "packageManager": "pnpm@10.24.0",
   "engines": {
     "node": ">=24"
