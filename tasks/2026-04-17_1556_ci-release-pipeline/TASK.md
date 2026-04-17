@@ -12,7 +12,7 @@ skill-kit has no CI/CD. The sibling agents-kit project uses `contentful/assembli
 
 ## Plan
 
-**Approach:** Two workflow files (`ci.yml`, `ci-cd.yml`) matching agents-kit naming conventions, with `release-it` + `@release-it/conventional-changelog` for version bumps, CHANGELOG generation, GitHub Releases, and npm publish.
+**Approach:** Two workflow files (`ci.yml`, `ci-cd.yml`) matching agents-kit naming conventions, with `release-it` for version bumps, GitHub Releases, and npm publish.
 
 **Rejected:**
 
@@ -24,13 +24,17 @@ skill-kit has no CI/CD. The sibling agents-kit project uses `contentful/assembli
 
 ## Steps
 
-- [ ] Create `tsconfig.build.json` + add `build` script to package.json
-- [ ] Verify build produces correct dist/ output
-- [ ] Install release-it deps + create `.release-it.json`
-- [ ] Create `.contentful/vault-secrets.yaml`
-- [ ] Create `.github/workflows/ci.yml`
-- [ ] Create `.github/workflows/ci-cd.yml`
-- [ ] Run full checkpoint (typecheck + test + format)
+- [x] Create `tsconfig.build.json` + add `build` script to package.json
+- [x] Verify build produces correct dist/ output
+- [x] Install release-it deps + create `.release-it.json`
+- [x] Create `.contentful/vault-secrets.yaml`
+- [x] Create `.github/workflows/ci.yml`
+- [x] Create `.github/workflows/ci-cd.yml`
+- [x] Run full checkpoint (typecheck + test + format)
 - [ ] Bootstrap `v0.1.0` tag on main
 
 ## Notes
+
+- Dropped `@release-it/conventional-changelog` — no CHANGELOG needed. release-it uses GitHub's auto-generated release notes instead (`autoGenerate: true`).
+- No `tslib` references in build output — `importHelpers: true` with `target: es2022` emits no helpers.
+- Pre-existing formatting issues in examples/ and pnpm-lock.yaml fixed in separate commit.
