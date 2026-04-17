@@ -1,5 +1,14 @@
+import { dirname, resolve } from 'node:path';
 import type { ReferenceDefinition } from '../types.js';
 import { createReferenceLoader } from '../runtime/reference-loader.js';
+
+function resolveSkillDir(): string {
+  // In a compiled bun binary, process.execPath is the real binary on disk (e.g. .../bin/name-darwin-arm64)
+  // process.argv[1] points inside bun's virtual filesystem (/$bunfs/...) which is useless for file I/O
+  const binPath = process.execPath;
+  // Binary lives in <skill-dir>/bin/<name>, so skill dir is two levels up
+  return resolve(dirname(binPath), '..');
+}
 
 export function referenceMain(def: ReferenceDefinition, refsBasePath?: string): void {
   const args = process.argv.slice(2);
@@ -10,7 +19,7 @@ export function referenceMain(def: ReferenceDefinition, refsBasePath?: string): 
     return;
   }
 
-  const refs = createReferenceLoader(refsBasePath ?? process.cwd());
+  const refs = createReferenceLoader(refsBasePath ?? resolveSkillDir());
 
   if (command === 'topics') {
     for (const [name, topic] of Object.entries(def.topics)) {
