@@ -189,11 +189,13 @@ export interface PromptResult {
   prompt: string;
   schema: unknown;
   preamble?: string;
+  completed?: StepResult;
 }
 
 export interface DoneResult {
   done: true;
   finalOutput: unknown;
+  completed?: StepResult;
 }
 
 export interface ValidationErrorResult {

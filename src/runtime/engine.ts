@@ -2,6 +2,7 @@ import type {
   SkillDefinition,
   Handshake,
   StepDefinition,
+  StepResult,
   PromptResult,
   DoneResult,
   CliResult,
@@ -78,19 +79,23 @@ export class WorkflowEngine {
       this.stash.set(stepName, stepDef.config.stash({ output }));
     }
 
-    this.history.append(stepName, output);
+    // Action output will be added here in Phase 6
+    const actionOutput: unknown = undefined;
 
+    this.history.append(stepName, output, actionOutput);
+
+    const completed: StepResult = Object.freeze({ step: stepName, output, action: actionOutput });
     const nextStep = this.resolveNext(stepDef, output, stepName);
 
     if (nextStep === null) {
-      return this.buildDone();
+      return { ...this.buildDone(), completed };
     }
 
     this.currentStep = nextStep;
-    return this.buildPrompt(nextStep);
+    return { ...this.buildPrompt(nextStep), completed };
   }
 
-  replayHistory(history: Array<{ step: string; output: unknown }>): void {
+  replayHistory(history: Array<{ step: string; output: unknown; action?: unknown }>): void {
     for (const entry of history) {
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;
@@ -102,7 +107,7 @@ export class WorkflowEngine {
         this.stash.set(entry.step, stepDef.config.stash({ output }));
       }
 
-      this.history.append(entry.step, output);
+      this.history.append(entry.step, output, entry.action);
     }
   }
 
