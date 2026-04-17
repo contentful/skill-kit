@@ -3,6 +3,7 @@ export { skill } from './skill.js';
 export { step } from './step.js';
 export { fragment, prompt } from './fragment.js';
 export { action } from './action.js';
+export { render } from './render/index.js';
 export type {
   SkillConfig,
   SkillDefinition,
