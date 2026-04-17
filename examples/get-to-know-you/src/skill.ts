@@ -45,7 +45,6 @@ const writeProfile = action({
 // --- Reusable open-ended question step (shared, no context/stash types) ---
 
 const openQuestionStep = step({
-  openQuestion: oq({ question: '__override_me__' }),
   output: z.object({ answer: z.string() }),
   next: '__parent__',
 });
@@ -126,6 +125,7 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
+    openQuestion: oq({ question: "What's your go-to tech stack?" }),
     prompt: ({ stash }) =>
       prompt`
         ${playfulTone}
@@ -140,6 +140,7 @@ export default skill({
   })
 
   .extend('ask-tools', openQuestionStep, {
+    openQuestion: oq({ question: 'What design tools do you live in?' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -153,6 +154,7 @@ export default skill({
   })
 
   .extend('ask-team-size', openQuestionStep, {
+    openQuestion: oq({ question: 'Tell me about your team.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -166,6 +168,7 @@ export default skill({
   })
 
   .extend('ask-specialty', openQuestionStep, {
+    openQuestion: oq({ question: 'Describe what you do in one sentence.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -179,6 +182,7 @@ export default skill({
   })
 
   .step('ask-hobby', {
+    openQuestion: oq({ question: 'What are your hobbies or side projects?' }),
     prompt: ({ attempts }) =>
       prompt`
         ${playfulTone}

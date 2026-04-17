@@ -27,9 +27,10 @@ Determine which agent host you are running in, and pass it as `--host`:
 ${CLAUDE_SKILL_DIR}/scripts/run start --context '{}' --host claude-code
 ```
 
-The output is JSON with three fields:
+The output is JSON with these fields:
+- `preamble` — **Read this first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM) that prompts use throughout the skill. Follow these mappings for every step.
 - `step` — the current step name
-- `prompt` — instructions for you to follow (read these carefully)
+- `prompt` — instructions for you to follow (read these carefully, using the verb mappings from the preamble)
 - `schema` — JSON Schema describing the output you must produce
 
 ### Step 2: Follow the prompt

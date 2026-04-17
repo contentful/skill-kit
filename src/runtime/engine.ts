@@ -15,6 +15,7 @@ import { History } from './history.js';
 import { StashStore } from './stash.js';
 import { ObserverDispatcher } from './observer-dispatch.js';
 import { resolveProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
+import { generatePreamble } from './preamble.js';
 
 const NOOP_REFS: ReferenceLoader = {
   load: () => '',
@@ -61,6 +62,7 @@ export class WorkflowEngine {
     this.validateParentSentinels();
     validateCycleGuards(this.skill.steps);
     const prompt = this.buildPrompt(this.currentStep);
+    prompt.preamble = generatePreamble(this.handshake);
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
     return prompt;
   }
