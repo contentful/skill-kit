@@ -13,6 +13,7 @@ import { validateCycleGuards } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
 import { StashStore } from './stash.js';
+import { resolveProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
 
 const NOOP_REFS: ReferenceLoader = {
   load: () => '',
@@ -26,6 +27,7 @@ export class WorkflowEngine {
   private readonly history: History;
   private readonly stash: StashStore;
   private readonly refs: ReferenceLoader;
+  private readonly prose: ProseGenerator;
   private currentStep: string;
 
   constructor(
@@ -37,6 +39,7 @@ export class WorkflowEngine {
     this.skill = skill;
     this.handshake = handshake;
     this.refs = refs ?? NOOP_REFS;
+    this.prose = resolveProseGenerator(handshake);
     this.history = new History();
     this.stash = new StashStore();
     this.currentStep = skill.entry;
@@ -171,6 +174,11 @@ export class WorkflowEngine {
       promptText = '';
     }
 
+    const primitiveProse = this.buildPrimitiveProse(stepDef);
+    if (primitiveProse) {
+      promptText = primitiveProse + (promptText ? '\n\n' + promptText : '');
+    }
+
     let schema: unknown = null;
     try {
       schema = stepDef.config.output.toJSONSchema();
@@ -179,6 +187,16 @@ export class WorkflowEngine {
     }
 
     return { step: stepName, prompt: promptText, schema };
+  }
+
+  private buildPrimitiveProse(stepDef: StepDefinition): string | null {
+    const { ask, confirm, plan: planConfig, tasks: tasksConfig, subtask: subtaskConfig } = stepDef.config;
+    if (ask) return this.prose.askUser(ask);
+    if (confirm) return this.prose.confirm(confirm);
+    if (planConfig) return this.prose.plan(planConfig);
+    if (tasksConfig) return this.prose.tasks(tasksConfig);
+    if (subtaskConfig) return this.prose.subtask(subtaskConfig);
+    return null;
   }
 
   private buildDone(): DoneResult {
