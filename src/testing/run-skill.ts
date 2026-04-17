@@ -23,7 +23,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
     path.push(current.step);
 
     const response = await opts.model.respond(current.step, current.prompt);
-    const result = engine.advance(current.step, response);
+    const result = await engine.advance(current.step, response);
 
     if ('error' in result) {
       throw new Error(`Validation error at step "${result.step}": ${result.message}`);

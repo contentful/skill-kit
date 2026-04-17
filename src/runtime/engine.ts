@@ -13,6 +13,7 @@ import { validateCycleGuards } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
 import { StashStore } from './stash.js';
+import { ObserverDispatcher } from './observer-dispatch.js';
 import { resolveProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
 
 const NOOP_REFS: ReferenceLoader = {
@@ -28,6 +29,9 @@ export class WorkflowEngine {
   private readonly stash: StashStore;
   private readonly refs: ReferenceLoader;
   private readonly prose: ProseGenerator;
+  private readonly observers: ObserverDispatcher;
+  private readonly abortController: AbortController;
+  private startTime: number = 0;
   private currentStep: string;
 
   constructor(
@@ -40,6 +44,8 @@ export class WorkflowEngine {
     this.handshake = handshake;
     this.refs = refs ?? NOOP_REFS;
     this.prose = resolveProseGenerator(handshake);
+    this.observers = new ObserverDispatcher(skill.observers ?? {});
+    this.abortController = new AbortController();
     this.history = new History();
     this.stash = new StashStore();
     this.currentStep = skill.entry;
@@ -56,11 +62,15 @@ export class WorkflowEngine {
   }
 
   start(): PromptResult {
+    this.startTime = Date.now();
     validateCycleGuards(this.skill.steps);
-    return this.buildPrompt(this.currentStep);
+    const prompt = this.buildPrompt(this.currentStep);
+    this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
+    return prompt;
   }
 
-  advance(stepName: string, rawOutput: unknown): CliResult {
+  async advance(stepName: string, rawOutput: unknown): Promise<CliResult> {
+    const stepStartTime = Date.now();
     const stepDef = this.skill.steps[stepName];
     if (!stepDef) {
       return { error: 'validation', step: stepName, message: `Unknown step "${stepName}"`, retry: false };
@@ -68,6 +78,12 @@ export class WorkflowEngine {
 
     const validation = validateOutput(stepDef.config.output, rawOutput);
     if (!validation.success) {
+      this.observers.fire('onStepValidationFailed', {
+        step: stepName,
+        raw: rawOutput,
+        error: validation.error!,
+        attempt: this.history.visitCount(stepName) + 1,
+      });
       return {
         error: 'validation',
         step: stepName,
@@ -82,17 +98,41 @@ export class WorkflowEngine {
       this.stash.set(stepName, stepDef.config.stash({ output }));
     }
 
-    // Action output will be added here in Phase 6
-    const actionOutput: unknown = undefined;
+    let actionOutput: unknown = undefined;
+    if (stepDef.config.action) {
+      const actionInput = stepDef.config.action.input.parse(output);
+      actionOutput = await stepDef.config.action.run({
+        input: actionInput,
+        signal: this.abortController.signal,
+      });
+      actionOutput = Object.freeze(actionOutput);
+    }
 
     this.history.append(stepName, output, actionOutput);
+
+    this.observers.fire('onStepComplete', {
+      step: stepName,
+      output,
+      durationMs: Date.now() - stepStartTime,
+    });
 
     const completed: StepResult = Object.freeze({ step: stepName, output, action: actionOutput });
     const nextStep = this.resolveNext(stepDef, output, stepName);
 
     if (nextStep === null) {
+      const path = this.history.all().map((r) => r.step);
+      this.observers.fire('onTransition', { from: stepName, to: '__terminal__', reason: 'terminal' });
+      this.observers.fire('onSkillComplete', {
+        path,
+        finalOutput: output,
+        durationMs: Date.now() - this.startTime,
+      });
+      await this.observers.flush();
       return { ...this.buildDone(), completed };
     }
+
+    this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'next' });
+    this.observers.fire('onStepStart', { step: nextStep, context: this.skillContext });
 
     this.currentStep = nextStep;
     return { ...this.buildPrompt(nextStep), completed };
