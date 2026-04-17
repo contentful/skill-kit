@@ -115,70 +115,58 @@ export default skill({
     onMaxVisits: 'ask-hobby',
   })
 
-  .step(
-    'ask-stack',
-    openQuestion.extend({
-      prompt: ({ stash }) =>
-        prompt`
-          ${playfulTone}
+  .extend('ask-stack', openQuestion, {
+    prompt: ({ stash }) =>
+      prompt`
+        ${playfulTone}
 
-          ${stash.name} is a developer — nice!
-          Ask what their go-to tech stack is. Languages, frameworks, the works.
-          Get specific — "JavaScript" is boring, "TypeScript + Bun + Zod" is a personality.
-        `,
-      next: 'ask-hobby',
-      maxVisits: 1,
-      onMaxVisits: 'ask-hobby',
-    }),
-  )
+        ${stash.name} is a developer — nice!
+        Ask what their go-to tech stack is. Languages, frameworks, the works.
+        Get specific — "JavaScript" is boring, "TypeScript + Bun + Zod" is a personality.
+      `,
+    next: 'ask-hobby',
+    maxVisits: 1,
+    onMaxVisits: 'ask-hobby',
+  })
 
-  .step(
-    'ask-tools',
-    openQuestion.extend({
-      prompt: () =>
-        prompt`
-          ${playfulTone}
+  .extend('ask-tools', openQuestion, {
+    prompt: () =>
+      prompt`
+        ${playfulTone}
 
-          A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?
-          Bonus points if you can get them to admit to a guilty-pleasure tool.
-        `,
-      next: 'ask-hobby',
-      maxVisits: 1,
-      onMaxVisits: 'ask-hobby',
-    }),
-  )
+        A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?
+        Bonus points if you can get them to admit to a guilty-pleasure tool.
+      `,
+    next: 'ask-hobby',
+    maxVisits: 1,
+    onMaxVisits: 'ask-hobby',
+  })
 
-  .step(
-    'ask-team-size',
-    openQuestion.extend({
-      prompt: () =>
-        prompt`
-          ${playfulTone}
+  .extend('ask-team-size', openQuestion, {
+    prompt: () =>
+      prompt`
+        ${playfulTone}
 
-          A manager! Ask about their team — how big, what they work on, and
-          what's the weirdest thing that's happened in a standup.
-        `,
-      next: 'ask-hobby',
-      maxVisits: 1,
-      onMaxVisits: 'ask-hobby',
-    }),
-  )
+        A manager! Ask about their team — how big, what they work on, and
+        what's the weirdest thing that's happened in a standup.
+      `,
+    next: 'ask-hobby',
+    maxVisits: 1,
+    onMaxVisits: 'ask-hobby',
+  })
 
-  .step(
-    'ask-specialty',
-    openQuestion.extend({
-      prompt: () =>
-        prompt`
-          ${playfulTone}
+  .extend('ask-specialty', openQuestion, {
+    prompt: () =>
+      prompt`
+        ${playfulTone}
 
-          Someone who defies categories — intriguing. Ask them to describe
-          what they do in exactly one sentence. Dare them to make it interesting.
-        `,
-      next: 'ask-hobby',
-      maxVisits: 1,
-      onMaxVisits: 'ask-hobby',
-    }),
-  )
+        Someone who defies categories — intriguing. Ask them to describe
+        what they do in exactly one sentence. Dare them to make it interesting.
+      `,
+    next: 'ask-hobby',
+    maxVisits: 1,
+    onMaxVisits: 'ask-hobby',
+  })
 
   .step('ask-hobby', {
     prompt: ({ attempts }) =>

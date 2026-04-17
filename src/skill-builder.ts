@@ -22,6 +22,15 @@ export class SkillBuilder<TContext, TStash> {
     return this;
   }
 
+  extend<TOutput extends z.ZodType>(
+    name: string,
+    base: StepDefinition<TOutput>,
+    overrides: Partial<StepConfig<TOutput, TContext, TStash>>,
+  ): SkillBuilder<TContext, TStash> {
+    this.steps[name] = createStep({ ...base.config, ...overrides } as StepConfig);
+    return this;
+  }
+
   register<TModuleStash extends z.ZodType>(
     mod: ModuleDefinition<TModuleStash>,
     opts: { next: string },
