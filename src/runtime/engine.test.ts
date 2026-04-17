@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from '../skill.js';
-import { step } from '../step.js';
 import { action } from '../action.js';
 import { WorkflowEngine } from './engine.js';
 import type { Handshake, PromptResult, DoneResult, ValidationErrorResult } from '../types.js';
@@ -10,15 +9,11 @@ import type { Handshake, PromptResult, DoneResult, ValidationErrorResult } from 
 const genericHost: Handshake = { host: 'generic', toolsAvailable: [] };
 
 test('engine runs a 3-step linear skill to completion', async () => {
-  const s = skill({
-    name: 'linear',
-    entry: 'a',
-    steps: {
-      a: step({ prompt: 'Step A', output: z.object({ val: z.string() }), next: 'b' }),
-      b: step({ prompt: 'Step B', output: z.object({ val: z.string() }), next: 'c' }),
-      c: step({ prompt: 'Step C', output: z.object({ val: z.string() }), next: { terminal: true } }),
-    },
-  });
+  const s = skill({ name: 'linear', entry: 'a' })
+    .step('a', { prompt: 'Step A', output: z.object({ val: z.string() }), next: 'b' })
+    .step('b', { prompt: 'Step B', output: z.object({ val: z.string() }), next: 'c' })
+    .step('c', { prompt: 'Step C', output: z.object({ val: z.string() }), next: { terminal: true } })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   const p1 = engine.start();
@@ -36,19 +31,15 @@ test('engine runs a 3-step linear skill to completion', async () => {
 });
 
 test('engine routes conditionally based on output', async () => {
-  const s = skill({
-    name: 'conditional',
-    entry: 'check',
-    steps: {
-      check: step({
-        prompt: 'Check status',
-        output: z.object({ ok: z.boolean() }),
-        next: ({ output }) => (output.ok ? 'done' : 'fix'),
-      }),
-      fix: step({ prompt: 'Fix it', output: z.object({ fixed: z.boolean() }), next: { terminal: true } }),
-      done: step({ prompt: 'All good', output: z.object({}), next: { terminal: true } }),
-    },
-  });
+  const s = skill({ name: 'conditional', entry: 'check' })
+    .step('check', {
+      prompt: 'Check status',
+      output: z.object({ ok: z.boolean() }),
+      next: ({ output }) => (output.ok ? 'done' : 'fix'),
+    })
+    .step('fix', { prompt: 'Fix it', output: z.object({ fixed: z.boolean() }), next: { terminal: true } })
+    .step('done', { prompt: 'All good', output: z.object({}), next: { terminal: true } })
+    .build();
 
   const engine1 = new WorkflowEngine(s, genericHost, {});
   engine1.start();
@@ -62,13 +53,9 @@ test('engine routes conditionally based on output', async () => {
 });
 
 test('engine returns validation error for bad output', async () => {
-  const s = skill({
-    name: 'validated',
-    entry: 'a',
-    steps: {
-      a: step({ prompt: 'Go', output: z.object({ count: z.number() }), next: { terminal: true } }),
-    },
-  });
+  const s = skill({ name: 'validated', entry: 'a' })
+    .step('a', { prompt: 'Go', output: z.object({ count: z.number() }), next: { terminal: true } })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
@@ -79,34 +66,25 @@ test('engine returns validation error for bad output', async () => {
 });
 
 test('engine validates context schema on construction', () => {
-  const s = skill({
-    name: 'ctx',
-    entry: 'a',
-    context: z.object({ path: z.string() }),
-    steps: {
-      a: step({ prompt: 'Go', output: z.object({}), next: { terminal: true } }),
-    },
-  });
+  const s = skill({ name: 'ctx', entry: 'a', context: z.object({ path: z.string() }) })
+    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .build();
 
   assert.throws(() => new WorkflowEngine(s, genericHost, { path: 123 }), /Invalid context/);
   assert.doesNotThrow(() => new WorkflowEngine(s, genericHost, { path: '/src' }));
 });
 
 test('engine enforces maxVisits and routes to onMaxVisits', async () => {
-  const s = skill({
-    name: 'bounded',
-    entry: 'loop',
-    steps: {
-      loop: step({
-        prompt: 'Retry',
-        output: z.object({ confidence: z.number() }),
-        next: ({ output }) => (output.confidence < 0.7 ? 'loop' : 'report'),
-        maxVisits: 2,
-        onMaxVisits: 'report',
-      }),
-      report: step({ prompt: 'Report', output: z.object({}), next: { terminal: true } }),
-    },
-  });
+  const s = skill({ name: 'bounded', entry: 'loop' })
+    .step('loop', {
+      prompt: 'Retry',
+      output: z.object({ confidence: z.number() }),
+      next: ({ output }) => (output.confidence < 0.7 ? 'loop' : 'report'),
+      maxVisits: 2,
+      onMaxVisits: 'report',
+    })
+    .step('report', { prompt: 'Report', output: z.object({}), next: { terminal: true } })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
@@ -121,22 +99,17 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
 test('engine provides dynamic prompt context', async () => {
   let capturedCtx: unknown = null;
 
-  const s = skill({
-    name: 'dynamic',
-    entry: 'a',
-    context: z.object({ name: z.string() }),
-    steps: {
-      a: step({ prompt: 'First', output: z.object({ val: z.number() }), next: 'b' }),
-      b: step({
-        prompt: (ctx) => {
-          capturedCtx = ctx;
-          return `Previous: ${JSON.stringify(ctx.prev)}`;
-        },
-        output: z.object({}),
-        next: { terminal: true },
-      }),
-    },
-  });
+  const s = skill({ name: 'dynamic', entry: 'a', context: z.object({ name: z.string() }) })
+    .step('a', { prompt: 'First', output: z.object({ val: z.number() }), next: 'b' })
+    .step('b', {
+      prompt: (ctx) => {
+        capturedCtx = ctx;
+        return `Previous: ${JSON.stringify(ctx.prev)}`;
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, { name: 'test' });
   engine.start();
@@ -147,23 +120,19 @@ test('engine provides dynamic prompt context', async () => {
 });
 
 test('engine replays history for single-invocation mode', () => {
-  const s = skill({
-    name: 'replay',
-    entry: 'a',
-    steps: {
-      a: step({
-        prompt: 'A',
-        output: z.object({ val: z.string() }),
-        stash: ({ output }) => ({ memo: output.val }),
-        next: 'b',
-      }),
-      b: step({
-        prompt: (ctx) => `Stash: ${JSON.stringify(ctx.stash)}`,
-        output: z.object({}),
-        next: { terminal: true },
-      }),
-    },
-  });
+  const s = skill({ name: 'replay', entry: 'a', stash: z.object({ memo: z.string() }) })
+    .step('a', {
+      prompt: 'A',
+      output: z.object({ val: z.string() }),
+      stash: ({ output }) => ({ memo: output.val }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => `Stash: ${JSON.stringify(ctx.stash)}`,
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([{ step: 'a', output: { val: 'hello' } }]);
@@ -184,18 +153,14 @@ test('engine runs action after validation, before transition', async () => {
     },
   });
 
-  const s = skill({
-    name: 'with-action',
-    entry: 'a',
-    steps: {
-      a: step({
-        prompt: 'Write something',
-        output: z.object({ content: z.string() }),
-        action: writeAction,
-        next: { terminal: true },
-      }),
-    },
-  });
+  const s = skill({ name: 'with-action', entry: 'a' })
+    .step('a', {
+      prompt: 'Write something',
+      output: z.object({ content: z.string() }),
+      action: writeAction,
+      next: { terminal: true },
+    })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
@@ -226,16 +191,14 @@ test('engine fires observers at lifecycle points', async () => {
         events.push('skill-complete');
       },
     },
-    steps: {
-      a: step({ prompt: 'A', output: z.object({}), next: { terminal: true } }),
-    },
-  });
+  })
+    .step('a', { prompt: 'A', output: z.object({}), next: { terminal: true } })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('a', {});
 
-  // Give observers time to settle
   await new Promise((r) => setTimeout(r, 10));
 
   assert.ok(events.includes('start:a'));
@@ -253,10 +216,9 @@ test('throwing observer does not crash the skill', async () => {
         throw new Error('observer crash');
       },
     },
-    steps: {
-      a: step({ prompt: 'A', output: z.object({}), next: { terminal: true } }),
-    },
-  });
+  })
+    .step('a', { prompt: 'A', output: z.object({}), next: { terminal: true } })
+    .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();

@@ -9,10 +9,13 @@ export { confirm } from './primitives/confirm.js';
 export { plan } from './primitives/plan.js';
 export { tasks } from './primitives/tasks.js';
 export { subtask } from './primitives/subtask.js';
+export { module } from './module.js';
+export { SkillBuilder } from './skill-builder.js';
+export { ModuleBuilder } from './module.js';
 export { checkSkill } from './lint/index.js';
 export type { LintDiagnostic } from './lint/types.js';
 export type {
-  SkillConfig,
+  SkillBuilderConfig,
   SkillDefinition,
   StepConfig,
   StepDefinition,
@@ -28,6 +31,7 @@ export type {
   StepResult,
   SkillRunResult,
   ModelAdapter,
+  ModuleDefinition,
   AskUserConfig,
   AskUserOption,
   ConfirmConfig,

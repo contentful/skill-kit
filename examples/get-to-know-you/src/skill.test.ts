@@ -25,14 +25,7 @@ test('developer path: greet → ask-role → ask-stack → ask-hobby → confirm
     }),
   });
 
-  assert.deepEqual(result.path, [
-    'greet',
-    'ask-role',
-    'ask-stack',
-    'ask-hobby',
-    'confirm-profile',
-    'profile-card',
-  ]);
+  assert.deepEqual(result.path, ['greet', 'ask-role', 'ask-stack', 'ask-hobby', 'confirm-profile', 'profile-card']);
 });
 
 test('designer path branches to ask-tools', async () => {

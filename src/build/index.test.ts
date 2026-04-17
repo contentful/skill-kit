@@ -7,7 +7,6 @@ import { generateSkillMd } from './skillmd-template.js';
 import { generatePackageJson } from './package-json-template.js';
 import { resolveTargets } from './targets.js';
 import { skill } from '../skill.js';
-import { step } from '../step.js';
 
 test('generateBunWrapper produces valid import structure', () => {
   const result = generateBunWrapper('/abs/path/skill.ts');
@@ -32,14 +31,13 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
     version: '1.0.0',
     description: 'A test skill for unit testing.',
     entry: 'start',
-    steps: {
-      start: step({
-        prompt: 'Begin the process.',
-        output: z.object({ done: z.boolean() }),
-        next: { terminal: true },
-      }),
-    },
-  });
+  })
+    .step('start', {
+      prompt: 'Begin the process.',
+      output: z.object({ done: z.boolean() }),
+      next: { terminal: true },
+    })
+    .build();
 
   const result = generateSkillMd(s);
 
@@ -53,13 +51,9 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
 });
 
 test('generateSkillMd uses default description when none provided', () => {
-  const s = skill({
-    name: 'minimal',
-    entry: 'a',
-    steps: {
-      a: step({ prompt: 'Go.', output: z.object({}), next: { terminal: true } }),
-    },
-  });
+  const s = skill({ name: 'minimal', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
 
   const result = generateSkillMd(s);
   assert.ok(result.includes('minimal skill powered by @contentful/skill-kit'));

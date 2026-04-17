@@ -109,10 +109,12 @@ export interface PromptContext<TContext = any, TStash = any> {
   stash: Readonly<TStash>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PromptFn<TContext = any, TStash = any> = (ctx: PromptContext<TContext, TStash>) => string;
 
 export type TransitionFn<TOutput = unknown> = (ctx: { output: TOutput; attempts: number }) => string;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = any, TStash = any> {
   prompt?: string | PromptFn<TContext, TStash>;
   output: TOutput;
@@ -129,6 +131,7 @@ export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = an
   subtask?: SubtaskConfig;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepDefinition<TOutput extends z.ZodType = z.ZodType, TContext = any, TStash = any> {
   readonly kind: 'step';
   readonly config: StepConfig<TOutput, TContext, TStash>;
@@ -150,21 +153,22 @@ export interface ObserverMap {
   onSkillComplete?: (ctx: { path: string[]; finalOutput: unknown; durationMs: number }) => void | Promise<void>;
 }
 
-// --- Skill ---
+// --- Skill Builder Config (input to skill()) ---
 
-export interface SkillConfig<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
+export interface SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
   name: string;
   version?: string;
   description?: string;
   entry: string;
   context?: TContext;
   stash?: TStash;
-  steps: Record<string, StepDefinition>;
   capabilities?: CapabilityManifest;
   observers?: ObserverMap;
   finalOutput?: z.ZodType;
   skillMd?: string | ((skill: SkillDefinition) => string);
 }
+
+// --- Skill Definition (output of .build()) ---
 
 export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
   readonly kind: 'skill';
@@ -179,6 +183,16 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly observers: ObserverMap | undefined;
   readonly finalOutput: z.ZodType | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
+}
+
+// --- Module Definition (output of module().build()) ---
+
+export interface ModuleDefinition<TModuleStash extends z.ZodType = z.ZodType> {
+  readonly kind: 'module';
+  readonly name: string;
+  readonly entry: string;
+  readonly stash: TModuleStash;
+  readonly steps: Record<string, StepDefinition>;
 }
 
 // --- Protocol (CLI output) ---

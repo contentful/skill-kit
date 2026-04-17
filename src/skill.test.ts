@@ -2,20 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from './skill.js';
-import { step } from './step.js';
 
-test('skill() creates a frozen SkillDefinition', () => {
+test('skill().build() creates a frozen SkillDefinition', () => {
   const s = skill({
     name: 'test-skill',
     entry: 'start',
-    steps: {
-      start: step({
-        prompt: 'Do something.',
-        output: z.object({ done: z.boolean() }),
-        next: { terminal: true },
-      }),
-    },
-  });
+  })
+    .step('start', {
+      prompt: 'Do something.',
+      output: z.object({ done: z.boolean() }),
+      next: { terminal: true },
+    })
+    .build();
 
   assert.equal(s.kind, 'skill');
   assert.equal(s.name, 'test-skill');
@@ -25,75 +23,94 @@ test('skill() creates a frozen SkillDefinition', () => {
   assert.ok(Object.isFrozen(s.steps));
 });
 
-test('skill() preserves version and description', () => {
+test('skill().build() preserves version and description', () => {
   const s = skill({
     name: 'versioned',
     version: '1.2.3',
     description: 'A test skill',
     entry: 'start',
-    steps: {
-      start: step({
-        prompt: 'Go.',
-        output: z.object({ ok: z.boolean() }),
-        next: { terminal: true },
-      }),
-    },
-  });
+  })
+    .step('start', {
+      prompt: 'Go.',
+      output: z.object({ ok: z.boolean() }),
+      next: { terminal: true },
+    })
+    .build();
 
   assert.equal(s.version, '1.2.3');
   assert.equal(s.description, 'A test skill');
 });
 
-test('skill() throws on missing name', () => {
+test('skill().build() throws on missing name', () => {
   assert.throws(
     () =>
-      skill({
-        name: '',
-        entry: 'start',
-        steps: {
-          start: step({ prompt: 'x', output: z.object({}), next: { terminal: true } }),
-        },
-      }),
+      skill({ name: '', entry: 'start' })
+        .step('start', { prompt: 'x', output: z.object({}), next: { terminal: true } })
+        .build(),
     /name is required/,
   );
 });
 
-test('skill() throws on missing entry', () => {
+test('skill().build() throws on missing entry', () => {
   assert.throws(
     () =>
-      skill({
-        name: 'x',
-        entry: '',
-        steps: {
-          start: step({ prompt: 'x', output: z.object({}), next: { terminal: true } }),
-        },
-      }),
+      skill({ name: 'x', entry: '' })
+        .step('start', { prompt: 'x', output: z.object({}), next: { terminal: true } })
+        .build(),
     /entry is required/,
   );
 });
 
-test('skill() throws when entry step not found', () => {
+test('skill().build() throws when entry step not found', () => {
   assert.throws(
     () =>
-      skill({
-        name: 'x',
-        entry: 'missing',
-        steps: {
-          start: step({ prompt: 'x', output: z.object({}), next: { terminal: true } }),
-        },
-      }),
+      skill({ name: 'x', entry: 'missing' })
+        .step('start', { prompt: 'x', output: z.object({}), next: { terminal: true } })
+        .build(),
     /entry step "missing" not found/,
   );
 });
 
-test('skill() throws on empty steps', () => {
-  assert.throws(
-    () =>
-      skill({
-        name: 'x',
-        entry: 'start',
-        steps: {},
-      }),
-    /at least one step/,
-  );
+test('skill().build() throws on empty steps', () => {
+  assert.throws(() => skill({ name: 'x', entry: 'start' }).build(), /at least one step/);
+});
+
+test('context type flows into step prompt callbacks', () => {
+  const s = skill({
+    name: 'typed',
+    entry: 'a',
+    context: z.object({ greeting: z.string() }),
+  })
+    .step('a', {
+      prompt: ({ context }) => {
+        const _check: string = context.greeting;
+        void _check;
+        return 'hi';
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.kind, 'skill');
+});
+
+test('stash type flows into step prompt callbacks', () => {
+  const s = skill({
+    name: 'stashed',
+    entry: 'a',
+    stash: z.object({ name: z.string() }),
+  })
+    .step('a', {
+      prompt: ({ stash }) => {
+        const _check: string = stash.name;
+        void _check;
+        return 'hi';
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.kind, 'skill');
 });

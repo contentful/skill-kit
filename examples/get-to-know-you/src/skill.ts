@@ -18,19 +18,6 @@ const ProfileSchema = z.object({
   funFact: z.string(),
 });
 
-const ContextSchema = z.object({
-  greeting: z.string().default('Hey there!'),
-});
-
-const StashSchema = z.object({
-  name: z.string(),
-  role: z.string(),
-  latestHobby: z.string(),
-});
-
-type Context = z.infer<typeof ContextSchema>;
-type Stash = z.infer<typeof StashSchema>;
-
 // --- Action: write profile to disk ---
 
 const writeProfile = action({
@@ -45,13 +32,11 @@ const writeProfile = action({
   },
 });
 
-// --- Reusable open-ended question step ---
+// --- Reusable open-ended question step (shared, no context/stash types) ---
 
-const answerOutput = z.object({ answer: z.string() });
-
-const openQuestion = step<typeof answerOutput, Context, Stash>({
+const openQuestion = step({
   prompt: '__override_me__',
-  output: answerOutput,
+  output: z.object({ answer: z.string() }),
   next: '__parent__',
 });
 
@@ -65,8 +50,15 @@ export default skill({
     'Use when the user wants to introduce themselves or when you want to break the ice.',
   entry: 'greet',
 
-  context: ContextSchema,
-  stash: StashSchema,
+  context: z.object({
+    greeting: z.string().default('Hey there!'),
+  }),
+
+  stash: z.object({
+    name: z.string(),
+    role: z.string(),
+    latestHobby: z.string(),
+  }),
 
   finalOutput: z.object({
     card: z.string(),
@@ -78,54 +70,55 @@ export default skill({
       process.stderr.write(`[get-to-know-you] ${from} → ${to}\n`);
     },
   },
+})
+  .step('greet', {
+    prompt: ({ context }) =>
+      prompt`
+        ${playfulTone}
 
-  steps: {
-    greet: step({
-      prompt: ({ context }: { context: Context }) =>
-        prompt`
-          ${playfulTone}
+        ${context.greeting} You're about to interview the user
+        to build their developer trading card. Start by asking their name. Be warm and
+        enthusiastic — first impressions matter!
+      `,
+    output: z.object({ name: z.string() }),
+    stash: ({ output }) => ({ name: output.name }),
+    next: 'ask-role',
+    maxVisits: 1,
+    onMaxVisits: 'ask-role',
+  })
 
-          ${context.greeting} You're about to interview the user
-          to build their developer trading card. Start by asking their name. Be warm and
-          enthusiastic — first impressions matter!
-        `,
-      output: z.object({ name: z.string() }),
-      stash: ({ output }) => ({ name: output.name }),
-      next: 'ask-role',
-      maxVisits: 1,
-      onMaxVisits: 'ask-role',
+  .step('ask-role', {
+    ask: askUser({
+      question: "What's your primary role?",
+      options: [
+        { value: 'dev', label: 'Developer', description: 'I write code for a living' },
+        { value: 'designer', label: 'Designer', description: 'I make things pretty and usable' },
+        { value: 'manager', label: 'Manager', description: 'I herd cats professionally' },
+        { value: 'other', label: 'Something else', description: 'I defy your categories' },
+      ],
     }),
+    output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
+    stash: ({ output }) => ({ role: output.role }),
+    next: ({ output }) => {
+      switch (output.role) {
+        case 'dev':
+          return 'ask-stack';
+        case 'designer':
+          return 'ask-tools';
+        case 'manager':
+          return 'ask-team-size';
+        default:
+          return 'ask-specialty';
+      }
+    },
+    maxVisits: 1,
+    onMaxVisits: 'ask-hobby',
+  })
 
-    'ask-role': step({
-      ask: askUser({
-        question: "What's your primary role?",
-        options: [
-          { value: 'dev', label: 'Developer', description: 'I write code for a living' },
-          { value: 'designer', label: 'Designer', description: 'I make things pretty and usable' },
-          { value: 'manager', label: 'Manager', description: 'I herd cats professionally' },
-          { value: 'other', label: 'Something else', description: "I defy your categories" },
-        ],
-      }),
-      output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
-      stash: ({ output }) => ({ role: output.role }),
-      next: ({ output }) => {
-        switch (output.role) {
-          case 'dev':
-            return 'ask-stack';
-          case 'designer':
-            return 'ask-tools';
-          case 'manager':
-            return 'ask-team-size';
-          default:
-            return 'ask-specialty';
-        }
-      },
-      maxVisits: 1,
-      onMaxVisits: 'ask-hobby',
-    }),
-
-    'ask-stack': openQuestion.extend({
-      prompt: ({ stash }: { stash: Stash }) =>
+  .step(
+    'ask-stack',
+    openQuestion.extend({
+      prompt: ({ stash }) =>
         prompt`
           ${playfulTone}
 
@@ -137,8 +130,11 @@ export default skill({
       maxVisits: 1,
       onMaxVisits: 'ask-hobby',
     }),
+  )
 
-    'ask-tools': openQuestion.extend({
+  .step(
+    'ask-tools',
+    openQuestion.extend({
       prompt: () =>
         prompt`
           ${playfulTone}
@@ -150,8 +146,11 @@ export default skill({
       maxVisits: 1,
       onMaxVisits: 'ask-hobby',
     }),
+  )
 
-    'ask-team-size': openQuestion.extend({
+  .step(
+    'ask-team-size',
+    openQuestion.extend({
       prompt: () =>
         prompt`
           ${playfulTone}
@@ -163,8 +162,11 @@ export default skill({
       maxVisits: 1,
       onMaxVisits: 'ask-hobby',
     }),
+  )
 
-    'ask-specialty': openQuestion.extend({
+  .step(
+    'ask-specialty',
+    openQuestion.extend({
       prompt: () =>
         prompt`
           ${playfulTone}
@@ -176,103 +178,99 @@ export default skill({
       maxVisits: 1,
       onMaxVisits: 'ask-hobby',
     }),
+  )
 
-    'ask-hobby': step({
-      prompt: ({ attempts }) =>
-        prompt`
-          ${playfulTone}
+  .step('ask-hobby', {
+    prompt: ({ attempts }) =>
+      prompt`
+        ${playfulTone}
 
-          ${attempts === 0 ? "Now for the important stuff. Ask about hobbies, side projects, or weird talents. The stuff that doesn't go on a résumé." : "Nice! Ask if they have another hobby or interest they want on their card. (Or they can say they're done.)"}
-        `,
-      output: z.object({
-        hobby: z.string(),
-        wantsMore: z.boolean(),
-      }),
-      stash: ({ output }) => ({ latestHobby: output.hobby }),
-      maxVisits: 2,
-      onMaxVisits: 'confirm-profile',
-      next: ({ output }) => (output.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+        ${attempts === 0 ? "Now for the important stuff. Ask about hobbies, side projects, or weird talents. The stuff that doesn't go on a résumé." : "Nice! Ask if they have another hobby or interest they want on their card. (Or they can say they're done.)"}
+      `,
+    output: z.object({
+      hobby: z.string(),
+      wantsMore: z.boolean(),
     }),
+    stash: ({ output }) => ({ latestHobby: output.hobby }),
+    maxVisits: 2,
+    onMaxVisits: 'confirm-profile',
+    next: ({ output }) => (output.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+  })
 
-    'confirm-profile': step({
-      confirm: {
-        kind: 'confirm',
-        message: "Got enough for a great trading card! Ready to see it, or want to add one more hobby?",
-        destructive: false,
-        defaultAnswer: 'yes',
-      },
-      output: z.object({ approved: z.boolean() }),
-      next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
-      maxVisits: 3,
-      onMaxVisits: 'profile-card',
+  .step('confirm-profile', {
+    confirm: {
+      kind: 'confirm',
+      message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
+      destructive: false,
+      defaultAnswer: 'yes',
+    },
+    output: z.object({ approved: z.boolean() }),
+    next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
+    maxVisits: 3,
+    onMaxVisits: 'profile-card',
+  })
+
+  .step('profile-card', {
+    prompt: ({ rendered }) =>
+      prompt`
+        Output the following profile card to the user exactly as shown,
+        with no preamble or trailing commentary:
+
+        ${rendered ?? ''}
+      `,
+    output: z.object({
+      card: z.string(),
+      profile: ProfileSchema,
     }),
+    render: ({ history, refs, stash }) => {
+      const name = stash.name ?? 'Mystery Person';
+      const role = stash.role ?? 'Enigma';
 
-    'profile-card': step({
-      prompt: ({ rendered }) =>
-        prompt`
-          Output the following profile card to the user exactly as shown,
-          with no preamble or trailing commentary:
+      const specialtyStep = history.find(
+        (s) =>
+          s.step === 'ask-stack' || s.step === 'ask-tools' || s.step === 'ask-team-size' || s.step === 'ask-specialty',
+      );
+      const specialty = (specialtyStep?.output as { answer: string })?.answer ?? 'Classified';
 
-          ${rendered ?? ''}
-        `,
-      output: z.object({
-        card: z.string(),
-        profile: ProfileSchema,
-      }),
-      render: ({ history, refs, stash }: { history: readonly { step: string; output: unknown }[]; refs: { load(f: string): string }; stash: Stash }) => {
-        const name = stash.name ?? 'Mystery Person';
-        const role = stash.role ?? 'Enigma';
+      const hobbies = history.filter((s) => s.step === 'ask-hobby').map((s) => (s.output as { hobby: string }).hobby);
 
-        const specialtyStep = history.find(
-          (s) =>
-            s.step === 'ask-stack' ||
-            s.step === 'ask-tools' ||
-            s.step === 'ask-team-size' ||
-            s.step === 'ask-specialty',
-        );
-        const specialty = (specialtyStep?.output as { answer: string })?.answer ?? 'Classified';
+      let funFact = '';
+      try {
+        const facts = refs.load('fun-facts.md');
+        const lines = facts.split('\n').filter((l) => l.startsWith('- '));
+        funFact = lines[Math.floor(Math.random() * lines.length)] ?? '';
+        funFact = funFact.replace(/^- /, '');
+      } catch {
+        funFact = 'Fun facts are overrated anyway.';
+      }
 
-        const hobbies = history
-          .filter((s) => s.step === 'ask-hobby')
-          .map((s) => (s.output as { hobby: string }).hobby);
+      const roleLabels: Record<string, string> = {
+        dev: '💻 Developer',
+        designer: '🎨 Designer',
+        manager: '📋 Manager',
+        other: '✨ Wildcard',
+      };
 
-        let funFact = '';
-        try {
-          const facts = refs.load('fun-facts.md');
-          const lines = facts.split('\n').filter((l) => l.startsWith('- '));
-          funFact = lines[Math.floor(Math.random() * lines.length)] ?? '';
-          funFact = funFact.replace(/^- /, '');
-        } catch {
-          funFact = 'Fun facts are overrated anyway.';
-        }
+      const stats = render.kv({
+        Name: name,
+        Role: roleLabels[role] ?? role,
+        Specialty: specialty,
+      });
 
-        const roleLabels: Record<string, string> = {
-          dev: '💻 Developer',
-          designer: '🎨 Designer',
-          manager: '📋 Manager',
-          other: '✨ Wildcard',
-        };
+      const hobbyList = render.checklist(hobbies.map((h) => ({ text: h, done: true })));
 
-        const stats = render.kv({
-          Name: name,
-          Role: roleLabels[role] ?? role,
-          Specialty: specialty,
-        });
+      const card = [
+        render.section(`🃏 ${name}'s Trading Card`, stats),
+        '',
+        render.section('🎯 Hobbies & Interests', hobbyList || '(none listed)'),
+        '',
+        `> *${funFact}*`,
+      ].join('\n');
 
-        const hobbyList = render.checklist(hobbies.map((h) => ({ text: h, done: true })));
+      return card;
+    },
+    action: writeProfile,
+    next: { terminal: true },
+  })
 
-        const card = [
-          render.section(`🃏 ${name}'s Trading Card`, stats),
-          '',
-          render.section('🎯 Hobbies & Interests', hobbyList || '(none listed)'),
-          '',
-          `> *${funFact}*`,
-        ].join('\n');
-
-        return card;
-      },
-      action: writeProfile,
-      next: { terminal: true },
-    }),
-  },
-});
+  .build();
