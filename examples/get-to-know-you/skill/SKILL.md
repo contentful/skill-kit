@@ -7,40 +7,65 @@ metadata:
 
 # get-to-know-you
 
-This skill is driven by a compiled CLI binary. Follow the invocation pattern below.
+This skill is a structured workflow driven by a compiled CLI binary. You interact with it
+by calling the binary, reading its JSON output, following the instructions in the `prompt`
+field, and passing your response back. **Do not show the raw JSON or Bash commands to the user.**
 
-## Invocation
+## How to run this skill
 
-### Start the workflow
+### Detect your host
 
-```bash
-<skill-dir>/scripts/run start --context '{}'
-```
+Determine which agent host you are running in, and pass it as `--host`:
+- Claude Code: `--host claude-code`
+- Codex: `--host codex`
+- OpenCode: `--host opencode`
+- Unknown/other: omit the flag (defaults to generic)
 
-Parse the JSON output. It contains:
-- `step`: the current step name
-- `prompt`: instructions to follow
-- `schema`: JSON Schema for the expected output
-
-### Follow the prompt
-
-Read the `prompt` field and perform the described task. Produce output matching the `schema`.
-
-### Advance to the next step
+### Step 1: Start
 
 ```bash
-<skill-dir>/scripts/run advance --step <step-name> --output '<your-json-output>' --history '<history-array>'
+${CLAUDE_SKILL_DIR}/scripts/run start --context '{}' --host claude-code
 ```
 
-The `--history` flag must contain the full array of prior step results. Each time you receive
-a response with a `completed` field, append it to the history array for the next call.
+The output is JSON with three fields:
+- `step` — the current step name
+- `prompt` — instructions for you to follow (read these carefully)
+- `schema` — JSON Schema describing the output you must produce
 
-### Repeat until done
+### Step 2: Follow the prompt
 
-Continue the start → advance loop until the response contains `"done": true`.
-The `finalOutput` field contains the skill's result.
+Read the `prompt` field. It contains instructions — follow them. The prompt may ask you to
+use specific tools (like AskUserQuestion), write files, analyze code, or interact with the user.
+Do what the prompt says, then produce a JSON object matching the `schema`.
 
-## Steps
+### Step 3: Advance
+
+Pass your JSON output back, along with the conversation history:
+
+```bash
+${CLAUDE_SKILL_DIR}/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
+```
+
+- `--step`: the step name from the previous response
+- `--output`: your JSON response matching the schema
+- `--history`: a JSON array tracking the conversation. Start with `[]`. After each advance,
+  the response includes a `completed` field — append it to the array for the next call.
+
+### Step 4: Repeat until done
+
+Keep advancing until the response contains `"done": true`. The `finalOutput` field
+contains the skill's result. Present it to the user.
+
+### Important
+
+- **Never show raw JSON output or Bash commands to the user.** The user sees your natural
+  language responses, not the protocol.
+- **Always pass `--history`** with the accumulated array. The binary is stateless — it
+  reconstructs context from the history on each call.
+- **If you get a validation error** (the response has `"error": "validation"`), read the
+  `message` field, fix your output, and retry the same step.
+
+## Steps in this skill
 
 - **greet**: (dynamic)
 - **ask-role**: (dynamic)

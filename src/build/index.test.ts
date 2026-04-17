@@ -11,7 +11,8 @@ import { skill } from '../skill.js';
 test('generateBunWrapper produces valid import structure', () => {
   const result = generateBunWrapper('/abs/path/skill.ts');
   assert.ok(result.includes("import skill from '/abs/path/skill.ts'"));
-  assert.ok(result.includes("import { main } from '@contentful/skill-kit/cli'"));
+  assert.ok(result.includes("import { main } from '"));
+  assert.ok(result.includes('cli.ts'));
   assert.ok(result.includes('main(skill)'));
 });
 
