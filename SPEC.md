@@ -1,6 +1,6 @@
 # `@contentful/skill-kit` — SDK Specification
 
-*v0.1 draft. Builds on the Skill CLI PRD. Specs the TypeScript library skill authors import to define stateful, CLI-driven skills.*
+_v0.1 draft. Builds on the Skill CLI PRD. Specs the TypeScript library skill authors import to define stateful, CLI-driven skills._
 
 ---
 
@@ -48,25 +48,30 @@ A skill is a folder containing a small CLI program plus supporting prose and ref
 
 ```typescript
 // skill.ts
-import { skill, step, z } from "@contentful/skill-kit";
+import { skill, z } from '@contentful/skill-kit';
 
 export default skill({
-  name: "repo-doctor",
-  entry: "diagnose",
-  steps: {
-    diagnose: step({
-      prompt: "Inspect the repository and report failed health checks.",
-      output: z.object({ checks: z.array(CheckResult) }),
-      next: ({ output }) =>
-        output.checks.some(c => c.status === "fail") ? "remediate" : "report",
-    }),
-    remediate: step({ /* ... */ }),
-    report: step({ /* ... */ }),
-  },
-});
+  name: 'repo-doctor',
+  entry: 'diagnose',
+  context: z.object({ repoPath: z.string().default('.') }),
+  stash: z.object({ failCount: z.number() }),
+})
+  .step('diagnose', {
+    prompt: 'Inspect the repository and report failed health checks.',
+    output: z.object({ checks: z.array(CheckResult) }),
+    stash: ({ output }) => ({ failCount: output.checks.filter((c) => c.status === 'fail').length }),
+    next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+  })
+  .step('remediate', {
+    /* ... */
+  })
+  .step('report', {
+    /* ... */
+  })
+  .build();
 ```
 
-That file, plus any supporting references, is the skill source. `skill-kit build` produces a distributable skill directory from it — a compiled binary, a generated `SKILL.md` (per the [agentskills.io spec](https://agentskills.io/specification)), and a shell wrapper in `scripts/`.
+`skill()` returns a builder. `.step()` chains add steps — context and stash types flow into callbacks via contextual inference. `.build()` produces the final skill definition. `skill-kit build` then compiles it into a distributable skill directory — a compiled binary, a generated `SKILL.md` (per the [agentskills.io spec](https://agentskills.io/specification)), and a shell wrapper in `scripts/`.
 
 ### What authors don't write
 
@@ -86,7 +91,7 @@ If you just want to see the whole shape at once, read §1 and §4, then skim §1
 ## Design goals
 
 1. **Declarative feel.** A simple skill is ~30 lines. Authors describe a workflow, not write one.
-2. **Prose stays prose.** The SDK structures *when* prose is shown and *what contract* it satisfies. It never replaces prose with code.
+2. **Prose stays prose.** The SDK structures _when_ prose is shown and _what contract_ it satisfies. It never replaces prose with code.
 3. **Typed boundaries, untyped interiors.** Step I/O is schema-enforced. What the model does inside a step is freeform.
 4. **Node-native, Bun for distribution.** `npx tsx skill.ts` works in dev. `skill-kit build` uses `bun build --compile` to produce distributable executables.
 5. **Composable.** Steps, schemas, fragments, and renderers are importable across skills.
@@ -96,34 +101,92 @@ If you just want to see the whole shape at once, read §1 and §4, then skim §1
 
 ## 1. Core primitives
 
-### `skill(config)`
+### `skill(config)` → `SkillBuilder`
 
-Top-level declaration. One per entry file.
+Returns a builder. One per entry file. Context and stash Zod schemas declared here flow into all step callbacks.
 
 ```typescript
-import { skill, step, z } from "@contentful/skill-kit";
+import { skill, z } from '@contentful/skill-kit';
 
 export default skill({
-  name: "repo-doctor",
-  version: "1.0.0",
-  entry: "diagnose",
-  context: z.object({
-    repoPath: z.string().default("."),
-  }),
-  steps: { /* ... */ },
-});
+  name: 'repo-doctor',
+  version: '1.0.0',
+  entry: 'diagnose',
+  context: z.object({ repoPath: z.string().default('.') }),
+  stash: z.object({ failCount: z.number() }),
+})
+  .step('diagnose', {
+    /* ... */
+  })
+  .step('remediate', {
+    /* ... */
+  })
+  .step('report', {
+    /* ... */
+  })
+  .build();
 ```
 
-### `step(config)`
+### `.step(name, config)` on the builder
 
-One node in the workflow. Has a prompt, an output schema, and a transition.
+Adds a step inline. The prompt and render callbacks receive typed `context` and `stash` from the builder — no manual annotations.
 
 ```typescript
-step({
-  prompt: "...",                   // string | PromptFn
-  output: z.object({ /* ... */ }), // Zod schema — enforced at boundary
-  next: "step-name",               // string | TransitionFn | { terminal: true }
+.step("diagnose", {
+  prompt: ({ context }) => `Check ${context.repoPath}`,  // repoPath: string ✓
+  output: z.object({ /* ... */ }),
+  stash: ({ output }) => ({ failCount: output.checks.length }),
+  next: "report",
+})
+```
+
+### `step(config)` — standalone function
+
+For shared/reusable steps defined outside a skill. These default to untyped context/stash. Use `.extend()` on the builder to apply typed overrides.
+
+```typescript
+import { step, z } from "@contentful/skill-kit";
+
+export const openQuestion = step({
+  output: z.object({ answer: z.string() }),
+  next: "__parent__",
 });
+
+// In a skill:
+.extend("ask-name", openQuestion, {
+  prompt: ({ stash }) => `${stash.name}, tell me more.`,  // typed via builder
+  next: "done",
+})
+```
+
+### `module(config)` → `ModuleBuilder`
+
+Composable step groups with their own stash scope. Module steps can't access the parent skill's context (enforces portability).
+
+```typescript
+import { module, z } from '@contentful/skill-kit';
+
+export const authModule = module({
+  name: 'auth',
+  entry: 'auth-login',
+  stash: z.object({ userId: z.string() }),
+})
+  .step('auth-login', {
+    /* ... next: "__parent__" */
+  })
+  .build();
+```
+
+Register into a skill with `.register()` — stash types merge via intersection:
+
+```typescript
+skill({ stash: z.object({ appName: z.string() }), ... })
+  .register(authModule, { next: "dashboard" })
+  // stash is now { appName: string } & { userId: string }
+  .step("dashboard", {
+    prompt: ({ stash }) => `${stash.userId} at ${stash.appName}`,  // both typed ✓
+    ...
+  })
 ```
 
 ### `z`
@@ -143,7 +206,7 @@ step({
     and which provider is detected.
   `,
   output: z.object({ configured: z.boolean(), provider: z.string().nullable() }),
-  next: "report",
+  next: 'report',
 });
 ```
 
@@ -160,7 +223,7 @@ step({
     Propose concrete remediation for each.
   `,
   output: RemediationsSchema,
-  next: "report",
+  next: 'report',
 });
 ```
 
@@ -181,24 +244,30 @@ For prose that repeats across steps or skills.
 
 ```typescript
 // fragments/tone.ts
-import { fragment } from "@contentful/skill-kit";
+import { fragment } from '@contentful/skill-kit';
 
-export const enterpriseTone = fragment("enterprise-tone", `
+export const enterpriseTone = fragment(
+  'enterprise-tone',
+  `
   Use a professional, concise tone. Avoid jargon unless the user
   introduced it. Prefer concrete recommendations over hedging.
-`);
+`,
+);
 
-export const jsonOutputRules = fragment("json-output", `
+export const jsonOutputRules = fragment(
+  'json-output',
+  `
   Return only valid JSON matching the schema. No preamble,
   no markdown fences, no commentary outside the object.
-`);
+`,
+);
 ```
 
 Used via a tagged template literal that handles indentation and interpolation:
 
 ```typescript
-import { prompt } from "@contentful/skill-kit";
-import { enterpriseTone, jsonOutputRules } from "../fragments/tone";
+import { prompt } from '@contentful/skill-kit';
+import { enterpriseTone, jsonOutputRules } from '../fragments/tone';
 
 step({
   prompt: ({ prev }) => prompt`
@@ -222,27 +291,25 @@ Fragments are named (first arg) so tooling can track usage, detect duplication, 
 
 ```typescript
 // Static
-step({ next: "report" })
+step({ next: 'report' });
 
 // Conditional
 step({
-  next: ({ output }) =>
-    output.checks.some(c => c.status === "fail") ? "remediate" : "report",
-})
+  next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+});
 
 // Terminal
-step({ next: { terminal: true } })
+step({ next: { terminal: true } });
 
 // Bounded loop
 step({
-  next: ({ output, attempts }) =>
-    output.confidence < 0.7 && attempts < 3 ? "self" : "report",
+  next: ({ output, attempts }) => (output.confidence < 0.7 && attempts < 3 ? 'self' : 'report'),
   maxVisits: 3,
-  onMaxVisits: "report",  // required fallback
-})
+  onMaxVisits: 'report', // required fallback
+});
 ```
 
-Cycles require `maxVisits` + `onMaxVisits`. The runtime enforces this at *load time*, not runtime — a skill with an unguarded cycle fails to load.
+Cycles require `maxVisits` + `onMaxVisits`. The runtime enforces this at _load time_, not runtime — a skill with an unguarded cycle fails to load.
 
 ---
 
@@ -251,7 +318,7 @@ Cycles require `maxVisits` + `onMaxVisits`. The runtime enforces this at *load t
 The pattern that sold the PRD: structured model output → code-rendered artifact → model pastes verbatim.
 
 ```typescript
-import { step, render, prompt } from "@contentful/skill-kit";
+import { step, render, prompt } from '@contentful/skill-kit';
 
 step({
   prompt: ({ rendered }) => prompt`
@@ -261,10 +328,10 @@ step({
     ${rendered}
   `,
   render: ({ history }) => {
-    const diagnose = history.find(s => s.step === "diagnose")!.output;
+    const diagnose = history.find((s) => s.step === 'diagnose')!.output;
     return render.table(diagnose.checks, {
-      columns: ["name", "status", "detail"],
-      statusIcons: { pass: "✅", fail: "❌", warn: "⚠️" },
+      columns: ['name', 'status', 'detail'],
+      statusIcons: { pass: '✅', fail: '❌', warn: '⚠️' },
     });
   },
   next: { terminal: true },
@@ -291,10 +358,10 @@ For cases where a host can render something richer than markdown (e.g., an inter
 ```typescript
 step({
   render: ({ host, history }) => {
-    if (host.toolsAvailable.includes("InteractiveTable")) {
-      return render.interactiveTable(rows);  // host-specific prose
+    if (host.toolsAvailable.includes('InteractiveTable')) {
+      return render.interactiveTable(rows); // host-specific prose
     }
-    return render.table(rows);                // markdown fallback
+    return render.table(rows); // markdown fallback
   },
 });
 ```
@@ -323,7 +390,7 @@ step({
   prompt: ({ refs, prev }) => prompt`
     Classify each finding's severity using this rubric:
 
-    ${refs.load("severity-rubric.md")}
+    ${refs.load('severity-rubric.md')}
 
     Findings:
     ${JSON.stringify(prev.findings)}
@@ -355,15 +422,17 @@ Plain TS imports. No ceremony.
 
 ```typescript
 // shared/schemas.ts
-export const CheckResult = z.object({ /* ... */ });
+export const CheckResult = z.object({
+  /* ... */
+});
 
-// skills/repo-doctor/skill.ts
-import { CheckResult } from "../../shared/schemas";
+// In a skill:
+import { CheckResult } from '../../shared/schemas';
 ```
 
 ### B. Reusable step definitions
 
-Steps are values. Export them.
+`step()` creates standalone, portable steps. Use `__parent__` for the transition and `.extend()` on the builder to wire them in with typed overrides.
 
 ```typescript
 // shared/steps/gather-repo-facts.ts
@@ -372,35 +441,51 @@ export const gatherRepoFacts = step({
   output: RepoFactsSchema,
   next: "__parent__",  // transition decided by importing skill
 });
+
+// In a skill — .extend() applies typed context/stash to overrides:
+skill({ context: ContextSchema, stash: StashSchema, ... })
+  .extend("gather", gatherRepoFacts, {
+    prompt: ({ context }) => `Inspect ${context.repoPath}`,  // typed ✓
+    next: "analyze",
+  })
 ```
 
-The `__parent__` sentinel means "whoever imports me decides what comes next." The importing skill overrides:
+### C. Modules (composable step groups)
+
+For groups of steps that belong together and have their own stash scope. Modules can't access the parent skill's context — this enforces portability.
 
 ```typescript
-steps: {
-  gather: gatherRepoFacts.extend({ next: "analyze" }),
-  analyze: /* ... */,
-}
-```
+import { module, z } from '@contentful/skill-kit';
 
-### C. Sub-skills (skill composition)
-
-For skills large enough to warrant being their own unit but invoked from another.
-
-```typescript
-import repoDoctor from "../repo-doctor/skill";
-
-step({
-  invoke: repoDoctor,
-  input: ({ context }) => ({ repoPath: context.repoPath }),
-  output: z.object({ report: z.string() }),
-  next: "use-the-report",
+export const authModule = module({
+  name: 'auth',
+  entry: 'auth-login',
+  stash: z.object({ userId: z.string() }),
 })
+  .step('auth-login', {
+    prompt: 'Ask for credentials.',
+    output: z.object({ userId: z.string() }),
+    stash: ({ output }) => ({ userId: output.userId }),
+    next: '__parent__',
+  })
+  .build();
 ```
 
-The sub-skill runs to its own terminal state; its final output becomes this step's output. The parent skill's state is preserved across the sub-skill's execution.
+Register into a skill with `.register()`. The module's `__parent__` exit is wired to the `next` target, and stash types merge via intersection:
 
-**Opinion:** Sub-skills are a last resort. Most composition needs are met by shared steps. Sub-skills exist because they'll be needed, not because they're encouraged.
+```typescript
+skill({ stash: z.object({ appName: z.string() }), ... })
+  .step("start", { ..., next: "auth-login" })
+  .register(authModule, { next: "dashboard" })
+  .step("dashboard", {
+    // stash: { appName: string } & { userId: string }
+    prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}`,
+    ...
+  })
+  .build();
+```
+
+**Opinion:** Modules are for groups of steps that are reused across skills with their own state. Most composition needs are met by shared steps + `.extend()`.
 
 ---
 
@@ -413,8 +498,8 @@ Declared on the skill, validated on invocation, typed everywhere.
 ```typescript
 skill({
   context: z.object({
-    repoPath: z.string().default("."),
-    strictness: z.enum(["lenient", "normal", "strict"]).default("normal"),
+    repoPath: z.string().default('.'),
+    strictness: z.enum(['lenient', 'normal', 'strict']).default('normal'),
   }),
   // ...
 });
@@ -428,13 +513,13 @@ Sometimes a step wants to stash something the model shouldn't see on the next tu
 step({
   output: SchemaA,
   stash: ({ output }) => ({ rawTimings: output.debugTimings }),
-  next: "next-step",
-})
+  next: 'next-step',
+});
 
 // later
 step({
   render: ({ stash }) => render.timingsChart(stash.rawTimings),
-})
+});
 ```
 
 Stash is typed per step and not exposed to prompts by default (must be explicitly pulled in). Keeps prompts lean.
@@ -449,14 +534,16 @@ A skill can declare a schema for its final result, independent of what any indiv
 
 ```typescript
 skill({
-  name: "repo-doctor",
-  entry: "diagnose",
+  name: 'repo-doctor',
+  entry: 'diagnose',
   finalOutput: z.object({
     passed: z.boolean(),
     checks: z.array(CheckResult),
     reportPath: z.string(),
   }),
-  steps: { /* ... */ },
+  steps: {
+    /* ... */
+  },
 });
 ```
 
@@ -472,11 +559,11 @@ If `finalOutput` is omitted, the skill's terminal output defaults to the last st
 
 ## 8. Side effects and observers
 
-The SDK has two primitives for things that happen around a step: **actions** (which *do* things) and **observers** (which *watch* things). They're in the same section because both attach to a step's lifecycle, but they're deliberately different in intent and power.
+The SDK has two primitives for things that happen around a step: **actions** (which _do_ things) and **observers** (which _watch_ things). They're in the same section because both attach to a step's lifecycle, but they're deliberately different in intent and power.
 
 ### Actions
 
-Steps are pure: inputs in, outputs out, transition declared. When a skill needs to *do* something — write a file, call an API, spawn a subprocess — it declares an **action**.
+Steps are pure: inputs in, outputs out, transition declared. When a skill needs to _do_ something — write a file, call an API, spawn a subprocess — it declares an **action**.
 
 An action is **node-side plumbing**, not a tool. The distinction matters.
 
@@ -486,10 +573,10 @@ An action is **node-side plumbing**, not a tool. The distinction matters.
 Actions are how skills do things; tools are how agents do things. They don't share a surface.
 
 ```typescript
-import { action } from "@contentful/skill-kit";
+import { action } from '@contentful/skill-kit';
 
 const writeReport = action({
-  name: "write-report",
+  name: 'write-report',
   input: z.object({ path: z.string(), content: z.string() }),
   output: z.object({ bytesWritten: z.number() }),
   run: async ({ input, signal }) => {
@@ -499,11 +586,11 @@ const writeReport = action({
 });
 
 step({
-  prompt: "Decide where to write the report and what it should contain.",
+  prompt: 'Decide where to write the report and what it should contain.',
   output: z.object({ path: z.string(), content: z.string() }),
-  action: writeReport,  // runs CLI-side after validation, before transition
-  next: "confirm",
-})
+  action: writeReport, // runs CLI-side after validation, before transition
+  next: 'confirm',
+});
 ```
 
 The lifecycle of a step with an action: prompt emitted → model responds → CLI validates output against schema → CLI runs the declared action with that output as input → action's output is available to the next step via `prev.action` → transition.
@@ -523,19 +610,19 @@ skill({
   // ...
   observers: {
     onStepStart: ({ step, context }) => {
-      logger.info({ step: step.name, skill: "repo-doctor" }, "step started");
+      logger.info({ step: step.name, skill: 'repo-doctor' }, 'step started');
     },
     onStepComplete: ({ step, output, durationMs }) => {
-      metrics.histogram("skill.step.duration", durationMs, { step: step.name });
+      metrics.histogram('skill.step.duration', durationMs, { step: step.name });
     },
     onStepValidationFailed: ({ step, raw, error, attempt }) => {
-      logger.warn({ step: step.name, attempt, error }, "validation failed");
+      logger.warn({ step: step.name, attempt, error }, 'validation failed');
     },
     onTransition: ({ from, to, reason }) => {
       audit.record({ from, to, reason, timestamp: Date.now() });
     },
     onSkillComplete: ({ path, finalOutput, durationMs }) => {
-      metrics.increment("skill.completed", { skill: "repo-doctor" });
+      metrics.increment('skill.completed', { skill: 'repo-doctor' });
     },
   },
 });
@@ -568,10 +655,10 @@ Declared once, enforced everywhere.
 ```typescript
 skill({
   capabilities: {
-    fs: { read: ["./**"], write: ["./report.md", "./.repo-doctor/**"] },
-    net: ["api.github.com"],
-    subprocess: ["git", "npm"],
-    env: ["GITHUB_TOKEN"],
+    fs: { read: ['./**'], write: ['./report.md', './.repo-doctor/**'] },
+    net: ['api.github.com'],
+    subprocess: ['git', 'npm'],
+    env: ['GITHUB_TOKEN'],
   },
   // ...
 });
@@ -587,18 +674,18 @@ Enterprise review becomes tractable: one block, machine-readable, diff-able betw
 
 ```typescript
 // skill.test.ts
-import { test, runSkill, mockModel } from "@contentful/skill-kit/test";
-import doctor from "./skill";
+import { test, runSkill, mockModel } from '@contentful/skill-kit/test';
+import doctor from './skill';
 
-test("routes to remediate when checks fail", async () => {
+test('routes to remediate when checks fail', async () => {
   const result = await runSkill(doctor, {
-    context: { repoPath: "./fixtures/broken-repo" },
+    context: { repoPath: './fixtures/broken-repo' },
     model: mockModel({
-      diagnose: { checks: [{ name: "ci", status: "fail", detail: "..." }] },
-      remediate: { remediations: [{ check: "ci", action: "add .github/workflows/ci.yml" }] },
+      diagnose: { checks: [{ name: 'ci', status: 'fail', detail: '...' }] },
+      remediate: { remediations: [{ check: 'ci', action: 'add .github/workflows/ci.yml' }] },
     }),
   });
-  expect(result.path).toEqual(["diagnose", "remediate", "report"]);
+  expect(result.path).toEqual(['diagnose', 'remediate', 'report']);
   expect(result.output).toMatchSnapshot();
 });
 ```
@@ -651,14 +738,14 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 
 ### Flags
 
-| Flag | Required | Description |
-| ---- | -------- | ----------- |
-| `--context` | On `start` | JSON string. Validated against the skill's context schema. |
-| `--step` | On `advance` | Name of the step whose output is being submitted. |
-| `--output` | On `advance` | JSON string. The agent's response for the step. |
-| `--history` | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. |
-| `--host` | Optional | Host identifier for host-aware prose generation. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`. |
-| `--help` | — | Print usage to stderr, exit 0. |
+| Flag        | Required     | Description                                                                                                               |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `--context` | On `start`   | JSON string. Validated against the skill's context schema.                                                                |
+| `--step`    | On `advance` | Name of the step whose output is being submitted.                                                                         |
+| `--output`  | On `advance` | JSON string. The agent's response for the step.                                                                           |
+| `--history` | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history.                                   |
+| `--host`    | Optional     | Host identifier for host-aware prose generation. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`. |
+| `--help`    | —            | Print usage to stderr, exit 0.                                                                                            |
 
 ### Statelessness
 
@@ -669,6 +756,7 @@ This design means no persistent process, no stdin piping, and no reliance on the
 ### Script design conventions
 
 The binary follows the [agentskills.io script design conventions](https://agentskills.io/specification):
+
 - Non-interactive (no TTY prompts)
 - `--help` for discoverability
 - JSON to stdout, diagnostics to stderr
@@ -688,6 +776,7 @@ skill-kit build src/skills/repo-doctor/skill.ts -o skills/repo-doctor
 ```
 
 This:
+
 1. Validates the skill definition (cycle guards, schema consistency)
 2. Compiles platform-specific binaries via `bun build --compile`
 3. Generates `scripts/run` shell wrapper (platform dispatcher)
@@ -737,6 +826,7 @@ exec "$BIN" "$@"
 ### Generated SKILL.md
 
 The build generates a SKILL.md with:
+
 - **Frontmatter:** `name`, `description`, `compatibility`, optional `metadata.version`
 - **Invocation instructions:** step-by-step pattern for the agent (start → advance loop → parse JSON → follow schema)
 - **Step descriptions:** each step's purpose (extracted from the skill definition)
@@ -794,6 +884,7 @@ my-repo/
 ```
 
 **Why the separation matters:**
+
 - `skills/` is the installation boundary. The `skills` CLI copies skill directories in isolation. Everything outside — source, tests, CI configs — stays out of the installed artifact.
 - `src/skills/` contains author code, tests, and source references. It's not distributed.
 - `SKILL.md` lives at the skill root as required by the agentskills.io spec. The directory name matches the `name` field.
@@ -844,7 +935,7 @@ The skill CLI is a compiled binary invoked by the agent via Bash. The agent read
 
 The CLI cannot call tools. The CLI cannot invoke MCP methods. The CLI cannot cause the host to render UI. Only the model can do those things, and only in response to its own reasoning about what the text it just read is asking of it.
 
-So when the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can actually do is return prose that names the tool and describes how to use it. The model reads the prose, decides to call the tool, and on its next turn the CLI sees the answer in whatever form the model passes it back. The shape of the answer is still enforced by the step's Zod schema — that's unchanged. What changes from a naive prose skill is *which prose* gets emitted and *how reliably* it steers the model.
+So when the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can actually do is return prose that names the tool and describes how to use it. The model reads the prose, decides to call the tool, and on its next turn the CLI sees the answer in whatever form the model passes it back. The shape of the answer is still enforced by the step's Zod schema — that's unchanged. What changes from a naive prose skill is _which prose_ gets emitted and _how reliably_ it steers the model.
 
 Everything in the rest of this section is downstream of that constraint. The primitives are prose generators with host-aware variants. The "capability system" is a lookup table that picks which variant to emit. There is no secret channel.
 
@@ -868,7 +959,7 @@ The SDK has two levers for calibrated prose:
 
 **Preamble at session start.** When the CLI starts, it emits a one-time preamble that sets conventions for the session. Something like:
 
-> *In this session you will be following a structured workflow. When a step's prose says "ask the user", you MUST use the AskUserQuestion tool, not free-text. When a step provides a `Rendered output` block, you MUST emit it verbatim with no preamble, no commentary, no added markdown. When a step says "spawn a subtask", use the Agent tool. Failure to follow these conventions will cause the workflow to error.*
+> _In this session you will be following a structured workflow. When a step's prose says "ask the user", you MUST use the AskUserQuestion tool, not free-text. When a step provides a `Rendered output` block, you MUST emit it verbatim with no preamble, no commentary, no added markdown. When a step says "spawn a subtask", use the Agent tool. Failure to follow these conventions will cause the workflow to error._
 
 The preamble is generated per host — different tool names, different emphasis, same semantics. Later step prose can then be shorter and more intent-focused ("ask the user which deployment target") because the preamble has already established what "ask" means. This saves tokens and reduces drift across repeated instructions.
 
@@ -876,11 +967,11 @@ Preambles are best-effort — the model may forget them under context pressure. 
 
 **Per-step prose.** For any step using a primitive, the SDK generates prose calibrated for the current host. On Claude Code, an `askUser` step emits prose like:
 
-> *Use the AskUserQuestion tool to ask the user: "Which deployment target?" Options (pass exactly these values): "production", "staging", "local". Do not modify option text. Do not add options. Expect exactly one answer.*
+> _Use the AskUserQuestion tool to ask the user: "Which deployment target?" Options (pass exactly these values): "production", "staging", "local". Do not modify option text. Do not add options. Expect exactly one answer._
 
 On a host without a structured-question tool, the same primitive emits:
 
-> *Ask the user: "Which deployment target?" Present these options and no others: production, staging, local. Accept only a single answer matching one of those exact strings. If the response is ambiguous or doesn't match, ask again with the same options.*
+> _Ask the user: "Which deployment target?" Present these options and no others: production, staging, local. Accept only a single answer matching one of those exact strings. If the response is ambiguous or doesn't match, ask again with the same options._
 
 The skill author wrote the same three lines in both cases. The SDK handled the rest.
 
@@ -910,49 +1001,55 @@ This matters because tool-name-awareness is a leaky abstraction. An author who t
 
 Each primitive below has a prose-generation table indicating what the SDK emits per host. Treat the prose as indicative — tuning it over time is the SDK's responsibility, not the author's.
 
-#### `askUser` — structured question
+#### `askUser` — structured or open question
+
+A single primitive with two modes, discriminated by `type`:
 
 ```typescript
-import { step, askUser, z } from "@contentful/skill-kit";
-
-step({
+// Structured — presents fixed options via host-specific tool
+.step("choose-target", {
   ask: askUser({
+    type: "structured",
     question: "Which deployment target?",
     options: [
       { value: "production", label: "Production", description: "Live, customer-facing" },
       { value: "staging", label: "Staging", description: "Pre-production mirror" },
-      { value: "local", label: "Local", description: "Developer machine only" },
     ],
-    multiSelect: false,
   }),
-  output: z.object({ target: z.enum(["production", "staging", "local"]) }),
+  output: z.object({ target: z.enum(["production", "staging"]) }),
   next: ({ output }) => `deploy-${output.target}`,
+})
+
+// Open — free-text conversation, never a structured tool
+.step("ask-stack", {
+  ask: askUser({ type: "open", question: "What's your go-to tech stack?" }),
+  prompt: "Ask about their stack — get specific, not generic.",
+  output: z.object({ answer: z.string() }),
+  next: "done",
 })
 ```
 
-Generated prose by host:
+The SDK uses an abstract verb system. Step prose contains `ASK_STRUCTURED` or `ASK_FREEFORM` verbs. The preamble (sent once at session start) maps these verbs to host-specific behavior:
 
-| Host         | Prose the SDK emits (summarized)                                                                               |
-| ------------ | -------------------------------------------------------------------------------------------------------------- |
-| Claude Code  | "Use the AskUserQuestion tool with question X and options A/B/C…"                                              |
-| Codex        | "Ask the user question X. Present options A/B/C. Accept only one of those exact values. If ambiguous, re-ask." |
-| OpenCode     | Same as Codex                                                                                                  |
-| Unknown host | Same as Codex                                                                                                  |
+| Verb             | Claude Code                               | Codex / OpenCode / Generic                 |
+| ---------------- | ----------------------------------------- | ------------------------------------------ |
+| `ASK_STRUCTURED` | `AskUserQuestion` tool with exact options | Prose with option list, re-ask on mismatch |
+| `ASK_FREEFORM`   | Plain text conversation, no tool          | Plain text conversation, no tool           |
 
-The `output` schema is the contract regardless of host. Downstream steps don't know how the answer was obtained.
+The `output` schema is the contract regardless of host or mode. Downstream steps don't know how the answer was obtained.
 
 #### `confirm` — binary approval with context
 
 ```typescript
 step({
   confirm: {
-    message: "This will delete 47 files in .cache/. Continue?",
+    message: 'This will delete 47 files in .cache/. Continue?',
     destructive: true,
-    defaultAnswer: "no",
+    defaultAnswer: 'no',
   },
   output: z.object({ approved: z.boolean() }),
-  next: ({ output }) => output.approved ? "proceed" : "abort",
-})
+  next: ({ output }) => (output.approved ? 'proceed' : 'abort'),
+});
 ```
 
 | Host         | Prose the SDK emits (summarized)                                                                                                        |
@@ -969,18 +1066,18 @@ Distinct from `askUser` because destructive-op confirmation needs stronger defau
 ```typescript
 step({
   plan: {
-    summary: "Migrate auth from session cookies to JWTs",
+    summary: 'Migrate auth from session cookies to JWTs',
     steps: [
-      "Add JWT signing and verification helpers",
-      "Update login flow to issue JWTs",
-      "Add compatibility layer for existing sessions",
-      "Update middleware to accept both",
-      "Migration script for active sessions",
+      'Add JWT signing and verification helpers',
+      'Update login flow to issue JWTs',
+      'Add compatibility layer for existing sessions',
+      'Update middleware to accept both',
+      'Migration script for active sessions',
     ],
   },
   output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-  next: ({ output }) => output.approved ? "execute" : "revise",
-})
+  next: ({ output }) => (output.approved ? 'execute' : 'revise'),
+});
 ```
 
 | Host         | Prose the SDK emits (summarized)                                                                                      |
@@ -997,10 +1094,10 @@ This is where UX degrades most visibly — Claude Code gets a first-class plan-m
 ```typescript
 step({
   tasks: {
-    create: prev.remediations.map(r => ({ title: r.action, status: "pending" })),
+    create: prev.remediations.map((r) => ({ title: r.action, status: 'pending' })),
   },
-  next: "execute-tasks",
-})
+  next: 'execute-tasks',
+});
 ```
 
 | Host         | Prose the SDK emits (summarized)                                                                 |
@@ -1019,12 +1116,12 @@ Already covered by `render` + verbatim-paste in §4. Sits in the capability syst
 ```typescript
 step({
   subtask: {
-    prompt: "Research the top 5 CVEs affecting our dependency tree. Return a structured summary.",
+    prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
-    contextBudget: "narrow",
+    contextBudget: 'narrow',
   },
-  next: "incorporate-findings",
-})
+  next: 'incorporate-findings',
+});
 ```
 
 | Host         | Prose the SDK emits (summarized)                                                                     |
@@ -1036,7 +1133,7 @@ step({
 
 On hosts without real agent isolation, the prose fallback still produces correct output but doesn't get the context-window benefit.
 
-### What we do *not* abstract
+### What we do _not_ abstract
 
 - **File I/O.** The model picks `Read`/`read`/`cat` correctly from prose like "open `src/foo.ts`".
 - **Shell / subprocess.** `Bash` vs `shell` — the model dispatches correctly.
@@ -1052,8 +1149,8 @@ The `--host` CLI flag identifies which agent host is invoking the skill. The SDK
 ```typescript
 const HOST_REGISTRY: Record<string, string[]> = {
   'claude-code': ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TaskCreate', 'TaskUpdate', 'Agent'],
-  'codex': ['shell', 'apply_patch', 'update_plan', 'web_search'],
-  'opencode': ['bash', 'read', 'write', 'edit', 'todowrite', 'task'],
+  codex: ['shell', 'apply_patch', 'update_plan', 'web_search'],
+  opencode: ['bash', 'read', 'write', 'edit', 'todowrite', 'task'],
 };
 ```
 
@@ -1063,7 +1160,7 @@ The lookup is mechanical:
 
 ```typescript
 function resolveAskProse(host: Handshake): (p: AskPayload) => string {
-  if (host.toolsAvailable.includes("AskUserQuestion")) {
+  if (host.toolsAvailable.includes('AskUserQuestion')) {
     return renderAskForClaudeCode;
   }
   return renderAskGenericProse;
@@ -1097,7 +1194,7 @@ For cases where a primitive doesn't cover the need, the handshake is queryable i
 ```typescript
 step({
   prompt: ({ host, prev }) => {
-    if (host.toolsAvailable.includes("InteractiveCodeReview")) {
+    if (host.toolsAvailable.includes('InteractiveCodeReview')) {
       return prompt`
         Use the InteractiveCodeReview tool to present the diff,
         passing findings as annotations.
@@ -1107,7 +1204,7 @@ step({
       Present the diff as a markdown code block, then list findings below as numbered items with file:line refs.
     `;
   },
-})
+});
 ```
 
 Escape hatch, not default. Heavy use of host-branching in prompts indicates a missing primitive and is lint-flagged.
@@ -1129,27 +1226,27 @@ Author writes:
 ```typescript
 step({
   ask: askUser({
-    question: "Which deployment target?",
+    question: 'Which deployment target?',
     options: [
-      { value: "production", label: "Production" },
-      { value: "staging", label: "Staging" },
-      { value: "local", label: "Local" },
+      { value: 'production', label: 'Production' },
+      { value: 'staging', label: 'Staging' },
+      { value: 'local', label: 'Local' },
     ],
   }),
-  output: z.object({ target: z.enum(["production", "staging", "local"]) }),
+  output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
   next: ({ output }) => `deploy-${output.target}`,
-})
+});
 ```
 
 On Claude Code (`--host claude-code`), the CLI's JSON output includes a `prompt` field like:
 
-> *Use the AskUserQuestion tool to ask the user: "Which deployment target?" Provide these options, unchanged, as the tool's option list: "Production" (value: production), "Staging" (value: staging), "Local" (value: local). Expect exactly one answer. Return the answer verbatim in the value field.*
+> _Use the AskUserQuestion tool to ask the user: "Which deployment target?" Provide these options, unchanged, as the tool's option list: "Production" (value: production), "Staging" (value: staging), "Local" (value: local). Expect exactly one answer. Return the answer verbatim in the value field._
 
 The agent reads this prompt, calls `AskUserQuestion`, the host renders native UI, the user picks one, the answer comes back. The agent then calls `scripts/run advance --step deploy-target --output '{"target":"production"}' --history '[...]'`. The CLI validates against the Zod schema and routes to the next step.
 
 On Codex (`--host codex`), the same skill's prompt field contains:
 
-> *Ask the user: "Which deployment target?" Present these three options and no others: Production, Staging, Local. Accept only a single answer matching one of those exact labels. If the user's response is ambiguous or doesn't match, ask again with the same options. Return the answer to me as { "target": "production" | "staging" | "local" }.*
+> _Ask the user: "Which deployment target?" Present these three options and no others: Production, Staging, Local. Accept only a single answer matching one of those exact labels. If the user's response is ambiguous or doesn't match, ask again with the same options. Return the answer to me as { "target": "production" | "staging" | "local" }._
 
 Same skill. Same contract. Degraded but coherent UX. And — critically — if the SDK ships a better version of either prose variant next month, this skill benefits without changes.
 
@@ -1161,7 +1258,7 @@ Worth knowing the alternative exists; not worth designing around it.
 
 ### Summary
 
-The CLI can only emit prose. The SDK's value is that it emits *calibrated* prose per host — naming the right tool on each host, falling back to generic prose where no native tool exists, and sharpening that prose over time without requiring authors to rewrite skills. Primitives are worth having because they're where prompt-engineering effort concentrates and where improvements compound across the ecosystem.
+The CLI can only emit prose. The SDK's value is that it emits _calibrated_ prose per host — naming the right tool on each host, falling back to generic prose where no native tool exists, and sharpening that prose over time without requiring authors to rewrite skills. Primitives are worth having because they're where prompt-engineering effort concentrates and where improvements compound across the ecosystem.
 
 ---
 

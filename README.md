@@ -14,33 +14,32 @@ A prose skill is a blob of markdown the agent reads all at once. That works for 
 skill-kit replaces the blob with a **typed state machine**. You define steps with prompts, Zod schemas for outputs, and explicit transitions. The SDK compiles it into a self-contained binary that agents invoke via Bash — one call per step, JSON in and out.
 
 ```typescript
-import { skill, step, z } from '@contentful/skill-kit';
+import { skill, z } from '@contentful/skill-kit';
 
 export default skill({
   name: 'repo-doctor',
   entry: 'diagnose',
-  steps: {
-    diagnose: step({
-      prompt: 'Inspect the repository. Report health checks for CI, linting, and test coverage.',
-      output: z.object({
-        checks: z.array(
-          z.object({
-            name: z.string(),
-            status: z.enum(['pass', 'fail']),
-            detail: z.string(),
-          }),
-        ),
-      }),
-      next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+})
+  .step('diagnose', {
+    prompt: 'Inspect the repository. Report health checks for CI, linting, and test coverage.',
+    output: z.object({
+      checks: z.array(
+        z.object({
+          name: z.string(),
+          status: z.enum(['pass', 'fail']),
+          detail: z.string(),
+        }),
+      ),
     }),
-    remediate: step({
-      /* fix failing checks */
-    }),
-    report: step({
-      /* render results, terminal */
-    }),
-  },
-});
+    next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+  })
+  .step('remediate', {
+    /* fix failing checks */
+  })
+  .step('report', {
+    /* render results, terminal */
+  })
+  .build();
 ```
 
 That's a skill. The agent sees one step at a time, returns structured output, and the CLI decides what happens next.
@@ -56,47 +55,51 @@ pnpm add @contentful/skill-kit
 ### Define a skill
 
 ```typescript
-// src/skills/deploy-check/skill.ts
-import { skill, step, z, askUser } from '@contentful/skill-kit';
+// examples/deploy-check/src/skill.ts
+import { skill, z, askUser } from '@contentful/skill-kit';
 
 export default skill({
   name: 'deploy-check',
   entry: 'choose',
-  steps: {
-    choose: step({
-      ask: askUser({
-        question: 'Which environment?',
-        options: [
-          { value: 'production', label: 'Production' },
-          { value: 'staging', label: 'Staging' },
-        ],
-      }),
-      output: z.object({ target: z.enum(['production', 'staging']) }),
-      next: 'verify',
+  context: z.object({ env: z.string().default('staging') }),
+  stash: z.object({ target: z.string() }),
+})
+  .step('choose', {
+    ask: askUser({
+      type: 'structured',
+      question: 'Which environment?',
+      options: [
+        { value: 'production', label: 'Production' },
+        { value: 'staging', label: 'Staging' },
+      ],
     }),
-    verify: step({
-      prompt: ({ prev }) => `Run pre-deploy checks for ${prev.target}. Report any blockers.`,
-      output: z.object({ blockers: z.array(z.string()), safe: z.boolean() }),
-      next: ({ output }) => (output.safe ? 'deploy' : 'abort'),
-    }),
-    deploy: step({
-      prompt: 'Execute the deployment.',
-      output: z.object({ url: z.string() }),
-      next: { terminal: true },
-    }),
-    abort: step({
-      prompt: 'Report the blockers to the user and explain why deployment was aborted.',
-      output: z.object({ summary: z.string() }),
-      next: { terminal: true },
-    }),
-  },
-});
+    output: z.object({ target: z.enum(['production', 'staging']) }),
+    stash: ({ output }) => ({ target: output.target }),
+    next: 'verify',
+  })
+  .step('verify', {
+    prompt: ({ stash }) => `Run pre-deploy checks for ${stash.target}. Report any blockers.`,
+    output: z.object({ blockers: z.array(z.string()), safe: z.boolean() }),
+    next: ({ output }) => (output.safe ? 'deploy' : 'abort'),
+  })
+  .step('deploy', {
+    prompt: 'Execute the deployment.',
+    output: z.object({ url: z.string() }),
+    next: { terminal: true },
+  })
+  .step('abort', {
+    prompt: 'Report the blockers and explain why deployment was aborted.',
+    output: z.object({ summary: z.string() }),
+    next: { terminal: true },
+  })
+  .build();
 ```
+
+Context and stash types flow into step callbacks automatically — `stash.target` is typed as `string`, no annotations needed.
 
 ### Test without an agent
 
 ```typescript
-// src/skills/deploy-check/skill.test.ts
 import { runSkill, mockModel } from '@contentful/skill-kit/test';
 import deploy from './skill.ts';
 
@@ -112,20 +115,16 @@ const result = await runSkill(deploy, {
 // result.output → { url: 'https://staging.example.com' }
 ```
 
-```bash
-node --test --import tsx/esm src/skills/deploy-check/skill.test.ts
-```
-
 ### Build a distributable skill
 
 ```bash
-npx skill-kit build src/skills/deploy-check/skill.ts -o skills/deploy-check
+npx skill-kit build examples/deploy-check/src/skill.ts -o examples/deploy-check/skill
 ```
 
 Output is an [agentskills.io](https://agentskills.io/specification)-compliant directory:
 
 ```
-skills/deploy-check/
+examples/deploy-check/skill/
   SKILL.md               ← Generated. Agents read this.
   package.json
   scripts/
@@ -158,80 +157,107 @@ No persistent processes. No stdin piping. Just Bash calls that every agent host 
 
 ### Host-aware primitives
 
-Primitives like `askUser`, `confirm`, and `plan` generate different prose depending on the agent:
+The SDK uses an abstract verb system. The preamble (sent on first response) maps verbs to host-specific tools:
 
-| Primitive | Claude Code                 | Codex                        | Generic                |
-| --------- | --------------------------- | ---------------------------- | ---------------------- |
-| `askUser` | Uses `AskUserQuestion` tool | Prose with option list       | Prose with option list |
-| `plan`    | Uses `EnterPlanMode`        | Uses `update_plan`           | Numbered list          |
-| `tasks`   | Uses `TaskCreate`           | Uses `update_plan` checklist | Markdown checklist     |
+| Verb             | Claude Code             | Codex                   | Generic                 |
+| ---------------- | ----------------------- | ----------------------- | ----------------------- |
+| `ASK_STRUCTURED` | `AskUserQuestion` tool  | Prose with option list  | Prose with option list  |
+| `ASK_FREEFORM`   | Plain text conversation | Plain text conversation | Plain text conversation |
+| `PRESENT_PLAN`   | `EnterPlanMode`         | `update_plan`           | Numbered list           |
+| `CREATE_TASKS`   | `TaskCreate`            | `update_plan` checklist | Markdown checklist      |
 
-Same skill definition, calibrated UX per host. The `--host` flag controls which prose variant is emitted.
+Step prose uses the verbs. The preamble handles the translation. Same skill, every host.
 
-## Repo Layout
+### Modules
 
-Source and build output live in separate directories:
+Composable step groups with their own stash scope:
 
+```typescript
+import { module, z } from '@contentful/skill-kit';
+
+const authModule = module({
+  name: 'auth',
+  entry: 'auth-login',
+  stash: z.object({ userId: z.string() }),
+})
+  .step('auth-login', {
+    prompt: 'Ask for credentials.',
+    output: z.object({ userId: z.string() }),
+    stash: ({ output }) => ({ userId: output.userId }),
+    next: '__parent__', // exits back to the registering skill
+  })
+  .build();
 ```
-my-repo/
-  src/skills/              ← Where you write TypeScript
-    deploy-check/
-      skill.ts
-      skill.test.ts
-      references/          ← Docs the skill can load on demand
-  skills/                  ← Build output. Each subdir is installable.
-    deploy-check/          ← Built by: skill-kit build ... -o skills/deploy-check
-      SKILL.md
-      scripts/run
-      bin/...
-    some-prose-skill/      ← Traditional prose skills coexist
-      SKILL.md
-```
 
-Wire it up in `package.json`:
+Register into a skill — stash types merge automatically:
 
-```json
-{
-  "scripts": {
-    "build": "skill-kit build src/skills/deploy-check/skill.ts -o skills/deploy-check",
-    "test": "node --test --import tsx/esm 'src/skills/**/*.test.ts'"
-  }
-}
+```typescript
+skill({ name: 'app', entry: 'start', stash: z.object({ appName: z.string() }) })
+  .step('start', { ... next: 'auth-login' })
+  .register(authModule, { next: 'dashboard' })
+  .step('dashboard', {
+    // stash is now { appName: string } & { userId: string }
+    prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}`,
+    ...
+  })
+  .build();
 ```
 
 ## API
 
-### Core
+### Builder
 
 ```typescript
-import { skill, step, z, fragment, prompt, action, render } from '@contentful/skill-kit';
+import { skill, z } from '@contentful/skill-kit';
+
+skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput? })
+  .step(name, config)              // inline step — context/stash types inferred
+  .extend(name, sharedStep, overrides)  // shared step with typed overrides
+  .register(module, { next })      // merge module steps, widen stash type
+  .build()                         // → SkillDefinition
 ```
 
-| Export                                                                   | What it does                                           |
-| ------------------------------------------------------------------------ | ------------------------------------------------------ |
-| `skill({ name, entry, steps })`                                          | Define a skill with named steps and an entry point     |
-| `step({ prompt, output, next })`                                         | Define a step — prompt, Zod schema, transition         |
-| `z`                                                                      | Zod re-export — one schema library, no extra deps      |
-| `fragment(name, content)`                                                | Reusable prose partial                                 |
-| `` prompt`...` ``                                                        | Tagged template with dedent + fragment interpolation   |
-| `action({ name, input, output, run })`                                   | Deterministic CLI-side effect (file writes, API calls) |
-| `render.table()` `.checklist()` `.diff()` `.code()` `.kv()` `.section()` | Markdown renderers for deterministic output            |
-
-### Primitives
+### askUser — structured or open
 
 ```typescript
-import { askUser, confirm, plan, tasks, subtask } from '@contentful/skill-kit';
-```
+import { askUser } from '@contentful/skill-kit';
 
-These attach to a step and generate host-aware prose automatically:
+// Structured — becomes ASK_STRUCTURED verb → AskUserQuestion on Claude Code
+ask: askUser({
+  type: 'structured',
+  question: 'Which env?',
+  options: [{ value: 'prod', label: 'Production' }, ...],
+})
 
-```typescript
-step({
-  ask: askUser({ question: 'Pick one', options: [...] }),
-  output: z.object({ choice: z.enum([...]) }),
-  next: ({ output }) => `handle-${output.choice}`,
+// Open — becomes ASK_FREEFORM verb → plain text conversation, never a tool
+ask: askUser({
+  type: 'open',
+  question: "What's your tech stack?",
 })
 ```
+
+### Other primitives
+
+| Export                               | What it does                 |
+| ------------------------------------ | ---------------------------- |
+| `confirm({ message, destructive? })` | Binary yes/no approval       |
+| `plan({ summary, steps })`           | Show plan, wait for approval |
+| `tasks({ create })`                  | Tracked subtask list         |
+| `subtask({ prompt, output })`        | Spawn isolated sub-agent     |
+
+### Standalone steps
+
+```typescript
+import { step, z } from '@contentful/skill-kit';
+
+// For shared/reusable steps defined outside a skill
+const openQuestion = step({
+  output: z.object({ answer: z.string() }),
+  next: '__parent__',
+});
+```
+
+Use via `.extend()` on the builder to get typed overrides.
 
 ### Testing
 
@@ -258,60 +284,47 @@ skill-kit check <skill.ts>                 # Lint for portability issues
 <summary><strong>Step config reference</strong></summary>
 
 ```typescript
-step({
-  // What the agent sees (string or function of context)
+// Inline in .step() — context and stash typed via builder
+{
   prompt: string | (ctx: PromptContext) => string,
-
-  // Zod schema — agent output is validated against this
   output: z.ZodType,
-
-  // Where to go next
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
-
-  // Deterministic rendered output (agent pastes verbatim)
   render?: (ctx: PromptContext) => string,
-
-  // CLI-side effect after validation, before transition
   action?: ActionDefinition,
-
-  // Stash data for later steps (not shown to agent)
-  stash?: (ctx: { output }) => unknown,
-
-  // Loop guards
+  stash?: (ctx: { output }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-
-  // Host-aware primitives (attach one per step)
   ask?: AskUserConfig,
   confirm?: ConfirmConfig,
   plan?: PlanConfig,
   tasks?: TasksConfig,
   subtask?: SubtaskConfig,
-})
+}
 ```
 
-The `PromptContext` available in dynamic prompts and render functions:
+`PromptContext` fields available in dynamic prompts and render functions:
 
-| Field      | Type                      | Description                               |
-| ---------- | ------------------------- | ----------------------------------------- |
-| `prev`     | `unknown`                 | Output of the previous step               |
-| `history`  | `StepResult[]`            | All prior step results                    |
-| `context`  | `unknown`                 | Global skill context                      |
-| `rendered` | `string?`                 | Output of this step's `render()`          |
-| `refs`     | `ReferenceLoader`         | Lazy loader for `references/` files       |
-| `attempts` | `number`                  | How many times this step has been visited |
-| `host`     | `Handshake`               | Current host info                         |
-| `stash`    | `Record<string, unknown>` | Data stashed by prior steps               |
+| Field      | Description                                                 |
+| ---------- | ----------------------------------------------------------- |
+| `prev`     | Output of the previous step                                 |
+| `history`  | All prior step results                                      |
+| `context`  | Global skill context (typed from `skill({ context: ... })`) |
+| `rendered` | Output of this step's `render()`                            |
+| `refs`     | Lazy loader for `references/` files                         |
+| `attempts` | How many times this step has been visited                   |
+| `host`     | Current host info                                           |
+| `stash`    | Accumulated stash data (typed from `skill({ stash: ... })`) |
 
 </details>
 
 ## Key Decisions
 
+- **Builder pattern.** `skill()` returns a builder. `.step()` callbacks get typed context/stash via contextual inference — no annotations.
 - **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
 - **State is append-only.** No mutation of prior step outputs. Enables replay.
 - **Cycles require guards.** Every loop must declare `maxVisits` + `onMaxVisits`. Enforced at load time.
-- **Actions are declared.** CLI-side effects are named and explicit — never inferred.
-- **Single invocation.** No persistent processes. Each call reconstructs from history. Agents pipe nothing.
+- **Abstract verb system.** Step prose uses verbs (`ASK_STRUCTURED`, `ASK_FREEFORM`). The preamble maps them to host-specific tools.
+- **Single invocation.** No persistent processes. Each call reconstructs from history.
 
 ---
 
