@@ -18,17 +18,17 @@ skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput?, 
 
 ### `skill()` config
 
-| Field          | Type                                         | Required | Description                                                       |
-| -------------- | -------------------------------------------- | -------- | ----------------------------------------------------------------- |
-| `name`         | `string`                                     | yes      | Skill identifier                                                  |
-| `entry`        | `string`                                     | yes      | Name of the first step                                            |
-| `version`      | `string`                                     | no       | Defaults to `'0.0.0'`                                             |
-| `description`  | `string`                                     | no       | Used in generated SKILL.md                                        |
-| `context`      | `z.ZodType`                                  | no       | Zod schema for immutable skill-wide context                       |
-| `stash`        | `z.ZodType`                                  | no       | Zod schema for mutable cross-step state                           |
-| `finalOutput`  | `z.ZodType`                                  | no       | Schema for the terminal step's output                             |
-| `capabilities` | `CapabilityManifest`                         | no       | Declares host tools, filesystem, subprocess, env var requirements |
-| `observers`    | `ObserverMap`                                | no       | Lifecycle hooks (see [Observers](#observers))                     |
+| Field          | Type                                           | Required | Description                                                       |
+| -------------- | ---------------------------------------------- | -------- | ----------------------------------------------------------------- |
+| `name`         | `string`                                       | yes      | Skill identifier                                                  |
+| `entry`        | `string`                                       | yes      | Name of the first step                                            |
+| `version`      | `string`                                       | no       | Defaults to `'0.0.0'`                                             |
+| `description`  | `string`                                       | no       | Used in generated SKILL.md                                        |
+| `context`      | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                       |
+| `stash`        | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                           |
+| `finalOutput`  | `z.ZodType`                                    | no       | Schema for the terminal step's output                             |
+| `capabilities` | `CapabilityManifest`                           | no       | Declares host tools, filesystem, subprocess, env var requirements |
+| `observers`    | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                     |
 | `skillMd`      | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                 |
 
 Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
@@ -93,16 +93,16 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 Available in dynamic `prompt` and `render` functions:
 
-| Field      | Type                     | Description                                    |
-| ---------- | ------------------------ | ---------------------------------------------- |
-| `prev`     | `unknown`                | Output of the previous step                    |
-| `history`  | `readonly StepResult[]`  | All prior step results                         |
-| `context`  | `TContext`               | Immutable skill context (typed from builder)    |
-| `rendered` | `string \| undefined`     | Output of this step's `render()`, if present   |
-| `refs`     | `ReferenceLoader`        | Loader for `references/` files                 |
-| `attempts` | `number`                 | How many times this step has been visited       |
-| `host`     | `Handshake`              | Current host info and available tools          |
-| `stash`    | `Readonly<TStash>`       | Accumulated stash (typed from builder, frozen) |
+| Field      | Type                    | Description                                    |
+| ---------- | ----------------------- | ---------------------------------------------- |
+| `prev`     | `unknown`               | Output of the previous step                    |
+| `history`  | `readonly StepResult[]` | All prior step results                         |
+| `context`  | `TContext`              | Immutable skill context (typed from builder)   |
+| `rendered` | `string \| undefined`   | Output of this step's `render()`, if present   |
+| `refs`     | `ReferenceLoader`       | Loader for `references/` files                 |
+| `attempts` | `number`                | How many times this step has been visited      |
+| `host`     | `Handshake`             | Current host info and available tools          |
+| `stash`    | `Readonly<TStash>`      | Accumulated stash (typed from builder, frozen) |
 
 ### Transitions
 
@@ -152,11 +152,11 @@ reference({ name, description, version? })
 
 ### `reference()` config
 
-| Field         | Type     | Required | Description                        |
-| ------------- | -------- | -------- | ---------------------------------- |
-| `name`        | `string` | yes      | Reference skill identifier         |
-| `description` | `string` | yes      | Used in generated SKILL.md         |
-| `version`     | `string` | no       | Defaults to `'0.0.0'`             |
+| Field         | Type     | Required | Description                |
+| ------------- | -------- | -------- | -------------------------- |
+| `name`        | `string` | yes      | Reference skill identifier |
+| `description` | `string` | yes      | Used in generated SKILL.md |
+| `version`     | `string` | no       | Defaults to `'0.0.0'`      |
 
 ### `.topic(name, config)`
 
@@ -193,7 +193,7 @@ const authModule = module({
     prompt: 'Ask for credentials.',
     output: z.object({ userId: z.string() }),
     stash: ({ output }) => ({ userId: output.userId }),
-    next: '__parent__',  // exits back to the registering skill
+    next: '__parent__', // exits back to the registering skill
   })
   .build();
 ```
@@ -241,14 +241,14 @@ ask: askUser({
     { value: 'production', label: 'Production', description: 'Live traffic' },
     { value: 'staging', label: 'Staging' },
   ],
-  multiSelect: false,  // optional, defaults to false
-})
+  multiSelect: false, // optional, defaults to false
+});
 
 // Open — free-text conversation, never a structured tool
 ask: askUser({
   type: 'open',
   question: "What's your tech stack?",
-})
+});
 ```
 
 ### `confirm` — binary approval
@@ -258,9 +258,9 @@ import { confirm } from '@contentful/skill-kit';
 
 confirm: confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
-  destructive: true,       // optional — adds warning in prose
-  defaultAnswer: 'no',     // optional — 'yes' or 'no'
-})
+  destructive: true, // optional — adds warning in prose
+  defaultAnswer: 'no', // optional — 'yes' or 'no'
+});
 ```
 
 Step output should include `{ approved: z.boolean() }`.
@@ -273,7 +273,7 @@ import { plan } from '@contentful/skill-kit';
 plan: plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
-})
+});
 ```
 
 ### `tasks` — tracked task list
@@ -286,7 +286,7 @@ tasks: tasks({
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
   ],
-})
+});
 ```
 
 ### `subtask` — spawn isolated sub-agent
@@ -297,21 +297,21 @@ import { subtask } from '@contentful/skill-kit';
 subtask: subtask({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
-  contextBudget: 'narrow',  // optional: 'narrow' | 'normal' | 'wide'
-})
+  contextBudget: 'narrow', // optional: 'narrow' | 'normal' | 'wide'
+});
 ```
 
 ### Host-aware verb mapping
 
 The SDK uses an abstract verb system. Step prose contains verbs; the preamble (sent once at session start) maps them to host-specific behavior:
 
-| Verb             | Claude Code                       | Codex                   | OpenCode                | Generic                 |
-| ---------------- | --------------------------------- | ----------------------- | ----------------------- | ----------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool            | Prose with option list  | Prose with option list  | Prose with option list  |
-| `ASK_FREEFORM`   | Plain text conversation           | Plain text conversation | Plain text conversation | Plain text conversation |
-| `PRESENT_PLAN`   | `EnterPlanMode` / `ExitPlanMode`  | `update_plan`           | Numbered list           | Numbered list           |
-| `CREATE_TASKS`   | `TaskCreate` / `TaskUpdate`       | `update_plan` checklist | `todowrite`             | Markdown checklist      |
-| `SPAWN_SUBTASK`  | `Agent` tool                      | Focus locally           | `task` tool             | Focus locally           |
+| Verb             | Claude Code                      | Codex                   | OpenCode                | Generic                 |
+| ---------------- | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
+| `ASK_STRUCTURED` | `AskUserQuestion` tool           | Prose with option list  | Prose with option list  | Prose with option list  |
+| `ASK_FREEFORM`   | Plain text conversation          | Plain text conversation | Plain text conversation | Plain text conversation |
+| `PRESENT_PLAN`   | `EnterPlanMode` / `ExitPlanMode` | `update_plan`           | Numbered list           | Numbered list           |
+| `CREATE_TASKS`   | `TaskCreate` / `TaskUpdate`      | `update_plan` checklist | `todowrite`             | Markdown checklist      |
+| `SPAWN_SUBTASK`  | `Agent` tool                     | Focus locally           | `task` tool             | Focus locally           |
 
 Same skill, every host. The preamble handles the translation.
 
@@ -364,6 +364,7 @@ const myPrompt = prompt`
 ```
 
 The `prompt` tag:
+
 1. Detects Fragment objects in interpolation slots (duck-typed: `{ name, content }`) and inserts their content
 2. Converts non-Fragment values to strings
 3. **Auto-dedents** the result: strips leading/trailing empty lines, then removes the minimum shared indentation from all lines
@@ -404,12 +405,12 @@ Attach to a step via the `action` field:
 
 ### `action()` config
 
-| Field    | Type                                                     | Required | Description                     |
-| -------- | -------------------------------------------------------- | -------- | ------------------------------- |
-| `name`   | `string`                                                 | yes      | Action identifier               |
-| `input`  | `z.ZodType`                                              | yes      | Schema for what the action receives |
-| `output` | `z.ZodType`                                              | yes      | Schema for what the action returns  |
-| `run`    | `(ctx: { input, signal: AbortSignal }) => Promise<output>` | yes      | Async function with typed I/O   |
+| Field    | Type                                                       | Required | Description                         |
+| -------- | ---------------------------------------------------------- | -------- | ----------------------------------- |
+| `name`   | `string`                                                   | yes      | Action identifier                   |
+| `input`  | `z.ZodType`                                                | yes      | Schema for what the action receives |
+| `output` | `z.ZodType`                                                | yes      | Schema for what the action returns  |
+| `run`    | `(ctx: { input, signal: AbortSignal }) => Promise<output>` | yes      | Async function with typed I/O       |
 
 The `run` function receives the step's validated output (parsed through `input` schema) and an `AbortSignal`. Action results are recorded in history alongside step outputs.
 
@@ -492,13 +493,23 @@ Lifecycle hooks for telemetry, logging, or analytics:
 skill({
   // ...
   observers: {
-    onStepStart: ({ step, context }) => { /* ... */ },
-    onStepComplete: ({ step, output, durationMs }) => { /* ... */ },
-    onStepValidationFailed: ({ step, raw, error, attempt }) => { /* ... */ },
-    onTransition: ({ from, to, reason }) => { /* ... */ },
-    onSkillComplete: ({ path, finalOutput, durationMs }) => { /* ... */ },
+    onStepStart: ({ step, context }) => {
+      /* ... */
+    },
+    onStepComplete: ({ step, output, durationMs }) => {
+      /* ... */
+    },
+    onStepValidationFailed: ({ step, raw, error, attempt }) => {
+      /* ... */
+    },
+    onTransition: ({ from, to, reason }) => {
+      /* ... */
+    },
+    onSkillComplete: ({ path, finalOutput, durationMs }) => {
+      /* ... */
+    },
   },
-})
+});
 ```
 
 Observers are fire-and-forget — they don't affect workflow execution. All are optional.
@@ -517,15 +528,17 @@ Drives a skill to completion with a model adapter:
 
 ```typescript
 const result = await runSkill(mySkill, {
-  context: { repoPath: '.' },   // optional — parsed against skill's context schema
-  model: mockModel({ /* ... */ }),
+  context: { repoPath: '.' }, // optional — parsed against skill's context schema
+  model: mockModel({
+    /* ... */
+  }),
   host: { host: 'claude-code' }, // optional — defaults to generic
 });
 
-result.path;      // string[] — sequence of step names visited
-result.outputs;   // Record<string, unknown> — raw model responses by step
-result.output;    // unknown — final output
-result.history;   // readonly StepResult[] — validated outputs + action results
+result.path; // string[] — sequence of step names visited
+result.outputs; // Record<string, unknown> — raw model responses by step
+result.output; // unknown — final output
+result.history; // readonly StepResult[] — validated outputs + action results
 ```
 
 ### `mockModel(map)`
@@ -534,13 +547,14 @@ Maps step names to canned responses:
 
 ```typescript
 mockModel({
-  diagnose: { checks: [{ name: 'ci', status: 'fail' }] },   // static value
-  remediate: [                                                 // array — cycles through on repeated visits
+  diagnose: { checks: [{ name: 'ci', status: 'fail' }] }, // static value
+  remediate: [
+    // array — cycles through on repeated visits
     { action: 'add CI' },
     { action: 'fix lint' },
   ],
-  report: (prompt) => ({ summary: prompt.includes('fail') ? 'issues found' : 'clean' }),  // function
-})
+  report: (prompt) => ({ summary: prompt.includes('fail') ? 'issues found' : 'clean' }), // function
+});
 ```
 
 - **Static value:** returns the same response every visit.
@@ -565,11 +579,11 @@ skill-kit build <entry.ts> -o <dir> --targets darwin-arm64,linux-x64,linux-arm64
 skill-kit build <entry.ts> -o <dir> --single   # current platform only (fast dev builds)
 ```
 
-| Flag        | Required | Description                                                                              |
-| ----------- | -------- | ---------------------------------------------------------------------------------------- |
-| `-o, --out` | yes      | Output directory                                                                         |
-| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`                          |
-| `--single`  | no       | Build only for current platform                                                          |
+| Flag        | Required | Description                                                     |
+| ----------- | -------- | --------------------------------------------------------------- |
+| `-o, --out` | yes      | Output directory                                                |
+| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64` |
+| `--single`  | no       | Build only for current platform                                 |
 
 Output:
 
@@ -601,13 +615,13 @@ skill-kit check <entry.ts>
 
 Rules:
 
-| Rule                        | Severity | What it catches                                                         |
-| --------------------------- | -------- | ----------------------------------------------------------------------- |
-| `cycle-guard`               | error    | Circular step transitions without `maxVisits` + `onMaxVisits`           |
-| `no-host-tool-names`        | error    | Direct host tool name references without `host.toolsAvailable` guard    |
-| `primitive-schema-mismatch` | error    | `askUser` option values missing from output enum (or vice versa)        |
-| `orphan-references`         | warning  | Files in `references/` not mentioned in any step prompt                 |
-| `unknown-tool-names`        | warning  | `host.toolsAvailable.includes()` checks referencing unrecognized tools  |
+| Rule                        | Severity | What it catches                                                                |
+| --------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `cycle-guard`               | error    | Circular step transitions without `maxVisits` + `onMaxVisits`                  |
+| `no-host-tool-names`        | error    | Direct host tool name references without `host.toolsAvailable` guard           |
+| `primitive-schema-mismatch` | error    | `askUser` option values missing from output enum (or vice versa)               |
+| `orphan-references`         | warning  | Files in `references/` not mentioned in any step prompt                        |
+| `unknown-tool-names`        | warning  | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
 | `host-branching-density`    | warning  | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
 
 ---
