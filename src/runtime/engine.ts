@@ -237,8 +237,16 @@ export class WorkflowEngine {
   }
 
   private buildPrimitiveProse(stepDef: StepDefinition): string | null {
-    const { ask, confirm, plan: planConfig, tasks: tasksConfig, subtask: subtaskConfig } = stepDef.config;
+    const {
+      ask,
+      openQuestion: oq,
+      confirm,
+      plan: planConfig,
+      tasks: tasksConfig,
+      subtask: subtaskConfig,
+    } = stepDef.config;
     if (ask) return this.prose.askUser(ask);
+    if (oq) return this.prose.openQuestion(oq);
     if (confirm) return this.prose.confirm(confirm);
     if (planConfig) return this.prose.plan(planConfig);
     if (tasksConfig) return this.prose.tasks(tasksConfig);

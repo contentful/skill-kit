@@ -9,36 +9,20 @@ const config: PlanConfig = {
   steps: ['Add JWT helpers', 'Update login flow', 'Add compat layer'],
 };
 
-test('plan on Claude Code uses EnterPlanMode', () => {
+test('plan produces PRESENT_PLAN verb with summary and steps', () => {
   const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion', 'EnterPlanMode'] };
   const prose = resolveProseGenerator(host);
   const result = prose.plan(config);
 
-  assert.ok(result.includes('EnterPlanMode'));
+  assert.ok(result.includes('PRESENT_PLAN'));
   assert.ok(result.includes('Migrate auth to JWTs'));
+  assert.ok(result.includes('1. Add JWT helpers'));
 });
 
-test('plan on Codex uses update_plan', () => {
-  const host: Handshake = { host: 'codex', toolsAvailable: ['shell', 'apply_patch', 'update_plan'] };
-  const prose = resolveProseGenerator(host);
-  const result = prose.plan(config);
-
-  assert.ok(result.includes('update_plan'));
-});
-
-test('plan on OpenCode uses todowrite', () => {
-  const host: Handshake = { host: 'opencode', toolsAvailable: ['bash', 'multiedit', 'todowrite'] };
-  const prose = resolveProseGenerator(host);
-  const result = prose.plan(config);
-
-  assert.ok(result.includes('todowrite'));
-});
-
-test('plan on generic uses numbered list', () => {
+test('plan uses same verb on generic host', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
   const prose = resolveProseGenerator(host);
   const result = prose.plan(config);
 
-  assert.ok(result.includes('numbered list'));
-  assert.ok(result.includes('1. Add JWT helpers'));
+  assert.ok(result.includes('PRESENT_PLAN'));
 });

@@ -13,31 +13,21 @@ const config = askUser({
   ],
 });
 
-test('askUser on Claude Code produces AskUserQuestion prose', () => {
+test('askUser produces ASK_STRUCTURED verb with question and options', () => {
   const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion'] };
   const prose = resolveProseGenerator(host);
   const result = prose.askUser(config);
 
-  assert.ok(result.includes('AskUserQuestion'));
+  assert.ok(result.includes('ASK_STRUCTURED'));
   assert.ok(result.includes('Which deployment target?'));
   assert.ok(result.includes('Production'));
 });
 
-test('askUser on generic host produces fallback prose', () => {
+test('askUser uses same verb on generic host', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
   const prose = resolveProseGenerator(host);
   const result = prose.askUser(config);
 
-  assert.ok(!result.includes('AskUserQuestion'));
-  assert.ok(result.includes('Ask the user'));
+  assert.ok(result.includes('ASK_STRUCTURED'));
   assert.ok(result.includes('Production'));
-});
-
-test('askUser on Codex produces codex-specific prose', () => {
-  const host: Handshake = { host: 'codex', toolsAvailable: ['shell', 'apply_patch', 'update_plan'] };
-  const prose = resolveProseGenerator(host);
-  const result = prose.askUser(config);
-
-  assert.ok(!result.includes('AskUserQuestion'));
-  assert.ok(result.includes('Ask the user'));
 });

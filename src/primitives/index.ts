@@ -1,4 +1,5 @@
 export { askUser } from './ask-user.js';
+export { openQuestion } from './open-question.js';
 export { confirm } from './confirm.js';
 export { plan } from './plan.js';
 export { tasks } from './tasks.js';

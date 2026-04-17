@@ -78,7 +78,18 @@ export interface SubtaskConfig {
   contextBudget?: 'narrow' | 'normal' | 'wide';
 }
 
-export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | TasksConfig | SubtaskConfig;
+export interface OpenQuestionConfig {
+  readonly kind: 'openQuestion';
+  question: string;
+}
+
+export type PrimitiveConfig =
+  | AskUserConfig
+  | ConfirmConfig
+  | PlanConfig
+  | TasksConfig
+  | SubtaskConfig
+  | OpenQuestionConfig;
 
 // --- Capabilities ---
 
@@ -125,6 +136,7 @@ export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = an
   maxVisits?: number;
   onMaxVisits?: string;
   ask?: AskUserConfig;
+  openQuestion?: OpenQuestionConfig;
   confirm?: ConfirmConfig;
   plan?: PlanConfig;
   tasks?: TasksConfig;

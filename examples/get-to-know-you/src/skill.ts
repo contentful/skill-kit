@@ -1,4 +1,14 @@
-import { skill, step, z, action, fragment, prompt, render, askUser } from '../../../src/index.js';
+import {
+  skill,
+  step,
+  z,
+  action,
+  fragment,
+  prompt,
+  render,
+  askUser,
+  openQuestion as oq,
+} from '../../../src/index.js';
 
 // --- Fragments ---
 
@@ -34,8 +44,8 @@ const writeProfile = action({
 
 // --- Reusable open-ended question step (shared, no context/stash types) ---
 
-const openQuestion = step({
-  prompt: '__override_me__',
+const openQuestionStep = step({
+  openQuestion: oq({ question: '__override_me__' }),
   output: z.object({ answer: z.string() }),
   next: '__parent__',
 });
@@ -115,7 +125,7 @@ export default skill({
     onMaxVisits: 'ask-hobby',
   })
 
-  .extend('ask-stack', openQuestion, {
+  .extend('ask-stack', openQuestionStep, {
     prompt: ({ stash }) =>
       prompt`
         ${playfulTone}
@@ -129,7 +139,7 @@ export default skill({
     onMaxVisits: 'ask-hobby',
   })
 
-  .extend('ask-tools', openQuestion, {
+  .extend('ask-tools', openQuestionStep, {
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -142,7 +152,7 @@ export default skill({
     onMaxVisits: 'ask-hobby',
   })
 
-  .extend('ask-team-size', openQuestion, {
+  .extend('ask-team-size', openQuestionStep, {
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -155,7 +165,7 @@ export default skill({
     onMaxVisits: 'ask-hobby',
   })
 
-  .extend('ask-specialty', openQuestion, {
+  .extend('ask-specialty', openQuestionStep, {
     prompt: () =>
       prompt`
         ${playfulTone}
