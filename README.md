@@ -1,6 +1,5 @@
 <p align="center">
-  <strong>@contentful/skill-kit</strong><br>
-  <em>TypeScript SDK for agent skills — workflow state machines and progressive-disclosure references.</em>
+  <img src="./assets/banner.jpg" alt="@contentful/skill-kit — TypeScript SDK for agent skills: workflow state machines and progressive-disclosure references." width="100%">
 </p>
 
 <p align="center">
