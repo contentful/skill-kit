@@ -15,6 +15,7 @@ skill-kit has no CI/CD. The sibling agents-kit project uses `contentful/assembli
 **Approach:** Two workflow files (`ci.yml`, `ci-cd.yml`) matching agents-kit naming conventions, with `release-it` + `@release-it/conventional-changelog` for version bumps, CHANGELOG generation, GitHub Releases, and npm publish.
 
 **Rejected:**
+
 - Nx + assemblies reusable workflows: too coupled, unnecessary for a single package
 - semantic-release: user prefers release-it
 - bun as npm/peer dependency: `.npmrc` has `ignore-scripts=true` which blocks the bun npm package postinstall; also considering Node SEA as alternative — separate concern
@@ -33,4 +34,3 @@ skill-kit has no CI/CD. The sibling agents-kit project uses `contentful/assembli
 - [ ] Bootstrap `v0.1.0` tag on main
 
 ## Notes
-
