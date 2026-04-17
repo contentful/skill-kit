@@ -4,3 +4,4 @@ dist
 .idea
 /tmp
 examples/*/skill/bin/
+.skill-kit-build-*

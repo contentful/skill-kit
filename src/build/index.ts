@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync, mkdirSync, writeFileSync, cpSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, cpSync, chmodSync, unlinkSync } from 'node:fs';
 import { resolve, dirname, basename, join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { generateBunWrapper } from './bun-wrapper-template.js';
 import { generateScriptsRun } from './scripts-run-template.js';
 import { generateSkillMd } from './skillmd-template.js';
@@ -53,7 +53,8 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
 
   // Generate bun wrapper
   const wrapperContent = generateBunWrapper(entryPath);
-  const wrapperPath = join(tmpdir(), `skill-kit-build-${skillName}-${Date.now()}.ts`);
+  const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const wrapperPath = join(sdkRoot, `.skill-kit-build-${skillName}.ts`);
   writeFileSync(wrapperPath, wrapperContent);
 
   // Build targets
@@ -98,6 +99,11 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
   if (existsSync(refsDir)) {
     cpSync(refsDir, join(outDir, 'references'), { recursive: true });
   }
+
+  // Clean up temp wrapper
+  try {
+    unlinkSync(wrapperPath);
+  } catch {}
 
   const stats = binaries.map((b) => `  ${basename(b)}`).join('\n');
   process.stderr.write(`\nBuild complete:\n${stats}\n`);
