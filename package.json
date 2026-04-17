@@ -28,6 +28,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "node --test --import tsx/esm 'src/**/*.test.ts'",
     "format": "prettier --write .",
