@@ -2,7 +2,7 @@
 name: get-to-know-you
 description: A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice.
 metadata:
-  version: "1.0.0"
+  version: '1.0.0'
 ---
 
 # get-to-know-you
@@ -16,6 +16,7 @@ field, and passing your response back. **Do not show the raw JSON or Bash comman
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -28,6 +29,7 @@ ${CLAUDE_SKILL_DIR}/scripts/run start --context '{}' --host claude-code
 ```
 
 The output is JSON with these fields:
+
 - `preamble` — **Read this first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM) that prompts use throughout the skill. Follow these mappings for every step.
 - `step` — the current step name
 - `prompt` — instructions for you to follow (read these carefully, using the verb mappings from the preamble)
