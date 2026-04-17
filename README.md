@@ -1,6 +1,6 @@
 <p align="center">
   <strong>@contentful/skill-kit</strong><br>
-  <em>Typed state machines for agent skills. Define steps, validate outputs, compile to executables.</em>
+  <em>TypeScript SDK for agent skills — workflow state machines and progressive-disclosure references.</em>
 </p>
 
 <p align="center">
@@ -9,9 +9,9 @@
 
 ---
 
-A prose skill is a blob of markdown the agent reads all at once. That works for simple tasks — and falls apart for multi-step workflows where you need branching, validation, and deterministic output.
+A prose skill is a blob of markdown the agent reads all at once. That works until it doesn't — multi-step workflows need branching and validation, and large reference docs need progressive disclosure.
 
-skill-kit replaces the blob with a **typed state machine**. You define steps with prompts, Zod schemas for outputs, and explicit transitions. The SDK compiles it into a self-contained binary that agents invoke via Bash — one call per step, JSON in and out.
+skill-kit gives you two tools. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions. **Reference skills** are on-demand topic loaders — the agent reads the SKILL.md, then loads detailed content one topic at a time. Both compile into self-contained executables that agents invoke via Bash.
 
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
@@ -203,9 +203,42 @@ skill({ name: 'app', entry: 'start', stash: z.object({ appName: z.string() }) })
   .build();
 ```
 
+## Reference Skills
+
+For skills that don't need a workflow — just progressive disclosure of content:
+
+```typescript
+import { reference, render } from '@contentful/skill-kit';
+
+export default reference({
+  name: 'api-guide',
+  description: 'API reference for the Foo service.',
+})
+  .topic('auth', {
+    label: 'Authentication and token management',
+    content: ({ refs }) => refs.load('auth.md'),
+  })
+  .topic('errors', {
+    label: 'Error codes and troubleshooting',
+    content: () => render.table(ERROR_CODES, { columns: ['code', 'meaning', 'fix'] }),
+  })
+  .build();
+```
+
+The generated SKILL.md lists topics. Agents load them on demand:
+
+```bash
+scripts/run topics                  # list all topics
+scripts/run topic auth              # load a specific topic → plain text to stdout
+```
+
+No JSON, no history, no state machine. Just `topic <name>` → text.
+
+---
+
 ## API
 
-### Builder
+### Workflow Builder
 
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
@@ -215,6 +248,16 @@ skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput? }
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type
   .build()                         // → SkillDefinition
+```
+
+### Reference Builder
+
+```typescript
+import { reference } from '@contentful/skill-kit';
+
+reference({ name, description, version? })
+  .topic(name, { label, content: (ctx) => string })  // content receives { refs }
+  .build()                                            // → ReferenceDefinition
 ```
 
 ### askUser — structured or open
@@ -325,6 +368,7 @@ skill-kit check <skill.ts>                 # Lint for portability issues
 - **Cycles require guards.** Every loop must declare `maxVisits` + `onMaxVisits`. Enforced at load time.
 - **Abstract verb system.** Step prose uses verbs (`ASK_STRUCTURED`, `ASK_FREEFORM`). The preamble maps them to host-specific tools.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.
+- **Two skill types, one build pipeline.** Workflow skills (`skill()`) for multi-step state machines. Reference skills (`reference()`) for progressive disclosure. Both compile to the same agentskills.io directory structure.
 
 ---
 
