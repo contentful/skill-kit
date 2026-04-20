@@ -78,7 +78,9 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },  // required
   render?: (ctx: PromptContext) => string,
   action?: ActionDefinition,
+  actionInput?: (ctx: { output; stash }) => unknown,
   stash?: (ctx: { output }) => Partial<TStash>,
+  afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
   ask?: AskUserConfig,
@@ -93,27 +95,28 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 Available in dynamic `prompt` and `render` functions:
 
-| Field      | Type                    | Description                                    |
-| ---------- | ----------------------- | ---------------------------------------------- |
-| `prev`     | `unknown`               | Output of the previous step                    |
-| `history`  | `readonly StepResult[]` | All prior step results                         |
-| `context`  | `TContext`              | Immutable skill context (typed from builder)   |
-| `rendered` | `string \| undefined`   | Output of this step's `render()`, if present   |
-| `refs`     | `ReferenceLoader`       | Loader for `references/` files                 |
-| `attempts` | `number`                | How many times this step has been visited      |
-| `host`     | `Handshake`             | Current host info and available tools          |
-| `stash`    | `Readonly<TStash>`      | Accumulated stash (typed from builder, frozen) |
+| Field      | Type                                                    | Description                                    |
+| ---------- | ------------------------------------------------------- | ---------------------------------------------- |
+| `prev`     | `unknown`                                               | Output of the previous step                    |
+| `history`  | `readonly StepResult[]`                                 | All prior step results                         |
+| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result       |
+| `context`  | `TContext`                                              | Immutable skill context (typed from builder)   |
+| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present   |
+| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                 |
+| `attempts` | `number`                                                | How many times this step has been visited      |
+| `host`     | `Handshake`                                             | Current host info and available tools          |
+| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen) |
 
 ### Transitions
 
 - **Static:** `next: 'step-name'` — always goes to the named step.
-- **Dynamic:** `next: ({ output, attempts }) => 'step-name'` — choose based on output or visit count.
+- **Dynamic:** `next: ({ output, action, attempts }) => 'step-name'` — choose based on output, action result, or visit count.
 - **Terminal:** `next: { terminal: true }` — ends the skill. Output becomes `finalOutput`.
 - **Self:** `next: 'self'` or returning the current step name — revisit the same step (requires `maxVisits`).
 
 ### Loop guards
 
-Any step that can revisit itself (directly or through a cycle) must declare `maxVisits` and `onMaxVisits`:
+Steps in detected cycles have an implicit visit limit (10) enforced at runtime. For explicit control, declare `maxVisits` and `onMaxVisits`:
 
 ```typescript
 .step('ask-hobby', {
@@ -124,7 +127,7 @@ Any step that can revisit itself (directly or through a cycle) must declare `max
 })
 ```
 
-Enforced at load time by the cycle guard validator.
+The cycle guard validator detects potential cycles and reports them as lint warnings. At runtime, exceeding the limit with `onMaxVisits` set redirects; without it, the engine throws.
 
 ### Stash merging
 
@@ -403,6 +406,22 @@ Attach to a step via the `action` field:
 })
 ```
 
+**Decoupling action input from step output** — when the model's output doesn't match action input exactly:
+
+```typescript
+.step('save', {
+  output: z.object({ reasoning: z.string(), profile: ProfileSchema }),
+  action: writeProfile,
+  actionInput: ({ output }) => ({ profile: output.profile }),
+  afterAction: ({ action }) => ({ savedPath: action.path }),
+  next: ({ action }) => action.path ? 'confirm' : 'retry',
+})
+```
+
+- `actionInput` transforms step output into action input (runs before action)
+- `afterAction` stashes action results (runs after action, before transition)
+- `next` receives action output for conditional routing
+
 ### `action()` config
 
 | Field    | Type                                                       | Required | Description                         |
@@ -412,7 +431,7 @@ Attach to a step via the `action` field:
 | `output` | `z.ZodType`                                                | yes      | Schema for what the action returns  |
 | `run`    | `(ctx: { input, signal: AbortSignal }) => Promise<output>` | yes      | Async function with typed I/O       |
 
-The `run` function receives the step's validated output (parsed through `input` schema) and an `AbortSignal`. Action results are recorded in history alongside step outputs.
+The `run` function receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated output is parsed as action input; use `actionInput` on the step config to customize. Action results are recorded in history alongside step outputs and available via `getStep()` or the `next` transition function.
 
 ---
 

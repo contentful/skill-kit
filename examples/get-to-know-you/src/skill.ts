@@ -47,6 +47,7 @@ export default skill({
   description:
     'A playful interview that gets to know the user and produces a profile trading card. ' +
     'Use when the user wants to introduce themselves or when you want to break the ice.',
+  triggers: ['introduce myself', 'trading card', 'get to know me', 'ice breaker'],
   entry: 'greet',
 
   context: z.object({
@@ -82,8 +83,6 @@ export default skill({
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
     next: 'ask-role',
-    maxVisits: 1,
-    onMaxVisits: 'ask-role',
   })
 
   .step('ask-role', {
@@ -111,8 +110,6 @@ export default skill({
           return 'ask-specialty';
       }
     },
-    maxVisits: 1,
-    onMaxVisits: 'ask-hobby',
   })
 
   .extend('ask-stack', openQuestionStep, {
@@ -126,8 +123,6 @@ export default skill({
         Get specific — "JavaScript" is boring, "TypeScript + Bun + Zod" is a personality.
       `,
     next: 'ask-hobby',
-    maxVisits: 1,
-    onMaxVisits: 'ask-hobby',
   })
 
   .extend('ask-tools', openQuestionStep, {
@@ -140,8 +135,6 @@ export default skill({
         Bonus points if you can get them to admit to a guilty-pleasure tool.
       `,
     next: 'ask-hobby',
-    maxVisits: 1,
-    onMaxVisits: 'ask-hobby',
   })
 
   .extend('ask-team-size', openQuestionStep, {
@@ -154,8 +147,6 @@ export default skill({
         what's the weirdest thing that's happened in a standup.
       `,
     next: 'ask-hobby',
-    maxVisits: 1,
-    onMaxVisits: 'ask-hobby',
   })
 
   .extend('ask-specialty', openQuestionStep, {
@@ -168,8 +159,6 @@ export default skill({
         what they do in exactly one sentence. Dare them to make it interesting.
       `,
     next: 'ask-hobby',
-    maxVisits: 1,
-    onMaxVisits: 'ask-hobby',
   })
 
   .step('ask-hobby', {
@@ -215,15 +204,16 @@ export default skill({
       card: z.string(),
       profile: ProfileSchema,
     }),
-    render: ({ history, refs, stash }) => {
+    render: ({ history, getStep, refs, stash }) => {
       const name = stash.name ?? 'Mystery Person';
       const role = stash.role ?? 'Enigma';
 
-      const specialtyStep = history.find(
-        (s) =>
-          s.step === 'ask-stack' || s.step === 'ask-tools' || s.step === 'ask-team-size' || s.step === 'ask-specialty',
-      );
-      const specialty = (specialtyStep?.output as { answer: string })?.answer ?? 'Classified';
+      const specialty =
+        getStep<{ answer: string }>('ask-stack')?.output.answer ??
+        getStep<{ answer: string }>('ask-tools')?.output.answer ??
+        getStep<{ answer: string }>('ask-team-size')?.output.answer ??
+        getStep<{ answer: string }>('ask-specialty')?.output.answer ??
+        'Classified';
 
       const hobbies = history.filter((s) => s.step === 'ask-hobby').map((s) => (s.output as { hobby: string }).hobby);
 

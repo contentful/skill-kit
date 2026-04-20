@@ -12,7 +12,19 @@ export function checkSkill(skill: SkillDefinition, rootDir: string): LintDiagnos
   const diagnostics: LintDiagnostic[] = [];
 
   try {
-    validateCycleGuards(skill.steps);
+    const cycleResult = validateCycleGuards(skill.steps);
+    for (const stepName of cycleResult.stepsInCycles) {
+      const stepDef = skill.steps[stepName];
+      if (stepDef && stepDef.config.maxVisits === undefined) {
+        diagnostics.push({
+          rule: 'cycle-guard',
+          severity: 'warning',
+          message:
+            `Step "${stepName}" is in a cycle but lacks maxVisits/onMaxVisits. ` +
+            `An implicit limit of ${cycleResult.defaultMaxVisits} visits will apply at runtime.`,
+        });
+      }
+    }
   } catch (err) {
     diagnostics.push({
       rule: 'cycle-guard',

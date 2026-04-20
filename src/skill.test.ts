@@ -95,6 +95,73 @@ test('context type flows into step prompt callbacks', () => {
   assert.equal(s.kind, 'skill');
 });
 
+test('triggers are appended to description', () => {
+  const s = skill({
+    name: 'triggered',
+    description: 'Diagnoses issues',
+    triggers: ['debug', 'doctor', 'diagnose'],
+    entry: 'start',
+  })
+    .step('start', {
+      prompt: 'Go.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.description, 'Diagnoses issues. Trigger keywords: debug, doctor, diagnose');
+});
+
+test('triggers do not double-period when description ends with period', () => {
+  const s = skill({
+    name: 'dotted',
+    description: 'Fixes things.',
+    triggers: ['fix', 'repair'],
+    entry: 'start',
+  })
+    .step('start', {
+      prompt: 'Go.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.description, 'Fixes things. Trigger keywords: fix, repair');
+});
+
+test('triggers without description', () => {
+  const s = skill({
+    name: 'triggered',
+    triggers: ['deploy', 'ship'],
+    entry: 'start',
+  })
+    .step('start', {
+      prompt: 'Go.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.description, 'Trigger keywords: deploy, ship');
+});
+
+test('empty triggers array does not modify description', () => {
+  const s = skill({
+    name: 'no-triggers',
+    description: 'Just a skill',
+    triggers: [],
+    entry: 'start',
+  })
+    .step('start', {
+      prompt: 'Go.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.description, 'Just a skill');
+});
+
 test('stash type flows into step prompt callbacks', () => {
   const s = skill({
     name: 'stashed',

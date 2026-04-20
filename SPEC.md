@@ -293,9 +293,15 @@ Fragments are named (first arg) so tooling can track usage, detect duplication, 
 // Static
 step({ next: 'report' });
 
-// Conditional
+// Conditional (output-based)
 step({
   next: ({ output }) => (output.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+});
+
+// Conditional (action result-based)
+step({
+  action: apiAction,
+  next: ({ action }) => (action.status === 200 ? 'success' : 'retry'),
 });
 
 // Terminal
@@ -309,7 +315,7 @@ step({
 });
 ```
 
-Cycles require `maxVisits` + `onMaxVisits`. The runtime enforces this at _load time_, not runtime — a skill with an unguarded cycle fails to load.
+Cycles detected by the graph analyzer apply an implicit visit limit (10) at runtime. Declaring `maxVisits` + `onMaxVisits` provides explicit control: `onMaxVisits` redirects when the limit is hit, while `maxVisits` without `onMaxVisits` throws (fail-closed). Linear workflows with function-based `next` don't need cycle guards — the conservative graph analysis handles safety automatically.
 
 ---
 
@@ -593,7 +599,21 @@ step({
 });
 ```
 
-The lifecycle of a step with an action: prompt emitted → model responds → CLI validates output against schema → CLI runs the declared action with that output as input → action's output is available to the next step via `prev.action` → transition.
+**Decoupling action input from step output** — when the model's reasoning output doesn't match what the action needs, use `actionInput` to transform:
+
+```typescript
+step({
+  output: z.object({ reasoning: z.string(), fileName: z.string(), body: z.string() }),
+  action: writeReport,
+  actionInput: ({ output, stash }) => ({ path: `${stash.outDir}/${output.fileName}`, content: output.body }),
+  afterAction: ({ action }) => ({ lastBytesWritten: action.bytesWritten }),
+  next: ({ action }) => (action.bytesWritten > 0 ? 'confirm' : 'retry'),
+});
+```
+
+**Post-action stash** — `afterAction` runs after the action completes, allowing you to stash action results without type casts from history.
+
+The lifecycle of a step with an action: prompt emitted → model responds → CLI validates output → `stash` callback → `actionInput` mapping (or output directly) → action runs → `afterAction` callback → history append → `next` transition (receives action output).
 
 Actions accept an `AbortSignal` so long-running operations can be cancelled cleanly when the skill is interrupted.
 

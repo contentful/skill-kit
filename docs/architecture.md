@@ -294,7 +294,7 @@ These are non-negotiable choices with specific rationale. For the full list, see
 
 **State is append-only.** Prior step outputs are never mutated. The stash accumulates via shallow merge; history is a linear append. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
 
-**Cycles require explicit bounds.** Every loop must declare `maxVisits` and `onMaxVisits`. Enforced at load time by the cycle guard validator, not at runtime. An unguarded cycle is a build error, not a runtime surprise.
+**Cycles have implicit bounds.** The cycle guard validator detects potential cycles and applies a default runtime limit (10 visits). Explicit `maxVisits` + `onMaxVisits` provides control over the fallback behavior. Unguarded cycles are a lint warning, not a load-time error — the runtime safety net prevents infinite loops.
 
 **Capabilities are declared, not discovered.** Skills declare what host capabilities they need upfront via the `capabilities` manifest. The harness reads this at install time. No runtime probing.
 

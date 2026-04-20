@@ -61,16 +61,17 @@ test('primitive-schema-mismatch flags mismatched askUser options', () => {
   assert.ok(errors.length > 0);
 });
 
-test('cycle-guard flags unguarded cycle', () => {
+test('cycle-guard warns on unguarded cycle', () => {
   const s = skill({ name: 'cycle', entry: 'a' })
     .step('a', { prompt: 'A', output: z.object({}), next: 'b' })
     .step('b', { prompt: 'B', output: z.object({}), next: 'a' })
     .build();
 
   const diags = checkSkill(s, '.');
-  const match = diags.find((d) => d.rule === 'cycle-guard');
-  assert.ok(match);
-  assert.equal(match.severity, 'error');
+  const matches = diags.filter((d) => d.rule === 'cycle-guard');
+  assert.ok(matches.length > 0);
+  assert.equal(matches[0]!.severity, 'warning');
+  assert.ok(matches[0]!.message.includes('implicit limit'));
 });
 
 test('clean skill produces no errors', () => {

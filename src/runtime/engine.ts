@@ -9,7 +9,7 @@ import type {
   PromptContext,
   ReferenceLoader,
 } from '../types.js';
-import { validateCycleGuards } from '../validation/cycle-guard.js';
+import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
 import { StashStore } from './stash.js';
@@ -34,6 +34,7 @@ export class WorkflowEngine {
   private readonly abortController: AbortController;
   private startTime: number = 0;
   private currentStep: string;
+  private cycleGuard: CycleGuardResult | undefined;
 
   constructor(skill: SkillDefinition, handshake: Handshake, context: unknown, refs?: ReferenceLoader) {
     this.skill = skill;
@@ -60,7 +61,7 @@ export class WorkflowEngine {
   start(): PromptResult {
     this.startTime = Date.now();
     this.validateParentSentinels();
-    validateCycleGuards(this.skill.steps);
+    this.cycleGuard = validateCycleGuards(this.skill.steps);
     const prompt = this.buildPrompt(this.currentStep);
     prompt.preamble = generatePreamble(this.handshake);
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
@@ -98,12 +99,19 @@ export class WorkflowEngine {
 
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
-      const actionInput = stepDef.config.action.input.parse(output);
+      const rawActionInput = stepDef.config.actionInput
+        ? stepDef.config.actionInput({ output, stash: this.stash.all() })
+        : output;
+      const actionInput = stepDef.config.action.input.parse(rawActionInput);
       actionOutput = await stepDef.config.action.run({
         input: actionInput,
         signal: this.abortController.signal,
       });
       actionOutput = Object.freeze(actionOutput);
+    }
+
+    if (stepDef.config.afterAction && actionOutput !== undefined) {
+      this.stash.merge(stepDef.config.afterAction({ output, action: actionOutput }) as Record<string, unknown>);
     }
 
     this.history.append(stepName, output, actionOutput);
@@ -115,7 +123,7 @@ export class WorkflowEngine {
     });
 
     const completed: StepResult = Object.freeze({ step: stepName, output, action: actionOutput });
-    const nextStep = this.resolveNext(stepDef, output, stepName);
+    const nextStep = this.resolveNext(stepDef, output, stepName, actionOutput);
 
     if (nextStep === null) {
       const path = this.history.all().map((r) => r.step);
@@ -148,11 +156,20 @@ export class WorkflowEngine {
         this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
       }
 
+      if (stepDef.config.afterAction && entry.action !== undefined) {
+        this.stash.merge(stepDef.config.afterAction({ output, action: entry.action }) as Record<string, unknown>);
+      }
+
       this.history.append(entry.step, output, entry.action);
     }
   }
 
-  private resolveNext(stepDef: StepDefinition, output: unknown, stepName: string): string | null {
+  private resolveNext(
+    stepDef: StepDefinition,
+    output: unknown,
+    stepName: string,
+    actionOutput: unknown,
+  ): string | null {
     const { next, maxVisits, onMaxVisits } = stepDef.config;
 
     if (typeof next === 'object' && 'terminal' in next && next.terminal) {
@@ -164,17 +181,30 @@ export class WorkflowEngine {
       target = next;
     } else if (typeof next === 'function') {
       const attempts = this.history.visitCount(stepName);
-      target = next({ output, attempts });
+      target = next({ output, attempts, action: actionOutput });
     } else {
       return null;
     }
 
     if (target === 'self') target = stepName;
 
-    if (maxVisits !== undefined && onMaxVisits !== undefined) {
+    if (maxVisits !== undefined) {
       const visits = this.history.visitCount(target);
       if (visits >= maxVisits) {
-        return onMaxVisits;
+        if (onMaxVisits !== undefined) {
+          return onMaxVisits;
+        }
+        throw new CycleGuardError(
+          `Step "${target}" exceeded maxVisits (${maxVisits}). Set onMaxVisits to define a fallback transition.`,
+        );
+      }
+    } else if (this.cycleGuard?.stepsInCycles.has(target)) {
+      const visits = this.history.visitCount(target);
+      if (visits >= this.cycleGuard.defaultMaxVisits) {
+        throw new CycleGuardError(
+          `Step "${target}" exceeded implicit cycle limit (${this.cycleGuard.defaultMaxVisits} visits). ` +
+            `Add explicit maxVisits and onMaxVisits to control this behavior.`,
+        );
       }
     }
 
@@ -190,6 +220,7 @@ export class WorkflowEngine {
     const promptCtx: PromptContext = {
       prev,
       history: this.history.all(),
+      getStep: <TOutput = unknown, TAction = unknown>(name: string) => this.history.get<TOutput, TAction>(name),
       context: this.skillContext,
       rendered: undefined,
       refs: this.refs,

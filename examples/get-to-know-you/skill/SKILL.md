@@ -1,8 +1,8 @@
 ---
 name: get-to-know-you
-description: A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice.
+description: A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker
 metadata:
-  version: '1.0.0'
+  version: "1.0.0"
 ---
 
 # get-to-know-you
