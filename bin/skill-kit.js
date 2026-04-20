@@ -2,6 +2,19 @@
 
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const tsxLoaded = process.execArgv.some((a) => a.includes('tsx'));
+if (!tsxLoaded) {
+  const self = fileURLToPath(import.meta.url);
+  try {
+    execFileSync(process.execPath, ['--import', 'tsx/esm', self, ...process.argv.slice(2)], { stdio: 'inherit' });
+  } catch (e) {
+    process.exit(e.status ?? 1);
+  }
+  process.exit(0);
+}
 
 const args = process.argv.slice(2);
 const command = args[0];
