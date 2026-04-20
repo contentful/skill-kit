@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runSkill, mockModel } from '../../../src/test.js';
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
 import skill from './skill.js';
 
 test('developer path: greet → ask-role → ask-stack → ask-hobby → confirm → profile-card', async () => {
