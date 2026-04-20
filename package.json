@@ -5,14 +5,17 @@
   "type": "module",
   "exports": {
     ".": {
+      "source": "./src/index.ts",
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
     "./test": {
+      "source": "./src/test.ts",
       "import": "./dist/test.js",
       "types": "./dist/test.d.ts"
     },
     "./cli": {
+      "source": "./src/cli.ts",
       "import": "./dist/cli.js",
       "types": "./dist/cli.d.ts"
     }
