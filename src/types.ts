@@ -168,6 +168,7 @@ export interface SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TSta
   name: string;
   version?: string;
   description?: string;
+  triggers?: string[];
   entry: string;
   context?: TContext;
   stash?: TStash;

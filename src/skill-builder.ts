@@ -55,11 +55,17 @@ export class SkillBuilder<TContext, TStash> {
     if (Object.keys(this.steps).length === 0) throw new Error('skill: at least one step is required');
     if (!(entry in this.steps)) throw new Error(`skill: entry step "${entry}" not found in steps`);
 
+    let description = this.config.description ?? '';
+    if (this.config.triggers?.length) {
+      const triggerLine = `Trigger keywords: ${this.config.triggers.join(', ')}`;
+      description = description ? `${description}\n\n${triggerLine}` : triggerLine;
+    }
+
     const definition: SkillDefinition = {
       kind: 'skill',
       name,
       version: this.config.version ?? '0.0.0',
-      description: this.config.description ?? '',
+      description,
       entry,
       context: this.config.context,
       stash: this.config.stash,
