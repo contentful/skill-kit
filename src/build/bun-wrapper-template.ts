@@ -2,7 +2,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const cliEntryAbs = resolve(sdkRoot, 'src', 'cli.ts');
+const cliEntryAbs = resolve(sdkRoot, 'dist', 'cli.js');
 
 export function generateBunWrapper(entryAbsPath: string, kind: 'skill' | 'reference'): string {
   const mainFn = kind === 'reference' ? 'referenceMain' : 'main';
