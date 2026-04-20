@@ -47,6 +47,7 @@ export default skill({
   description:
     'A playful interview that gets to know the user and produces a profile trading card. ' +
     'Use when the user wants to introduce themselves or when you want to break the ice.',
+  triggers: ['introduce myself', 'trading card', 'get to know me', 'ice breaker'],
   entry: 'greet',
 
   context: z.object({
