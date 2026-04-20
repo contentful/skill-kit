@@ -40,13 +40,13 @@
     "build:examples": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill"
   },
   "dependencies": {
+    "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
     "prettier": "^3.8.1",
     "release-it": "^20.0.0",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
