@@ -226,3 +226,218 @@ test('throwing observer does not crash the skill', async () => {
   const result = await engine.advance('a', {});
   assert.equal((result as DoneResult).done, true);
 });
+
+test('actionInput mapping decouples step output from action input', async () => {
+  let receivedInput: unknown;
+
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string(), content: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async ({ input }) => {
+      receivedInput = input;
+      return { ok: true };
+    },
+  });
+
+  const s = skill({ name: 'mapped', entry: 'a' })
+    .step('a', {
+      prompt: 'Decide',
+      output: z.object({ fileName: z.string(), body: z.string() }),
+      action: writeAction,
+      actionInput: ({ output }) => ({ path: `/out/${output.fileName}`, content: output.body }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { fileName: 'report.md', body: 'hello' });
+  assert.deepEqual(receivedInput, { path: '/out/report.md', content: 'hello' });
+});
+
+test('actionInput receives current stash', async () => {
+  let receivedInput: unknown;
+
+  const myAction = action({
+    name: 'a',
+    input: z.object({ prefix: z.string(), val: z.string() }),
+    output: z.object({}),
+    run: async ({ input }) => {
+      receivedInput = input;
+      return {};
+    },
+  });
+
+  const s = skill({ name: 'stash-map', entry: 'a', stash: z.object({ prefix: z.string() }) })
+    .step('a', {
+      prompt: 'Go',
+      output: z.object({ val: z.string() }),
+      stash: () => ({ prefix: 'pre' }),
+      action: myAction,
+      actionInput: ({ output, stash }) => ({ prefix: stash.prefix, val: output.val }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'test' });
+  assert.deepEqual(receivedInput, { prefix: 'pre', val: 'test' });
+});
+
+test('action output is passed to transition function', async () => {
+  const apiAction = action({
+    name: 'api-call',
+    input: z.object({ url: z.string() }),
+    output: z.object({ status: z.number() }),
+    run: async () => ({ status: 200 }),
+  });
+
+  const s = skill({ name: 'action-in-next', entry: 'call' })
+    .step('call', {
+      prompt: 'Call the API',
+      output: z.object({ url: z.string() }),
+      action: apiAction,
+      next: ({ action }) => (action.status === 200 ? 'success' : 'failure'),
+    })
+    .step('success', { prompt: 'OK', output: z.object({}), next: { terminal: true } })
+    .step('failure', { prompt: 'Fail', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const r = await engine.advance('call', { url: 'https://example.com' });
+  assert.equal((r as PromptResult).step, 'success');
+});
+
+test('action is undefined in next when no action configured', async () => {
+  let capturedAction: unknown = 'not-set';
+
+  const s = skill({ name: 'no-action-next', entry: 'a' })
+    .step('a', {
+      prompt: 'Go',
+      output: z.object({ ok: z.boolean() }),
+      next: ({ action }) => {
+        capturedAction = action;
+        return 'b';
+      },
+    })
+    .step('b', { prompt: 'B', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { ok: true });
+  assert.equal(capturedAction, undefined);
+});
+
+test('afterAction stashes action result', async () => {
+  let capturedStash: unknown;
+
+  const apiAction = action({
+    name: 'api',
+    input: z.object({ url: z.string() }),
+    output: z.object({ responseCode: z.number() }),
+    run: async () => ({ responseCode: 201 }),
+  });
+
+  const s = skill({ name: 'post-stash', entry: 'call', stash: z.object({ lastCode: z.number() }) })
+    .step('call', {
+      prompt: 'Call API',
+      output: z.object({ url: z.string() }),
+      action: apiAction,
+      afterAction: ({ action }) => ({ lastCode: action.responseCode }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        capturedStash = ctx.stash;
+        return 'Report';
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('call', { url: 'https://api.example.com' });
+  assert.deepEqual(capturedStash, { lastCode: 201 });
+});
+
+test('afterAction is replayed correctly from history', () => {
+  let capturedStash: unknown;
+
+  const apiAction = action({
+    name: 'api',
+    input: z.object({ url: z.string() }),
+    output: z.object({ code: z.number() }),
+    run: async () => ({ code: 200 }),
+  });
+
+  const s = skill({ name: 'replay-after', entry: 'call', stash: z.object({ code: z.number() }) })
+    .step('call', {
+      prompt: (ctx) => {
+        capturedStash = ctx.stash;
+        return 'Call';
+      },
+      output: z.object({ url: z.string() }),
+      action: apiAction,
+      afterAction: ({ action }) => ({ code: action.code }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: 'Report',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  // Replay history with action output → afterAction should populate stash
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.replayHistory([{ step: 'call', output: { url: 'https://x.com' }, action: { code: 404 } }]);
+  // start() builds prompt for entry step 'call', which captures stash
+  engine.start();
+  assert.deepEqual(capturedStash, { code: 404 });
+});
+
+test('getStep provides typed history access', async () => {
+  let stepAResult: unknown;
+
+  const s = skill({ name: 'get-step', entry: 'a' })
+    .step('a', { prompt: 'A', output: z.object({ val: z.number() }), next: 'b' })
+    .step('b', {
+      prompt: (ctx) => {
+        stepAResult = ctx.getStep<{ val: number }>('a');
+        return 'B';
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 42 });
+  assert.deepEqual(stepAResult, { output: { val: 42 }, action: undefined });
+});
+
+test('getStep returns undefined for missing step', async () => {
+  let result: unknown = 'not-set';
+
+  const s = skill({ name: 'get-step-missing', entry: 'a' })
+    .step('a', {
+      prompt: (ctx) => {
+        result = ctx.getStep('nonexistent');
+        return 'A';
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  assert.equal(result, undefined);
+});

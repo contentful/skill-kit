@@ -98,6 +98,11 @@ export interface CapabilityManifest {
   env?: string[];
 }
 
+// --- Type helpers ---
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type InferActionOutput<A> = A extends ActionDefinition<any, infer TOut> ? z.infer<TOut> : undefined;
+
 // --- Steps ---
 
 export interface StepResult<TOutput = unknown> {
@@ -110,6 +115,7 @@ export interface StepResult<TOutput = unknown> {
 export interface PromptContext<TContext = any, TStash = any> {
   prev: unknown;
   history: readonly StepResult[];
+  getStep: <TOutput = unknown, TAction = unknown>(stepName: string) => { output: TOutput; action: TAction } | undefined;
   context: TContext;
   rendered: string | undefined;
   refs: ReferenceLoader;
@@ -121,16 +127,27 @@ export interface PromptContext<TContext = any, TStash = any> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PromptFn<TContext = any, TStash = any> = (ctx: PromptContext<TContext, TStash>) => string;
 
-export type TransitionFn<TOutput = unknown> = (ctx: { output: TOutput; attempts: number }) => string;
+export type TransitionFn<TOutput = unknown, TActionOutput = unknown> = (ctx: {
+  output: TOutput;
+  attempts: number;
+  action: TActionOutput;
+}) => string;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = any, TStash = any> {
+export interface StepConfig<
+  TOutput extends z.ZodType = z.ZodType,
+  TContext = any,
+  TStash = any,
+  TActionOutput = unknown,
+> {
   prompt?: string | PromptFn<TContext, TStash>;
   output: TOutput;
-  next: string | TransitionFn<z.infer<TOutput>> | { terminal: true };
+  next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
   render?: (ctx: PromptContext<TContext, TStash>) => string;
   action?: ActionDefinition;
+  actionInput?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
   stash?: (ctx: { output: z.infer<TOutput> }) => Partial<TStash>;
+  afterAction?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
   ask?: AskUserConfig;
@@ -141,10 +158,17 @@ export interface StepConfig<TOutput extends z.ZodType = z.ZodType, TContext = an
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface StepDefinition<TOutput extends z.ZodType = z.ZodType, TContext = any, TStash = any> {
+export interface StepDefinition<
+  TOutput extends z.ZodType = z.ZodType,
+  TContext = any,
+  TStash = any,
+  TActionOutput = unknown,
+> {
   readonly kind: 'step';
-  readonly config: StepConfig<TOutput, TContext, TStash>;
-  extend(overrides: Partial<StepConfig<TOutput, TContext, TStash>>): StepDefinition<TOutput, TContext, TStash>;
+  readonly config: StepConfig<TOutput, TContext, TStash, TActionOutput>;
+  extend(
+    overrides: Partial<StepConfig<TOutput, TContext, TStash, TActionOutput>>,
+  ): StepDefinition<TOutput, TContext, TStash, TActionOutput>;
 }
 
 // --- Observers ---

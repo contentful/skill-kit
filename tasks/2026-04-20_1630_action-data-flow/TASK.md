@@ -5,6 +5,7 @@
 Improve how actions relate to steps in the skill-kit SDK, based on real-world feedback from building an optimization-doctor skill.
 
 **In scope:**
+
 - `triggers` field auto-appended to description
 - `actionInput` mapping function (decouple action input from step output)
 - `afterAction` stash hook (post-action stash)
@@ -14,6 +15,7 @@ Improve how actions relate to steps in the skill-kit SDK, based on real-world fe
 - Typed `getStep` history accessor
 
 **Out of scope:**
+
 - Multi-action steps
 - Conditional step registration
 - Full compile-time step-name→type mapping in history
@@ -21,6 +23,7 @@ Improve how actions relate to steps in the skill-kit SDK, based on real-world fe
 ## Context
 
 User built an optimization-doctor skill and found:
+
 1. Action input is coupled to step output — agent must produce plumbing values
 2. `next` can't see action results — forces extra triage steps
 3. `stash` runs before action — can't stash action results
@@ -33,6 +36,7 @@ User built an optimization-doctor skill and found:
 See `/Users/tim/.claude/plans/here-s-some-feedback-please-luminous-gem.md` for full implementation plan.
 
 Implementation order:
+
 1. `triggers` field (simplest, isolated)
 2. Action output typing + `actionInput` + `afterAction` + `next` (core changes, together)
 3. Relaxed cycle guards
@@ -52,4 +56,3 @@ Implementation order:
 - [ ] Verify all tests pass, typecheck, format
 
 ## Notes
-

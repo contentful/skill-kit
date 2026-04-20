@@ -20,6 +20,12 @@ export class History {
     return this.results.find((r) => r.step === stepName);
   }
 
+  get<TOutput = unknown, TAction = unknown>(stepName: string): { output: TOutput; action: TAction } | undefined {
+    const result = this.results.find((r) => r.step === stepName);
+    if (!result) return undefined;
+    return { output: result.output as TOutput, action: result.action as TAction };
+  }
+
   all(): readonly StepResult[] {
     return this.results;
   }

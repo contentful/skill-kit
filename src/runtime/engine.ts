@@ -98,12 +98,19 @@ export class WorkflowEngine {
 
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
-      const actionInput = stepDef.config.action.input.parse(output);
+      const rawActionInput = stepDef.config.actionInput
+        ? stepDef.config.actionInput({ output, stash: this.stash.all() })
+        : output;
+      const actionInput = stepDef.config.action.input.parse(rawActionInput);
       actionOutput = await stepDef.config.action.run({
         input: actionInput,
         signal: this.abortController.signal,
       });
       actionOutput = Object.freeze(actionOutput);
+    }
+
+    if (stepDef.config.afterAction && actionOutput !== undefined) {
+      this.stash.merge(stepDef.config.afterAction({ output, action: actionOutput }) as Record<string, unknown>);
     }
 
     this.history.append(stepName, output, actionOutput);
@@ -115,7 +122,7 @@ export class WorkflowEngine {
     });
 
     const completed: StepResult = Object.freeze({ step: stepName, output, action: actionOutput });
-    const nextStep = this.resolveNext(stepDef, output, stepName);
+    const nextStep = this.resolveNext(stepDef, output, stepName, actionOutput);
 
     if (nextStep === null) {
       const path = this.history.all().map((r) => r.step);
@@ -148,11 +155,20 @@ export class WorkflowEngine {
         this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
       }
 
+      if (stepDef.config.afterAction && entry.action !== undefined) {
+        this.stash.merge(stepDef.config.afterAction({ output, action: entry.action }) as Record<string, unknown>);
+      }
+
       this.history.append(entry.step, output, entry.action);
     }
   }
 
-  private resolveNext(stepDef: StepDefinition, output: unknown, stepName: string): string | null {
+  private resolveNext(
+    stepDef: StepDefinition,
+    output: unknown,
+    stepName: string,
+    actionOutput: unknown,
+  ): string | null {
     const { next, maxVisits, onMaxVisits } = stepDef.config;
 
     if (typeof next === 'object' && 'terminal' in next && next.terminal) {
@@ -164,7 +180,7 @@ export class WorkflowEngine {
       target = next;
     } else if (typeof next === 'function') {
       const attempts = this.history.visitCount(stepName);
-      target = next({ output, attempts });
+      target = next({ output, attempts, action: actionOutput });
     } else {
       return null;
     }
@@ -190,6 +206,7 @@ export class WorkflowEngine {
     const promptCtx: PromptContext = {
       prev,
       history: this.history.all(),
+      getStep: <TOutput = unknown, TAction = unknown>(name: string) => this.history.get<TOutput, TAction>(name),
       context: this.skillContext,
       rendered: undefined,
       refs: this.refs,

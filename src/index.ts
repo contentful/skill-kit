@@ -23,6 +23,7 @@ export type {
   StepDefinition,
   ActionConfig,
   ActionDefinition,
+  InferActionOutput,
   Fragment,
   Handshake,
   PromptContext,

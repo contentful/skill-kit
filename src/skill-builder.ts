@@ -1,5 +1,13 @@
 import type { z } from 'zod';
-import type { SkillBuilderConfig, SkillDefinition, StepConfig, StepDefinition, ModuleDefinition } from './types.js';
+import type {
+  SkillBuilderConfig,
+  SkillDefinition,
+  StepConfig,
+  StepDefinition,
+  ModuleDefinition,
+  ActionDefinition,
+  InferActionOutput,
+} from './types.js';
 import { step as createStep } from './step.js';
 
 export class SkillBuilder<TContext, TStash> {
@@ -10,9 +18,16 @@ export class SkillBuilder<TContext, TStash> {
     this.config = config;
   }
 
-  step<TOutput extends z.ZodType>(
+  step<TOutput extends z.ZodType, A extends ActionDefinition | undefined = undefined>(
     name: string,
-    configOrDef: StepConfig<TOutput, TContext, TStash> | StepDefinition,
+    configOrDef:
+      | (Omit<
+          StepConfig<TOutput, TContext, TStash, A extends ActionDefinition ? InferActionOutput<A> : undefined>,
+          'action'
+        > & {
+          action?: A;
+        })
+      | StepDefinition,
   ): SkillBuilder<TContext, TStash> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
@@ -58,7 +73,7 @@ export class SkillBuilder<TContext, TStash> {
     let description = this.config.description ?? '';
     if (this.config.triggers?.length) {
       const triggerLine = `Trigger keywords: ${this.config.triggers.join(', ')}`;
-      description = description ? `${description}\n\n${triggerLine}` : triggerLine;
+      description = description ? `${description}. ${triggerLine}` : triggerLine;
     }
 
     const definition: SkillDefinition = {
