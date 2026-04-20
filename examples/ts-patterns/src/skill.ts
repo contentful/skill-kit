@@ -1,4 +1,4 @@
-import { reference, render } from '../../../src/index.js';
+import { reference, render } from '@contentful/skill-kit';
 
 export default reference({
   name: 'ts-patterns',

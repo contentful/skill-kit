@@ -1,4 +1,4 @@
-import { skill, step, z, action, fragment, prompt, render, askUser } from '../../../src/index.js';
+import { skill, step, z, action, fragment, prompt, render, askUser } from '@contentful/skill-kit';
 
 // --- Fragments ---
 

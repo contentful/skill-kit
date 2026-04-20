@@ -7,7 +7,7 @@ const args = process.argv.slice(2);
 const command = args[0];
 
 if (command === 'build') {
-  const { buildSkill } = await import('../src/build/index.js');
+  const { buildSkill } = await import('../dist/build/index.js');
 
   const flags = {};
   let entry = null;
@@ -64,10 +64,10 @@ if (command === 'build') {
   process.argv = [process.argv[0], absPath, ...args.slice(2)];
 
   if (def.kind === 'reference') {
-    const { referenceMain } = await import('../src/protocol/reference-entry.js');
+    const { referenceMain } = await import('../dist/protocol/reference-entry.js');
     referenceMain(def);
   } else {
-    const { main } = await import('../src/protocol/cli-entry.js');
+    const { main } = await import('../dist/protocol/cli-entry.js');
     await main(def);
   }
 } else if (command === 'check') {
@@ -83,7 +83,7 @@ if (command === 'build') {
 
   if (def.kind === 'skill') {
     const { dirname } = await import('node:path');
-    const { checkSkill } = await import('../src/lint/index.js');
+    const { checkSkill } = await import('../dist/lint/index.js');
     const diagnostics = checkSkill(def, dirname(absPath));
 
     for (const d of diagnostics) {
