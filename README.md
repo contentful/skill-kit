@@ -241,7 +241,7 @@ TypeScript patterns reference with on-demand topic loading. Shows `render.table`
 ### Workflow Builder
 
 ```typescript
-skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput? })
+skill({ name, entry, description?, triggers?, context?, stash?, observers?, capabilities?, finalOutput? })
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type
@@ -297,7 +297,9 @@ skill-kit check <skill.ts>                 # Lint for portability issues
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
   render?: (ctx: PromptContext) => string,
   action?: ActionDefinition,
+  actionInput?: (ctx: { output; stash }) => unknown,
   stash?: (ctx: { output }) => Partial<TStash>,
+  afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
   ask?: AskUserConfig,
@@ -314,6 +316,7 @@ skill-kit check <skill.ts>                 # Lint for portability issues
 | ---------- | ----------------------------------------------------------- |
 | `prev`     | Output of the previous step                                 |
 | `history`  | All prior step results                                      |
+| `getStep`  | Typed accessor: `getStep<T>('name')?.output`                |
 | `context`  | Global skill context (typed from `skill({ context: ... })`) |
 | `rendered` | Output of this step's `render()`                            |
 | `refs`     | Lazy loader for `references/` files                         |
