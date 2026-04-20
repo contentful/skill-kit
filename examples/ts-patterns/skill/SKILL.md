@@ -2,7 +2,7 @@
 name: ts-patterns
 description: TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick refresher on generics, discriminated unions, builder patterns, or error handling.
 metadata:
-  version: "1.0.0"
+  version: '1.0.0'
 ---
 
 # ts-patterns
