@@ -215,15 +215,16 @@ export default skill({
       card: z.string(),
       profile: ProfileSchema,
     }),
-    render: ({ history, refs, stash }) => {
+    render: ({ history, getStep, refs, stash }) => {
       const name = stash.name ?? 'Mystery Person';
       const role = stash.role ?? 'Enigma';
 
-      const specialtyStep = history.find(
-        (s) =>
-          s.step === 'ask-stack' || s.step === 'ask-tools' || s.step === 'ask-team-size' || s.step === 'ask-specialty',
-      );
-      const specialty = (specialtyStep?.output as { answer: string })?.answer ?? 'Classified';
+      const specialty =
+        getStep<{ answer: string }>('ask-stack')?.output.answer ??
+        getStep<{ answer: string }>('ask-tools')?.output.answer ??
+        getStep<{ answer: string }>('ask-team-size')?.output.answer ??
+        getStep<{ answer: string }>('ask-specialty')?.output.answer ??
+        'Classified';
 
       const hobbies = history.filter((s) => s.step === 'ask-hobby').map((s) => (s.output as { hobby: string }).hobby);
 
