@@ -109,7 +109,24 @@ test('triggers are appended to description', () => {
     })
     .build();
 
-  assert.equal(s.description, 'Diagnoses issues\n\nTrigger keywords: debug, doctor, diagnose');
+  assert.equal(s.description, 'Diagnoses issues. Trigger keywords: debug, doctor, diagnose');
+});
+
+test('triggers do not double-period when description ends with period', () => {
+  const s = skill({
+    name: 'dotted',
+    description: 'Fixes things.',
+    triggers: ['fix', 'repair'],
+    entry: 'start',
+  })
+    .step('start', {
+      prompt: 'Go.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  assert.equal(s.description, 'Fixes things. Trigger keywords: fix, repair');
 });
 
 test('triggers without description', () => {

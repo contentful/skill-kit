@@ -73,7 +73,8 @@ export class SkillBuilder<TContext, TStash> {
     let description = this.config.description ?? '';
     if (this.config.triggers?.length) {
       const triggerLine = `Trigger keywords: ${this.config.triggers.join(', ')}`;
-      description = description ? `${description}. ${triggerLine}` : triggerLine;
+      const separator = description.endsWith('.') ? ' ' : '. ';
+      description = description ? `${description}${separator}${triggerLine}` : triggerLine;
     }
 
     const definition: SkillDefinition = {
