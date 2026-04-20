@@ -7,28 +7,34 @@ export class CycleGuardError extends Error {
   }
 }
 
-export function validateCycleGuards(steps: Readonly<Record<string, StepDefinition>>): void {
+const DEFAULT_MAX_VISITS = 10;
+
+export interface CycleGuardResult {
+  stepsInCycles: Set<string>;
+  defaultMaxVisits: number;
+}
+
+export function validateCycleGuards(steps: Readonly<Record<string, StepDefinition>>): CycleGuardResult {
   const stepNames = Object.keys(steps);
   const graph = buildGraph(steps, stepNames);
   const cycles = findCycles(graph, stepNames);
+  const stepsInCycles = new Set<string>();
 
   for (const cycle of cycles) {
     for (const stepName of cycle) {
-      const stepDef = steps[stepName]!;
-      const { maxVisits, onMaxVisits } = stepDef.config;
-
-      if (maxVisits === undefined || onMaxVisits === undefined) {
-        throw new CycleGuardError(
-          `Step "${stepName}" is in a cycle [${cycle.join(' → ')}] but lacks maxVisits and onMaxVisits. ` +
-            `All steps in a cycle must declare both.`,
-        );
-      }
-
-      if (!(onMaxVisits in steps)) {
-        throw new CycleGuardError(`Step "${stepName}" has onMaxVisits "${onMaxVisits}" which does not exist in steps.`);
-      }
+      stepsInCycles.add(stepName);
     }
   }
+
+  // Validate: onMaxVisits must point to a real step
+  for (const stepName of stepsInCycles) {
+    const { onMaxVisits } = steps[stepName]!.config;
+    if (onMaxVisits !== undefined && !(onMaxVisits in steps)) {
+      throw new CycleGuardError(`Step "${stepName}" has onMaxVisits "${onMaxVisits}" which does not exist in steps.`);
+    }
+  }
+
+  return { stepsInCycles, defaultMaxVisits: DEFAULT_MAX_VISITS };
 }
 
 function buildGraph(steps: Readonly<Record<string, StepDefinition>>, stepNames: string[]): Map<string, Set<string>> {

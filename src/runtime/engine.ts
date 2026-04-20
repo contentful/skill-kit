@@ -9,7 +9,7 @@ import type {
   PromptContext,
   ReferenceLoader,
 } from '../types.js';
-import { validateCycleGuards } from '../validation/cycle-guard.js';
+import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
 import { StashStore } from './stash.js';
@@ -34,6 +34,7 @@ export class WorkflowEngine {
   private readonly abortController: AbortController;
   private startTime: number = 0;
   private currentStep: string;
+  private cycleGuard: CycleGuardResult | undefined;
 
   constructor(skill: SkillDefinition, handshake: Handshake, context: unknown, refs?: ReferenceLoader) {
     this.skill = skill;
@@ -60,7 +61,7 @@ export class WorkflowEngine {
   start(): PromptResult {
     this.startTime = Date.now();
     this.validateParentSentinels();
-    validateCycleGuards(this.skill.steps);
+    this.cycleGuard = validateCycleGuards(this.skill.steps);
     const prompt = this.buildPrompt(this.currentStep);
     prompt.preamble = generatePreamble(this.handshake);
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
@@ -187,10 +188,23 @@ export class WorkflowEngine {
 
     if (target === 'self') target = stepName;
 
-    if (maxVisits !== undefined && onMaxVisits !== undefined) {
+    if (maxVisits !== undefined) {
       const visits = this.history.visitCount(target);
       if (visits >= maxVisits) {
-        return onMaxVisits;
+        if (onMaxVisits !== undefined) {
+          return onMaxVisits;
+        }
+        throw new CycleGuardError(
+          `Step "${target}" exceeded maxVisits (${maxVisits}). Set onMaxVisits to define a fallback transition.`,
+        );
+      }
+    } else if (this.cycleGuard?.stepsInCycles.has(target)) {
+      const visits = this.history.visitCount(target);
+      if (visits >= this.cycleGuard.defaultMaxVisits) {
+        throw new CycleGuardError(
+          `Step "${target}" exceeded implicit cycle limit (${this.cycleGuard.defaultMaxVisits} visits). ` +
+            `Add explicit maxVisits and onMaxVisits to control this behavior.`,
+        );
       }
     }
 
