@@ -33,12 +33,13 @@ function printHelp(skillName: string): void {
     `${skillName} — skill-kit CLI`,
     '',
     'Usage:',
-    `  ${skillName} start --context '{"key":"value"}' [--host claude-code]`,
+    `  ${skillName} --context '{"key":"value"}' [--host claude-code]`,
     `  ${skillName} advance --step <name> --output '{"key":"value"}' --history '[...]' [--host claude-code]`,
     '',
     'Subcommands:',
-    '  start     Begin the workflow. Returns first step prompt as JSON.',
-    '  advance   Submit step output. Returns next prompt or done signal.',
+    '  (default)   Begin the workflow (same as start). Returns first step prompt as JSON.',
+    '  start       Explicit alias for the default command.',
+    '  advance     Submit step output. Returns next prompt or done signal.',
     '',
     'Flags:',
     '  --context   JSON string. Validated against skill context schema. (start only)',
@@ -61,13 +62,22 @@ export function parseArgs(argv: string[]): {
     return { command: 'help', flags: {} };
   }
 
-  const command = args[0] as 'start' | 'advance';
-  if (command !== 'start' && command !== 'advance') {
+  let command: 'start' | 'advance';
+  let flagStart: number;
+
+  const first = args[0]!;
+  if (first === 'start' || first === 'advance') {
+    command = first;
+    flagStart = 1;
+  } else if (first.startsWith('--')) {
+    command = 'start';
+    flagStart = 0;
+  } else {
     return { command: 'help', flags: {} };
   }
 
   const flags: Record<string, string> = {};
-  for (let i = 1; i < args.length; i++) {
+  for (let i = flagStart; i < args.length; i++) {
     const arg = args[i]!;
     if (arg.startsWith('--') && i + 1 < args.length) {
       flags[arg.slice(2)] = args[i + 1]!;

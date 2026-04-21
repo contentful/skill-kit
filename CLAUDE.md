@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Schema validation:** Zod 4
 - **Test runner:** `node --test --import tsx/esm`, colocated `*.test.ts` files, `node:assert/strict`
 - **Formatting:** Prettier (`singleQuote: true`, `printWidth: 120`)
-- **Build/distribution:** `bun build --compile` for producing skill executables
+- **Build/distribution:** `--mode bun` (default) uses `bun build --compile` for standalone executables; `--mode node` uses esbuild for lightweight `.mjs` bundles
 
 ## Commands
 
@@ -27,7 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `node --test --import tsx/esm examples/ts-patterns/src/skill.test.ts` — run reference example tests
 - `pnpm exec prettier --check .` — check formatting
 - `pnpm exec prettier --write .` — fix formatting
-- `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill (dev, current platform)
+- `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill executable (dev, current platform)
+- `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --mode node` — build a skill as a Node.js bundle
 
 ## Conventions
 

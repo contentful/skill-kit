@@ -21,7 +21,7 @@ This skill provides reference information on demand. Load any topic for details:
 
 ${topicList}
 
-To list all available topics: \`\${CLAUDE_SKILL_DIR}/scripts/run topics\`
+To list all available topics: \`\${CLAUDE_SKILL_DIR}/scripts/run\`
 `.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';

@@ -14,4 +14,4 @@ This skill provides reference information on demand. Load any topic for details:
 - `${CLAUDE_SKILL_DIR}/scripts/run topic builder-pattern` — Builder pattern — fluent APIs with type accumulation
 - `${CLAUDE_SKILL_DIR}/scripts/run topic error-handling` — Error handling — Result types, custom errors, exhaustive matching
 
-To list all available topics: `${CLAUDE_SKILL_DIR}/scripts/run topics`
+To list all available topics: `${CLAUDE_SKILL_DIR}/scripts/run`

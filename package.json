@@ -40,9 +40,15 @@
     "test": "node --test --import tsx/esm 'src/**/*.test.ts'",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build:examples": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill && node --import tsx/esm bin/skill-kit.js build examples/ts-patterns/src/skill.ts -o examples/ts-patterns/skill"
+    "build:examples": "pnpm run build:examples:get-to-know-you && pnpm run build:examples:ts-patterns",
+    "build:examples:get-to-know-you": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill --mode node",
+    "build:examples:ts-patterns": "node --import tsx/esm bin/skill-kit.js build examples/ts-patterns/src/skill.ts -o examples/ts-patterns/skill --mode node",
+    "build:examples:bun": "pnpm run build:examples:get-to-know-you:bun && pnpm run build:examples:ts-patterns:bun",
+    "build:examples:get-to-know-you:bun": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill",
+    "build:examples:ts-patterns:bun": "node --import tsx/esm bin/skill-kit.js build examples/ts-patterns/src/skill.ts -o examples/ts-patterns/skill"
   },
   "dependencies": {
+    "esbuild": "^0.28.0",
     "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },

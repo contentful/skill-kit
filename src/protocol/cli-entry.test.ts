@@ -34,6 +34,17 @@ test('CLI advance returns done for terminal step', async () => {
   assert.equal(result.completed.step, 'greet');
 });
 
+test('CLI implicit start (no subcommand) returns first step prompt as JSON', async () => {
+  const { stdout } = await exec('npx', ['tsx', fixturePath, '--context', '{}'], {
+    cwd: join(__dirname, '..', '..'),
+  });
+
+  const result = JSON.parse(stdout.trim());
+  assert.equal(result.step, 'greet');
+  assert.equal(result.prompt, 'Say hello.');
+  assert.ok(result.schema);
+});
+
 test('CLI --help prints usage to stderr', async () => {
   const { stderr } = await exec('npx', ['tsx', fixturePath, '--help'], {
     cwd: join(__dirname, '..', '..'),

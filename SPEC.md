@@ -71,7 +71,7 @@ export default skill({
   .build();
 ```
 
-`skill()` returns a builder. `.step()` chains add steps — context and stash types flow into callbacks via contextual inference. `.build()` produces the final skill definition. `skill-kit build` then compiles it into a distributable skill directory — a compiled binary, a generated `SKILL.md` (per the [agentskills.io spec](https://agentskills.io/specification)), and a shell wrapper in `scripts/`.
+`skill()` returns a builder. `.step()` chains add steps — context and stash types flow into callbacks via contextual inference. `.build()` produces the final skill definition. `skill-kit build` then bundles it into a distributable skill directory — a bundled executable or JS file, a generated `SKILL.md` (per the [agentskills.io spec](https://agentskills.io/specification)), and a shell wrapper in `scripts/`.
 
 ### What authors don't write
 
@@ -93,7 +93,7 @@ If you just want to see the whole shape at once, read §1 and §4, then skim §1
 1. **Declarative feel.** A simple skill is ~30 lines. Authors describe a workflow, not write one.
 2. **Prose stays prose.** The SDK structures _when_ prose is shown and _what contract_ it satisfies. It never replaces prose with code.
 3. **Typed boundaries, untyped interiors.** Step I/O is schema-enforced. What the model does inside a step is freeform.
-4. **Node-native, Bun for distribution.** `npx tsx skill.ts` works in dev. `skill-kit build` uses `bun build --compile` to produce distributable executables.
+4. **Node-native, flexible distribution.** `npx tsx skill.ts` works in dev. `skill-kit build` bundles skills for distribution — either as lightweight Node.js bundles (`--mode node`, via esbuild) or standalone executables (`--mode bun`, via `bun build --compile`).
 5. **Composable.** Steps, schemas, fragments, and renderers are importable across skills.
 6. **One obvious way.** Opinionated where the cost of choice exceeds the benefit.
 
@@ -720,10 +720,10 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 
 ### Subcommands
 
-**`start`** — Begin the workflow. Returns the first step's prompt and schema.
+**`start`** (default) — Begin the workflow. Returns the first step's prompt and schema. The `start` subcommand is implicit — omitting it defaults to `start`, so agents see `run *` as the base permission pattern.
 
 ```bash
-./scripts/run start --context '{"repoPath":"."}' --host claude-code
+./scripts/run --context '{"repoPath":"."}' --host claude-code
 ```
 
 ```json
@@ -798,20 +798,33 @@ skill-kit build src/skills/repo-doctor/skill.ts -o skills/repo-doctor
 This:
 
 1. Validates the skill definition (cycle guards, schema consistency)
-2. Compiles platform-specific binaries via `bun build --compile`
-3. Generates `scripts/run` shell wrapper (platform dispatcher)
+2. Bundles the skill code (mode-dependent — see below)
+3. Generates `scripts/run` shell wrapper (public interface)
 4. Generates `SKILL.md` with invocation instructions
 5. Generates `package.json` with name and version
 6. Copies `references/` from the source directory
 
+### Build modes
+
+The `--mode` flag selects the bundling strategy:
+
+| Mode              | Flag          | Output                                 | Size                 | Requires                |
+| ----------------- | ------------- | -------------------------------------- | -------------------- | ----------------------- |
+| **bun** (default) | `--mode bun`  | Platform-specific compiled executables | ~50-100MB per target | `bun` installed         |
+| **node**          | `--mode node` | Single `.mjs` bundle                   | ~100-500KB           | Node.js ≥ 24 at runtime |
+
+Node mode is the right choice for skills that live inside a Node.js codebase where Node is already available. Bun mode produces standalone executables that work without any runtime dependency.
+
 ### Output structure
+
+**Bun mode** (default):
 
 ```
 skills/repo-doctor/
   SKILL.md                       # Generated — agent reads this
   package.json                   # Generated — name, version
   scripts/
-    run                          # Shell wrapper (chmod +x) — public interface
+    run                          # Shell wrapper — detects OS/arch, delegates to binary
   bin/
     repo-doctor-darwin-arm64     # macOS Apple Silicon
     repo-doctor-linux-x64       # Linux x86_64
@@ -821,9 +834,27 @@ skills/repo-doctor/
 
 Default targets: `darwin-arm64` and `linux-x64`. Override with `--targets`. Use `--single` for fast dev builds (current platform only).
 
+**Node mode** (`--mode node`):
+
+```
+skills/repo-doctor/
+  SKILL.md                       # Generated — agent reads this
+  package.json                   # Generated — name, version
+  scripts/
+    run                          # Shell wrapper — checks Node ≥ 24, runs bundle
+  bin/
+    repo-doctor.mjs              # Single ESM bundle (all deps inlined)
+  references/                    # Copied from source
+    severity-rubric.md
+```
+
+One bundle works on all platforms where Node.js ≥ 24 is available. No `--targets` or `--single` flags needed.
+
 ### The `scripts/run` wrapper
 
-Following [skill-dev conventions](https://github.com/TimBeyer/agent-skills/blob/main/skills/skill-dev/SKILL.md), the public interface is a shell wrapper in `scripts/` that delegates to the platform-specific binary in `bin/`:
+Following [skill-dev conventions](https://github.com/TimBeyer/agent-skills/blob/main/skills/skill-dev/SKILL.md), the public interface is a shell wrapper in `scripts/` that delegates to `bin/`. The wrapper varies by build mode:
+
+**Bun mode** — detects OS and architecture, dispatches to the correct platform binary:
 
 ```bash
 #!/usr/bin/env bash
@@ -841,6 +872,21 @@ fi
 exec "$BIN" "$@"
 ```
 
+**Node mode** — checks Node.js version, sets `SKILL_DIR` env var for reference resolution, runs the bundle:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+NODE_VERSION="$(node -e 'process.stdout.write(process.versions.node.split(".")[0])')"
+if [ "$NODE_VERSION" -lt 24 ] 2>/dev/null; then
+  echo "error: Node.js >= 24 required" >&2; exit 1
+fi
+export SKILL_DIR
+exec node "$SKILL_DIR/bin/repo-doctor.mjs" "$@"
+```
+
 `SKILL.md` references only `scripts/run` — never `bin/` directly. The wrapper decouples the skill's contract from its internal layout.
 
 ### Generated SKILL.md
@@ -854,7 +900,7 @@ The build generates a SKILL.md with:
 
 Authors customize via `skill.description` and optional `skill.skillMd` template override.
 
-### The compile step
+### The compile/bundle step
 
 The build generates a temporary entry point:
 
@@ -864,7 +910,9 @@ import { main } from '@contentful/skill-kit/cli';
 main(skill);
 ```
 
-`bun build --compile` bundles everything — the SDK, Zod, the skill code — into a single self-contained executable per target platform. The SDK itself has no Bun dependency; Bun is used only as a build tool.
+**Bun mode:** `bun build --compile` bundles everything — the SDK, Zod, the skill code — into a single self-contained executable per target platform.
+
+**Node mode:** esbuild bundles the same dependency tree into a single `.mjs` file. All dependencies (SDK, Zod) are inlined; only Node.js built-ins are external. The result is a portable ESM module that runs under `node`.
 
 ---
 
@@ -892,8 +940,10 @@ my-repo/
       scripts/
         run
       bin/
-        repo-doctor-darwin-arm64
-        repo-doctor-linux-x64
+        repo-doctor.mjs       # --mode node (single bundle)
+        # — OR for --mode bun: —
+        # repo-doctor-darwin-arm64
+        # repo-doctor-linux-x64
       references/
         severity-rubric.md
     some-prose-skill/         # Traditional prose skills coexist
@@ -922,7 +972,7 @@ my-repo/
 }
 ```
 
-**Git distribution:** Binaries in `skills/*/bin/` can be committed to git for repos that distribute skills via `git clone` or `skills add owner/repo`. Add `skills/*/bin/` to `.gitignore` if you prefer CI-only builds.
+**Git distribution:** With `--mode node`, the `.mjs` bundles in `skills/*/bin/` are small enough to commit to git. With `--mode bun`, the compiled executables are large (50-100MB each) — add `skills/*/bin/` to `.gitignore` and build in CI instead.
 
 ---
 
