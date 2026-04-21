@@ -54,8 +54,9 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
+    "@release-it/conventional-changelog": "^10.0.6",
     "prettier": "^3.8.1",
-    "release-it": "^20.0.0",
+    "release-it": "^19.0.0",
     "typescript": "^5.9.3"
   }
 }

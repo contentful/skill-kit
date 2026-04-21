@@ -1,8 +1,13 @@
 {
+  "$schema": "https://unpkg.com/release-it@19/schema/release-it.json",
   "git": {
-    "commitMessage": "chore(release): ${version} [skip ci]",
+    "commitMessage": "chore(release): v${version}",
+    "tagAnnotation": "Release ${version}",
     "tagName": "v${version}",
-    "requireBranch": "main"
+    "requireBranch": "main",
+    "requireCleanWorkingDir": true,
+    "push": true,
+    "pushArgs": ["--follow-tags"]
   },
   "npm": {
     "publish": true
@@ -10,6 +15,27 @@
   "github": {
     "release": true,
     "releaseName": "v${version}",
-    "autoGenerate": true
+    "tokenRef": "GITHUB_TOKEN"
+  },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits",
+        "types": [
+          { "type": "feat", "section": "Features" },
+          { "type": "fix", "section": "Bug Fixes" },
+          { "type": "docs", "section": "Documentation" },
+          { "type": "refactor", "section": "Refactoring" },
+          { "type": "build", "section": "Build" },
+          { "type": "ci", "section": "CI" },
+          { "type": "chore", "hidden": true },
+          { "type": "deps", "section": "Dependencies" },
+          { "type": "perf", "section": "Performance" },
+          { "type": "test", "section": "Tests" },
+          { "type": "style", "hidden": true },
+          { "type": "revert", "section": "Reverts" }
+        ]
+      }
+    }
   }
 }
