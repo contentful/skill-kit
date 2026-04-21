@@ -28,20 +28,46 @@ const base = import.meta.env.BASE_URL;
       <span class="terminal-dot"></span>
       <span class="terminal-dot"></span>
       <span class="terminal-dot"></span>
-      <span class="terminal-title">terminal</span>
+      <span class="terminal-title">skill.ts</span>
     </div>
-    <pre class="terminal-body"><code><span class="t-dim">$</span> pnpm add @contentful/skill-kit
+    <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, askUser, action {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
 
-<span class="t-dim">$</span> cat src/skill.ts
-<span class="t-kw">import</span> {'{'} skill, z {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
+<span class="t-kw">const</span> writeChangelog = <span class="t-fn">action</span>({'{'}
+  name: <span class="t-str">'write-changelog'</span>,
+  input: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
+  output: z.<span class="t-fn">object</span>({'{'} path: z.<span class="t-fn">string</span>() {'}'}),
+  run: <span class="t-kw">async</span> ({'{'} input {'}'}) {'=>'} {'{'}
+    <span class="t-kw">await</span> writeFile(<span class="t-str">'CHANGELOG.md'</span>, input.markdown);
+    <span class="t-kw">return</span> {'{'} path: <span class="t-str">'CHANGELOG.md'</span> {'}'};
+  {'}'},
+{'}'});
 
-<span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'} name: <span class="t-str">'greet'</span>, entry: <span class="t-str">'ask'</span> {'}'})
-  .<span class="t-fn">step</span>(<span class="t-str">'ask'</span>, {'{'} output: z.<span class="t-fn">object</span>({'{'} name: z.<span class="t-fn">string</span>() {'}'}), next: <span class="t-str">'welcome'</span> {'}'})
-  .<span class="t-fn">step</span>(<span class="t-str">'welcome'</span>, {'{'} next: {'{'} terminal: <span class="t-bool">true</span> {'}'} {'}'})
-  .<span class="t-fn">build</span>();
-
-<span class="t-dim">$</span> npx skill-kit build src/skill.ts -o skill
-<span class="t-accent">▸</span> Built greet → skill/</code></pre>
+<span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'}
+  name: <span class="t-str">'changelog'</span>, entry: <span class="t-str">'audience'</span>,
+  triggers: [<span class="t-str">'generate changelog'</span>, <span class="t-str">'prep release notes'</span>],
+  stash: z.<span class="t-fn">object</span>({'{'} tone: z.<span class="t-fn">string</span>() {'}'}),
+{'}'})
+  .<span class="t-fn">step</span>(<span class="t-str">'audience'</span>, {'{'}
+    ask: <span class="t-fn">askUser</span>({'{'}
+      type: <span class="t-str">'structured'</span>,
+      question: <span class="t-str">'Who is the changelog for?'</span>,
+      options: [
+        {'{'} value: <span class="t-str">'devs'</span>, label: <span class="t-str">'Developers'</span> {'}'},
+        {'{'} value: <span class="t-str">'users'</span>, label: <span class="t-str">'End users'</span> {'}'},
+      ],
+    {'}'}),
+    output: z.<span class="t-fn">object</span>({'{'} tone: z.<span class="t-fn">enum</span>([<span class="t-str">'devs'</span>, <span class="t-str">'users'</span>]) {'}'}),
+    stash: ({'{'} output {'}'}) {'=>'} ({'{'} tone: output.tone {'}'}),
+    next: <span class="t-str">'draft'</span>,
+  {'}'})
+  .<span class="t-fn">step</span>(<span class="t-str">'draft'</span>, {'{'}
+    prompt: ({'{'} stash {'}'}) {'=>'} <span class="t-str">`Scan recent commits. Write a ${'{'}</span>stash.tone === <span class="t-str">'devs'</span>
+      ? <span class="t-str">'technical'</span> : <span class="t-str">'friendly'</span><span class="t-str">{'}'} changelog.`</span>,
+    output: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
+    action: writeChangelog,
+    next: {'{'} terminal: <span class="t-bool">true</span> {'}'},
+  {'}'})
+  .<span class="t-fn">build</span>();</code></pre>
   </div>
 </section>
 
