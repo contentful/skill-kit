@@ -40,13 +40,19 @@ Two UX problems:
 
 ## Steps
 
-- [ ] Commit task doc
-- [ ] Part 1: CLI default command (parseArgs, templates, tests)
-- [ ] Part 2: Add esbuild dependency
-- [ ] Part 2: New templates (node-wrapper, node-scripts-run)
-- [ ] Part 2: Refactor buildSkill() + CLI --mode flag
-- [ ] Part 2: Tests for node build mode
-- [ ] Build checkpoint: typecheck + tests + format
-- [ ] Manual verification: build example with --mode node
+- [x] Commit task doc
+- [x] Part 1: CLI default command (parseArgs, templates, tests)
+- [x] Part 2: Add esbuild dependency
+- [x] Part 2: New templates (node-wrapper, node-scripts-run)
+- [x] Part 2: Refactor buildSkill() + CLI --mode flag
+- [x] Part 2: Tests for node build mode
+- [x] Build checkpoint: typecheck + tests + format
+- [x] Manual verification: build example with --mode node
 
 ## Notes
+
+- Node wrapper template points at `src/cli.ts` (not `dist/cli.js`) so esbuild can follow imports and bundle from source
+- Reference skills use `process.env.SKILL_DIR` (set by the delegator script) instead of `process.execPath` to find the references directory
+- Bundle size for get-to-know-you example: ~559KB vs ~55MB (bun executable) — 100x reduction
+- esbuild imported dynamically in `compileNodeBundle()` so bun mode doesn't require it
+- Verified: both skill and reference examples work in node mode, bun mode unchanged
