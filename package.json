@@ -2,6 +2,15 @@
   "name": "@contentful/skill-kit",
   "version": "0.1.10",
   "description": "TypeScript SDK for building agent skills with CLI-driven workflows",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/contentful/skill-kit"
+  },
+  "bugs": {
+    "url": "https://github.com/contentful/skill-kit/issues"
+  },
+  "homepage": "https://github.com/contentful/skill-kit#readme",
   "type": "module",
   "exports": {
     ".": {
@@ -40,6 +49,7 @@
     "test": "node --test --import tsx/esm 'src/**/*.test.ts'",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "update-licenses": "node ./scripts/update-licenses.mjs",
     "build:examples": "pnpm run build:examples:get-to-know-you && pnpm run build:examples:ts-patterns",
     "build:examples:get-to-know-you": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill --mode node",
     "build:examples:ts-patterns": "node --import tsx/esm bin/skill-kit.js build examples/ts-patterns/src/skill.ts -o examples/ts-patterns/skill --mode node",

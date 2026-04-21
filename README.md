@@ -342,6 +342,27 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 
 ---
 
+## Help and Support
+
+- Open a GitHub issue for bugs and feature requests.
+- For security issues, follow [SECURITY.md](SECURITY.md).
+- Contentful support resources: https://www.contentful.com/help/getting-started/how-to-get-help/
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, validation commands, and pull request guidelines.
+
+## License and Notices
+
+This project is licensed under [MIT](LICENSE).
+
+Third-party notices and license automation docs:
+
+- [NOTICE](NOTICE)
+- [AUTOMATION-FOR-LICENSES.md](AUTOMATION-FOR-LICENSES.md)
+
+---
+
 <p align="center">
   <a href="./docs/api.md">Full API Reference</a> · <a href="./docs/architecture.md">Architecture</a> · <a href="./SPEC.md">Specification</a> · <a href="https://agentskills.io/specification">agentskills.io</a>
 </p>
