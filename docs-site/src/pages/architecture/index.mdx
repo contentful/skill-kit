@@ -1,6 +1,6 @@
 ---
 layout: ../../layouts/DocsLayout.astro
-title: "Architecture"
+title: 'Architecture'
 ---
 
 # Architecture
@@ -69,13 +69,13 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 ### CLI Flags
 
-| Flag | Required | Description |
-| --- | --- | --- |
-| `--context` | On `start` | JSON string validated against the skill's context schema |
-| `--step` | On `advance` | Name of the step whose output is being submitted |
-| `--output` | On `advance` | JSON string — the agent's response for the step |
-| `--history` | On `advance` | JSON array of `{ step, output, action? }` — full history |
-| `--host` | Optional | Host identifier: `claude-code`, `codex`, `opencode`, `generic` |
+| Flag        | Required     | Description                                                    |
+| ----------- | ------------ | -------------------------------------------------------------- |
+| `--context` | On `start`   | JSON string validated against the skill's context schema       |
+| `--step`    | On `advance` | Name of the step whose output is being submitted               |
+| `--output`  | On `advance` | JSON string — the agent's response for the step                |
+| `--history` | On `advance` | JSON array of `{ step, output, action? }` — full history       |
+| `--host`    | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic` |
 
 ### Why stateless
 

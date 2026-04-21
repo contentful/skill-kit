@@ -1,6 +1,6 @@
 ---
 layout: ../../layouts/DocsLayout.astro
-title: "Example: get-to-know-you"
+title: 'Example: get-to-know-you'
 ---
 
 # Example: get-to-know-you
@@ -273,9 +273,7 @@ const result = await runSkill(skill, {
   }),
 });
 
-assert.deepEqual(result.path, [
-  'greet', 'ask-role', 'ask-stack', 'ask-hobby', 'confirm-profile', 'profile-card',
-]);
+assert.deepEqual(result.path, ['greet', 'ask-role', 'ask-stack', 'ask-hobby', 'confirm-profile', 'profile-card']);
 ```
 
 **Testing the hobby loop** with array-based mock responses that cycle through on repeated visits:

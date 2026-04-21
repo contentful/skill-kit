@@ -1,6 +1,6 @@
 ---
 layout: ../../layouts/DocsLayout.astro
-title: "Workflow Skills"
+title: 'Workflow Skills'
 ---
 
 Workflow skills are typed state machines. Each step has a prompt, an output schema, and a transition. The agent sees one step at a time — the CLI controls the order, validates outputs, and decides what comes next.
@@ -31,23 +31,25 @@ export default skill({
   },
   skillMd: 'Custom SKILL.md template override',
 })
-  .step('gather-info', { /* ... */ })
+  .step('gather-info', {
+    /* ... */
+  })
   .build();
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `string` | Yes | Skill identifier. Used in build output directory name and generated SKILL.md. |
-| `entry` | `string` | Yes | Name of the first step to execute. Must match a registered step name. |
-| `version` | `string` | No | Semver version string. Defaults to `'0.0.0'`. |
-| `description` | `string` | No | Human-readable description. Included in generated SKILL.md frontmatter. |
-| `triggers` | `string[]` | No | Trigger keywords appended to the description for agent discoverability. |
-| `context` | `z.ZodType` | No | Zod schema for global skill context. Validated on `start`, typed everywhere. |
-| `stash` | `z.ZodType` | No | Zod schema for cross-step scratchpad state. Shallow-merged after each step. |
-| `finalOutput` | `z.ZodType` | No | Schema for the skill's "return value". Validated when the workflow terminates. |
-| `capabilities` | `CapabilityManifest` | No | Declares filesystem, network, subprocess, and env var access. |
-| `observers` | `ObserverMap` | No | Read-only lifecycle callbacks for logging, telemetry, and audit. |
-| `skillMd` | `string \| ((skill) => string)` | No | Custom SKILL.md template. Overrides the generated default. |
+| Field          | Type                            | Required | Description                                                                    |
+| -------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`         | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
+| `entry`        | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
+| `version`      | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
+| `description`  | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
+| `triggers`     | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
+| `context`      | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
+| `stash`        | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
+| `finalOutput`  | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
+| `capabilities` | `CapabilityManifest`            | No       | Declares filesystem, network, subprocess, and env var access.                  |
+| `observers`    | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
+| `skillMd`      | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
 
 ## `.step(name, config)`
 
@@ -78,39 +80,39 @@ Adds a step to the skill. The prompt and stash callbacks receive typed `context`
 
 ### Full step config shape
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `prompt` | `string \| (ctx: PromptContext) => string` | No | The prose shown to the agent. Can be static or dynamic. |
-| `output` | `z.ZodType` | Yes | Zod schema the agent's response must match. Validated before transition. |
-| `next` | `string \| (ctx) => string \| { terminal: true }` | Yes | Where to go after this step. Static name, dynamic function, or terminal. |
-| `render` | `(ctx: PromptContext) => string` | No | Deterministic output generation. Result available as `rendered` in prompt. |
-| `stash` | `(ctx: { output }) => Partial<Stash>` | No | Shallow-merge updates into the cross-step scratchpad. |
-| `action` | `ActionDefinition` | No | CLI-side side effect that runs after output validation. |
-| `actionInput` | `(ctx: { output, stash }) => unknown` | No | Transform step output into action input when shapes differ. |
-| `afterAction` | `(ctx: { output, action }) => Partial<Stash>` | No | Stash updates from action results, avoiding type casts from history. |
-| `maxVisits` | `number` | No | Explicit visit limit for this step. |
-| `onMaxVisits` | `string` | No | Fallback step when `maxVisits` is exceeded. |
-| `ask` | `AskUserConfig` | No | Primitive: structured or open user question. |
-| `confirm` | `ConfirmConfig` | No | Primitive: binary yes/no approval. |
-| `plan` | `PlanConfig` | No | Primitive: present a plan for approval. |
-| `tasks` | `TasksConfig` | No | Primitive: create a tracked task list. |
-| `subtask` | `SubtaskConfig` | No | Primitive: spawn an isolated sub-agent. |
+| Field         | Type                                              | Required | Description                                                                |
+| ------------- | ------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `prompt`      | `string \| (ctx: PromptContext) => string`        | No       | The prose shown to the agent. Can be static or dynamic.                    |
+| `output`      | `z.ZodType`                                       | Yes      | Zod schema the agent's response must match. Validated before transition.   |
+| `next`        | `string \| (ctx) => string \| { terminal: true }` | Yes      | Where to go after this step. Static name, dynamic function, or terminal.   |
+| `render`      | `(ctx: PromptContext) => string`                  | No       | Deterministic output generation. Result available as `rendered` in prompt. |
+| `stash`       | `(ctx: { output }) => Partial<Stash>`             | No       | Shallow-merge updates into the cross-step scratchpad.                      |
+| `action`      | `ActionDefinition`                                | No       | CLI-side side effect that runs after output validation.                    |
+| `actionInput` | `(ctx: { output, stash }) => unknown`             | No       | Transform step output into action input when shapes differ.                |
+| `afterAction` | `(ctx: { output, action }) => Partial<Stash>`     | No       | Stash updates from action results, avoiding type casts from history.       |
+| `maxVisits`   | `number`                                          | No       | Explicit visit limit for this step.                                        |
+| `onMaxVisits` | `string`                                          | No       | Fallback step when `maxVisits` is exceeded.                                |
+| `ask`         | `AskUserConfig`                                   | No       | Primitive: structured or open user question.                               |
+| `confirm`     | `ConfirmConfig`                                   | No       | Primitive: binary yes/no approval.                                         |
+| `plan`        | `PlanConfig`                                      | No       | Primitive: present a plan for approval.                                    |
+| `tasks`       | `TasksConfig`                                     | No       | Primitive: create a tracked task list.                                     |
+| `subtask`     | `SubtaskConfig`                                   | No       | Primitive: spawn an isolated sub-agent.                                    |
 
 ## PromptContext
 
 Every dynamic `prompt` function and `render` function receives a `PromptContext` object. These are the fields available:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `prev` | `unknown` | Typed output of the immediately preceding step. |
-| `history` | `readonly StepResult[]` | All prior step results as `{ step, output, action? }` objects. |
-| `getStep` | `<T, A>(name: string) => { output: T; action: A } \| undefined` | Type-safe lookup of a specific step's result from history. |
-| `context` | `TContext` | Global skill context (config defaults + runtime overrides). |
-| `rendered` | `string \| undefined` | Output of this step's `render()` function, if defined. |
-| `refs` | `ReferenceLoader` | Lazy loader for reference files: `refs.load('file.md')`, `refs.asset('path')`. |
-| `attempts` | `number` | How many times this step has been visited (zero-indexed, useful for retries). |
-| `host` | `Handshake` | Host info: `{ host: string, toolsAvailable: string[] }`. |
-| `stash` | `Readonly<TStash>` | Current cross-step scratchpad state. Frozen — read-only in prompts. |
+| Field      | Type                                                            | Description                                                                    |
+| ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `prev`     | `unknown`                                                       | Typed output of the immediately preceding step.                                |
+| `history`  | `readonly StepResult[]`                                         | All prior step results as `{ step, output, action? }` objects.                 |
+| `getStep`  | `<T, A>(name: string) => { output: T; action: A } \| undefined` | Type-safe lookup of a specific step's result from history.                     |
+| `context`  | `TContext`                                                      | Global skill context (config defaults + runtime overrides).                    |
+| `rendered` | `string \| undefined`                                           | Output of this step's `render()` function, if defined.                         |
+| `refs`     | `ReferenceLoader`                                               | Lazy loader for reference files: `refs.load('file.md')`, `refs.asset('path')`. |
+| `attempts` | `number`                                                        | How many times this step has been visited (zero-indexed, useful for retries).  |
+| `host`     | `Handshake`                                                     | Host info: `{ host: string, toolsAvailable: string[] }`.                       |
+| `stash`    | `Readonly<TStash>`                                              | Current cross-step scratchpad state. Frozen — read-only in prompts.            |
 
 ## Transitions
 
@@ -169,11 +171,11 @@ Return `'self'` from a dynamic `next` to revisit the current step. Always pair w
 
 Cycles are detected by static graph analysis at build time. Any step that participates in a cycle gets an implicit visit limit of **10**. For explicit control, declare `maxVisits` and `onMaxVisits`.
 
-| Config | Behavior |
-|--------|----------|
+| Config                                   | Behavior                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------- |
 | No `maxVisits` declared, step in a cycle | Implicit limit of 10 visits. Throws `CycleGuardError` when exceeded. |
-| `maxVisits` without `onMaxVisits` | Throws `CycleGuardError` when the limit is hit (fail-closed). |
-| `maxVisits` + `onMaxVisits` | Redirects to the `onMaxVisits` step when the limit is hit. |
+| `maxVisits` without `onMaxVisits`        | Throws `CycleGuardError` when the limit is hit (fail-closed).        |
+| `maxVisits` + `onMaxVisits`              | Redirects to the `onMaxVisits` step when the limit is hit.           |
 
 Linear workflows with function-based `next` don't need cycle guards — the conservative graph analysis handles safety automatically by treating dynamic transitions as potentially reaching all steps.
 
@@ -330,10 +332,9 @@ export default skill({
     `,
     output: z.object({ checks: z.array(CheckResult) }),
     stash: ({ output }) => ({
-      failCount: output.checks.filter(c => !c.passed).length,
+      failCount: output.checks.filter((c) => !c.passed).length,
     }),
-    next: ({ output }) =>
-      output.checks.every(c => c.passed) ? 'approve' : 'remediate',
+    next: ({ output }) => (output.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
   })
 
   // Step 3a: Remediation (if checks failed)
@@ -348,10 +349,10 @@ export default skill({
     `,
     output: z.object({ checks: z.array(CheckResult) }),
     stash: ({ output }) => ({
-      failCount: output.checks.filter(c => !c.passed).length,
+      failCount: output.checks.filter((c) => !c.passed).length,
     }),
     next: ({ output, attempts }) => {
-      if (output.checks.every(c => c.passed)) return 'approve';
+      if (output.checks.every((c) => c.passed)) return 'approve';
       if (attempts >= 2) return 'force-report';
       return 'self';
     },
@@ -368,7 +369,7 @@ export default skill({
       defaultAnswer: 'yes',
     },
     output: z.object({ approved: z.boolean() }),
-    next: ({ output }) => output.approved ? 'report' : 'run-checks',
+    next: ({ output }) => (output.approved ? 'report' : 'run-checks'),
   })
 
   // Step 4a: Final report (happy path)
@@ -380,10 +381,9 @@ export default skill({
     `,
     output: z.object({ ready: z.boolean(), summary: z.string() }),
     render: ({ history, stash }) => {
-      const lastChecks = history
-        .filter(s => s.step === 'run-checks' || s.step === 'remediate')
-        .pop();
-      const checks = (lastChecks?.output as { checks: Array<{ name: string; passed: boolean; detail: string }> })?.checks ?? [];
+      const lastChecks = history.filter((s) => s.step === 'run-checks' || s.step === 'remediate').pop();
+      const checks =
+        (lastChecks?.output as { checks: Array<{ name: string; passed: boolean; detail: string }> })?.checks ?? [];
       const table = render.table(checks, { columns: ['name', 'passed', 'detail'] });
       return render.section(`Deployment Report: ${stash.env}`, table);
     },

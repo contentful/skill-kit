@@ -1,6 +1,6 @@
 ---
 layout: ../../layouts/DocsLayout.astro
-title: "Modules & Composition"
+title: 'Modules & Composition'
 ---
 
 Modules are composable step groups with their own stash scope. They let you extract a reusable sequence of steps — authentication, onboarding, data gathering — and plug it into different skills. Module steps cannot access the parent skill's context, which enforces portability: a module that works in one skill works in any skill.
@@ -19,16 +19,20 @@ export const authModule = module({
   entry: 'auth-login',
   stash: z.object({ userId: z.string(), token: z.string() }),
 })
-  .step('auth-login', { /* ... */ })
-  .step('auth-verify', { /* ... */ })
+  .step('auth-login', {
+    /* ... */
+  })
+  .step('auth-verify', {
+    /* ... */
+  })
   .build();
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `string` | Yes | Module identifier. Used for error messages and debugging. |
-| `entry` | `string` | Yes | Name of the first step in the module. Must match a registered step. |
-| `stash` | `z.ZodType` | Yes | Zod schema for the module's own stash scope. Merged into the parent skill's stash on registration. |
+| Field   | Type        | Required | Description                                                                                        |
+| ------- | ----------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `name`  | `string`    | Yes      | Module identifier. Used for error messages and debugging.                                          |
+| `entry` | `string`    | Yes      | Name of the first step in the module. Must match a registered step.                                |
+| `stash` | `z.ZodType` | Yes      | Zod schema for the module's own stash scope. Merged into the parent skill's stash on registration. |
 
 ## `.step()` within modules
 
@@ -41,7 +45,7 @@ module({
   stash: z.object({ userId: z.string(), token: z.string() }),
 })
   .step('auth-login', {
-    prompt: 'Ask for the user\'s credentials.',
+    prompt: "Ask for the user's credentials.",
     output: z.object({ userId: z.string(), password: z.string() }),
     stash: ({ output }) => ({ userId: output.userId }),
     next: 'auth-verify',
@@ -50,7 +54,7 @@ module({
     prompt: ({ stash }) => `Verify credentials for user ${stash.userId}.`,
     output: z.object({ token: z.string(), valid: z.boolean() }),
     stash: ({ output }) => ({ token: output.token }),
-    next: '__parent__',   // exits back to the registering skill
+    next: '__parent__', // exits back to the registering skill
   })
   .build();
 ```
@@ -81,15 +85,14 @@ export default skill({
     prompt: 'Welcome the user and ask them to log in.',
     output: z.object({ ready: z.boolean() }),
     stash: () => ({ appName: 'MyApp' }),
-    next: 'auth-login',  // enter the module
+    next: 'auth-login', // enter the module
   })
 
   .register(authModule, { next: 'dashboard' })
 
   .step('dashboard', {
     // stash type is now { appName: string } & { userId: string, token: string }
-    prompt: ({ stash }) =>
-      `Welcome ${stash.userId} to ${stash.appName}. Your session token: ${stash.token}`,
+    prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}. Your session token: ${stash.token}`,
     output: z.object({ action: z.string() }),
     next: { terminal: true },
   })
@@ -134,11 +137,10 @@ export const authModule = module({
     next: 'auth-credentials',
   })
   .step('auth-credentials', {
-    prompt: ({ stash }) =>
-      `Collect credentials for ${stash.authMethod} authentication.`,
+    prompt: ({ stash }) => `Collect credentials for ${stash.authMethod} authentication.`,
     output: z.object({ userId: z.string(), success: z.boolean() }),
     stash: ({ output }) => ({ userId: output.userId }),
-    next: ({ output }) => output.success ? 'auth-confirm' : 'auth-login',
+    next: ({ output }) => (output.success ? 'auth-confirm' : 'auth-login'),
     maxVisits: 3,
     onMaxVisits: 'auth-confirm',
   })
@@ -150,7 +152,7 @@ export const authModule = module({
       defaultAnswer: 'yes',
     },
     output: z.object({ approved: z.boolean() }),
-    next: '__parent__',   // wired to { next } at registration
+    next: '__parent__', // wired to { next } at registration
   })
   .build();
 ```
@@ -214,6 +216,7 @@ When you call `.register(module, { next })`, the builder's stash type changes fr
 ```
 
 This means:
+
 - Steps defined **before** `.register()` only see the skill's own stash fields
 - Steps defined **after** `.register()` see both the skill's and the module's stash fields
 - The module's own steps only see the module's stash type (enforced by the `ModuleBuilder`)

@@ -1,6 +1,6 @@
 ---
 layout: ../../layouts/DocsLayout.astro
-title: "Testing Skills"
+title: 'Testing Skills'
 ---
 
 skill-kit ships a test harness that drives skills through their steps without an agent. Import everything from the `/test` subpath:
@@ -15,9 +15,11 @@ Drives a skill to completion with a model adapter and returns the full execution
 
 ```typescript
 const result = await runSkill(mySkill, {
-  model: mockModel({ /* step responses */ }),
-  context: { repoPath: '.' },       // optional — parsed against the skill's context schema
-  host: { host: 'claude-code' },     // optional — defaults to generic
+  model: mockModel({
+    /* step responses */
+  }),
+  context: { repoPath: '.' }, // optional — parsed against the skill's context schema
+  host: { host: 'claude-code' }, // optional — defaults to generic
 });
 ```
 
@@ -31,12 +33,12 @@ const result = await runSkill(mySkill, {
 
 ### Return value
 
-| Field     | Type                      | Description                               |
-| --------- | ------------------------- | ----------------------------------------- |
-| `path`    | `string[]`                | Sequence of step names visited            |
-| `outputs` | `Record<string, unknown>` | Raw model responses keyed by step name    |
-| `output`  | `unknown`                 | Final output (from the terminal step)     |
-| `history` | `readonly StepResult[]`   | Validated outputs and action results      |
+| Field     | Type                      | Description                            |
+| --------- | ------------------------- | -------------------------------------- |
+| `path`    | `string[]`                | Sequence of step names visited         |
+| `outputs` | `Record<string, unknown>` | Raw model responses keyed by step name |
+| `output`  | `unknown`                 | Final output (from the terminal step)  |
+| `history` | `readonly StepResult[]`   | Validated outputs and action results   |
 
 ## `mockModel(map)`
 
@@ -114,7 +116,9 @@ Pass a `host` option to simulate different agent hosts. This affects how primiti
 
 ```typescript
 const result = await runSkill(mySkill, {
-  model: mockModel({ /* ... */ }),
+  model: mockModel({
+    /* ... */
+  }),
   host: { host: 'claude-code' },
 });
 ```

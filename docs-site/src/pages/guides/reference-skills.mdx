@@ -1,6 +1,6 @@
 ---
 layout: ../../layouts/DocsLayout.astro
-title: "Reference Skills"
+title: 'Reference Skills'
 ---
 
 Reference skills provide progressive disclosure for large documentation. Instead of a state machine, they expose named **topics** that agents load on demand. The agent reads the SKILL.md, sees what topics are available, and requests the ones it needs. No JSON protocol, no step-by-step workflow — just `topic <name>` and text back.
@@ -21,16 +21,20 @@ export default reference({
     'TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick ' +
     'refresher on generics, discriminated unions, builder patterns, or error handling.',
 })
-  .topic('generics', { /* ... */ })
-  .topic('error-handling', { /* ... */ })
+  .topic('generics', {
+    /* ... */
+  })
+  .topic('error-handling', {
+    /* ... */
+  })
   .build();
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `string` | Yes | Reference skill identifier. Used in build output and SKILL.md. |
-| `description` | `string` | Yes | Human-readable description. Tells the agent when to use this reference. |
-| `version` | `string` | No | Semver version. Defaults to `'0.0.0'`. |
+| Field         | Type     | Required | Description                                                             |
+| ------------- | -------- | -------- | ----------------------------------------------------------------------- |
+| `name`        | `string` | Yes      | Reference skill identifier. Used in build output and SKILL.md.          |
+| `description` | `string` | Yes      | Human-readable description. Tells the agent when to use this reference. |
+| `version`     | `string` | No       | Semver version. Defaults to `'0.0.0'`.                                  |
 
 ## `.topic(name, config)`
 
@@ -43,10 +47,10 @@ Adds a named topic. Each topic has a label (shown in the topic listing) and a co
 })
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `label` | `string` | Yes | Short description shown when the agent lists available topics. |
-| `content` | `(ctx: { refs: ReferenceLoader }) => string` | Yes | Function that returns the topic's full text content. |
+| Field     | Type                                         | Required | Description                                                    |
+| --------- | -------------------------------------------- | -------- | -------------------------------------------------------------- |
+| `label`   | `string`                                     | Yes      | Short description shown when the agent lists available topics. |
+| `content` | `(ctx: { refs: ReferenceLoader }) => string` | Yes      | Function that returns the topic's full text content.           |
 
 ### Content sources
 
