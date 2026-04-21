@@ -142,6 +142,8 @@ async function compileNodeBundle(entryPath: string, def: Buildable, outDir: stri
       platform: 'node',
       target: 'node24',
       outfile: bundlePath,
+      treeShaking: true,
+      minify: true,
     });
     process.stderr.write(`  ✓ ${bundlePath}\n`);
   } finally {
