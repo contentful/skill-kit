@@ -34,6 +34,8 @@ const description = frontmatter?.description ?? Astro.props.description;
     display: grid;
     grid-template-columns: var(--sidebar-width) minmax(0, var(--content-width)) auto;
     gap: var(--space-6);
+    background: var(--color-bg);
+    min-height: calc(100vh - var(--nav-height));
   }
 
   .docs-content {
