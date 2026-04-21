@@ -1,0 +1,81 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <span class="footer-logo">▸ skill-kit</span>
+      <span class="footer-sep">—</span>
+      <span class="footer-text">Built by <a href="https://github.com/contentful" target="_blank" rel="noopener">Contentful</a></span>
+    </div>
+    <div class="footer-links">
+      <a href={`${base}api/`}>API</a>
+      <a href="https://github.com/contentful/skill-kit" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://agentskills.io/specification" target="_blank" rel="noopener">agentskills.io</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-6) var(--space-5);
+    margin-top: var(--space-9);
+  }
+
+  .footer-inner {
+    max-width: 80rem;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .footer-logo {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--color-text-dim);
+  }
+
+  .footer-sep {
+    color: var(--color-border-focus);
+  }
+
+  .footer-text {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+  }
+
+  .footer-text a {
+    color: var(--color-text-muted);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: var(--space-5);
+  }
+
+  .footer-links a {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: color var(--transition-fast);
+  }
+
+  .footer-links a:hover {
+    color: var(--color-text-muted);
+  }
+</style>
