@@ -4,5 +4,6 @@
     "emitDeclarationOnly": false,
     "declaration": true,
     "sourceMap": true
-  }
+  },
+  "exclude": ["node_modules", "dist", "tmp", "src/**/*.test.ts", "src/protocol/fixtures/**"]
 }

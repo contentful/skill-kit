@@ -1,0 +1,39 @@
+# Source
+src/
+
+# Documentation
+docs/
+docs-site/
+SPEC.md
+CLAUDE.md
+
+# Examples & tasks
+examples/
+tasks/
+assets/
+
+# CI/CD & editor config
+.github/
+.agents/
+.claude/
+.contentful/
+.vscode/
+.idea/
+
+# Build & tool config
+tsconfig.json
+tsconfig.build.json
+.prettierrc
+.nvmrc
+.release-it.json
+renovate.json
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Test files (including compiled tests in dist/)
+**/*.test.ts
+**/*.test.js
+**/*.test.d.ts
+**/*.test.d.ts.map
+**/*.test.js.map
+dist/protocol/fixtures/
