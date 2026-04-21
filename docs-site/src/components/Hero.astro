@@ -30,7 +30,7 @@ const base = import.meta.env.BASE_URL;
       <span class="terminal-dot"></span>
       <span class="terminal-title">skill.ts</span>
     </div>
-    <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, askUser, action {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
+    <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, askUser {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
 
 <span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'}
   name: <span class="t-str">'changelog'</span>, entry: <span class="t-str">'audience'</span>,
@@ -52,17 +52,8 @@ const base = import.meta.env.BASE_URL;
   {'}'})
   .<span class="t-fn">step</span>(<span class="t-str">'draft'</span>, {'{'}
     prompt: ({'{'} stash {'}'}) {'=>'} <span class="t-str">`Scan recent commits. Write a ${'{'}</span>stash.audience === <span class="t-str">'devs'</span>
-      ? <span class="t-str">'technical'</span> : <span class="t-str">'friendly'</span><span class="t-str">{'}'} changelog.`</span>,
-    output: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
-    action: <span class="t-fn">action</span>({'{'}
-      name: <span class="t-str">'write-changelog'</span>,
-      input: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
-      output: z.<span class="t-fn">object</span>({'{'} path: z.<span class="t-fn">string</span>() {'}'}),
-      run: <span class="t-kw">async</span> ({'{'} input {'}'}) {'=>'} {'{'}
-        <span class="t-kw">await</span> writeFile(<span class="t-str">'CHANGELOG.md'</span>, input.markdown);
-        <span class="t-kw">return</span> {'{'} path: <span class="t-str">'CHANGELOG.md'</span> {'}'};
-      {'}'},
-    {'}'}),
+      ? <span class="t-str">'technical'</span> : <span class="t-str">'friendly'</span><span class="t-str">{'}'} changelog to CHANGELOG.md.`</span>,
+    output: z.<span class="t-fn">object</span>({'{'} path: z.<span class="t-fn">string</span>() {'}'}),
     next: {'{'} terminal: <span class="t-bool">true</span> {'}'},
   {'}'})
   .<span class="t-fn">build</span>();</code></pre>
