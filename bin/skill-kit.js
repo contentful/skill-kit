@@ -33,13 +33,20 @@ if (command === 'build') {
       flags.targets = args[++i]?.split(',');
     } else if (arg === '--single') {
       flags.single = true;
+    } else if (arg === '--mode') {
+      const mode = args[++i];
+      if (mode !== 'bun' && mode !== 'node') {
+        process.stderr.write(`error: --mode must be "bun" or "node", got "${mode}"\n`);
+        process.exit(1);
+      }
+      flags.mode = mode;
     } else if (!arg.startsWith('-')) {
       entry = arg;
     }
   }
 
   if (!entry) {
-    process.stderr.write('Usage: skill-kit build <entry.ts> -o <outdir>\n');
+    process.stderr.write('Usage: skill-kit build <entry.ts> -o <outdir> [--mode bun|node]\n');
     process.exit(1);
   }
 
@@ -49,7 +56,7 @@ if (command === 'build') {
   }
 
   try {
-    await buildSkill({ entry, outDir: flags.outDir, targets: flags.targets, single: flags.single });
+    await buildSkill({ entry, outDir: flags.outDir, targets: flags.targets, single: flags.single, mode: flags.mode });
   } catch (err) {
     process.stderr.write(`error: ${err.message}\n`);
     process.exit(1);
