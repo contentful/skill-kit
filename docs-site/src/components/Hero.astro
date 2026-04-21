@@ -35,7 +35,7 @@ const base = import.meta.env.BASE_URL;
 <span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'}
   name: <span class="t-str">'changelog'</span>, entry: <span class="t-str">'audience'</span>,
   triggers: [<span class="t-str">'generate changelog'</span>, <span class="t-str">'prep release notes'</span>],
-  stash: z.<span class="t-fn">object</span>({'{'} tone: z.<span class="t-fn">string</span>() {'}'}),
+  stash: z.<span class="t-fn">object</span>({'{'} audience: z.<span class="t-fn">string</span>() {'}'}),
 {'}'})
   .<span class="t-fn">step</span>(<span class="t-str">'audience'</span>, {'{'}
     ask: <span class="t-fn">askUser</span>({'{'}
@@ -46,12 +46,12 @@ const base = import.meta.env.BASE_URL;
         {'{'} value: <span class="t-str">'users'</span>, label: <span class="t-str">'End users'</span> {'}'},
       ],
     {'}'}),
-    output: z.<span class="t-fn">object</span>({'{'} tone: z.<span class="t-fn">enum</span>([<span class="t-str">'devs'</span>, <span class="t-str">'users'</span>]) {'}'}),
-    stash: ({'{'} output {'}'}) {'=>'} ({'{'} tone: output.tone {'}'}),
+    output: z.<span class="t-fn">object</span>({'{'} audience: z.<span class="t-fn">enum</span>([<span class="t-str">'devs'</span>, <span class="t-str">'users'</span>]) {'}'}),
+    stash: ({'{'} output {'}'}) {'=>'} ({'{'} audience: output.audience{'}'}),
     next: <span class="t-str">'draft'</span>,
   {'}'})
   .<span class="t-fn">step</span>(<span class="t-str">'draft'</span>, {'{'}
-    prompt: ({'{'} stash {'}'}) {'=>'} <span class="t-str">`Scan recent commits. Write a ${'{'}</span>stash.tone === <span class="t-str">'devs'</span>
+    prompt: ({'{'} stash {'}'}) {'=>'} <span class="t-str">`Scan recent commits. Write a ${'{'}</span>stash.audience === <span class="t-str">'devs'</span>
       ? <span class="t-str">'technical'</span> : <span class="t-str">'friendly'</span><span class="t-str">{'}'} changelog.`</span>,
     output: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
     action: <span class="t-fn">action</span>({'{'}
