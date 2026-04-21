@@ -14,14 +14,14 @@ export function referenceMain(def: ReferenceDefinition, refsBasePath?: string): 
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (!command || command === '--help' || command === '-h') {
+  if (command === '--help' || command === '-h') {
     printHelp(def);
     return;
   }
 
   const refs = createReferenceLoader(refsBasePath ?? resolveSkillDir());
 
-  if (command === 'topics') {
+  if (!command || command === 'topics') {
     for (const [name, topic] of Object.entries(def.topics)) {
       process.stdout.write(`${name}: ${topic.label}\n`);
     }

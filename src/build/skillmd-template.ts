@@ -42,7 +42,7 @@ Determine which agent host you are running in, and pass it as \`--host\`:
 ### Step 1: Start
 
 \`\`\`bash
-\${CLAUDE_SKILL_DIR}/scripts/run start --context '{}' --host claude-code
+\${CLAUDE_SKILL_DIR}/scripts/run --context '{}' --host claude-code
 \`\`\`
 
 The output is JSON with these fields:

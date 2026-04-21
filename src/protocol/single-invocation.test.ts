@@ -43,3 +43,10 @@ test('parseArgs returns help for unknown command', () => {
   const result = parseArgs(['node', 'skill', 'unknown']);
   assert.equal(result.command, 'help');
 });
+
+test('parseArgs defaults to start when first arg is a flag', () => {
+  const result = parseArgs(['node', 'skill', '--context', '{}', '--host', 'claude-code']);
+  assert.equal(result.command, 'start');
+  assert.equal(result.flags['context'], '{}');
+  assert.equal(result.flags['host'], 'claude-code');
+});
