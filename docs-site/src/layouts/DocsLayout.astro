@@ -4,12 +4,15 @@ import Sidebar from '../components/Sidebar.astro';
 import TableOfContents from '../components/TableOfContents.astro';
 
 interface Props {
-  title: string;
+  frontmatter?: { title: string; description?: string };
+  title?: string;
   description?: string;
   headings?: { depth: number; slug: string; text: string }[];
 }
 
-const { title, description, headings = [] } = Astro.props;
+const { frontmatter, headings = [] } = Astro.props;
+const title = frontmatter?.title ?? Astro.props.title ?? '';
+const description = frontmatter?.description ?? Astro.props.description;
 ---
 
 <BaseLayout title={`${title} — skill-kit`} description={description}>
