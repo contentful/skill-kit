@@ -66,6 +66,10 @@ pnpm exec tsc --noEmit && node --test --import tsx/esm 'src/**/*.test.ts' && pnp
 - **Refactor proactively, don't over-engineer.** When you notice two or three call sites doing the same small transformation — extract a helper before adding the fourth. When a function is growing a second responsibility — split it. You don't need permission for these passes, and you shouldn't wait until a reviewer points it out. The counterweight: don't hoist a helper for a single call site, and don't split files just to feel tidy. "Three similar lines is better than a premature abstraction" still holds — act on repetition that already exists, not repetition you're speculating about.
 - **Known future requirements are fair game.** _Hypothetical_ future needs (speculation, "what if we eventually…") don't justify abstractions — but requirements written down in `SPEC.md` or a `TASK.md` are not hypothetical, and designing for them now is usually cheaper than retrofitting later. The rule is: the requirement must be _documented_, not imagined.
 
+## Documentation
+
+The docs site (`docs-site/`) is an Astro static site deployed to GitHub Pages. Its content pages are adapted from `docs/api.md`, `docs/architecture.md`, and the README. These are **not** auto-synced — when you change the markdown docs, update the corresponding MDX pages in `docs-site/src/pages/` and vice versa.
+
 ## Key references
 
 - `SPEC.md` — the full SDK specification
