@@ -32,16 +32,6 @@ const base = import.meta.env.BASE_URL;
     </div>
     <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, askUser, action {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
 
-<span class="t-kw">const</span> writeChangelog = <span class="t-fn">action</span>({'{'}
-  name: <span class="t-str">'write-changelog'</span>,
-  input: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
-  output: z.<span class="t-fn">object</span>({'{'} path: z.<span class="t-fn">string</span>() {'}'}),
-  run: <span class="t-kw">async</span> ({'{'} input {'}'}) {'=>'} {'{'}
-    <span class="t-kw">await</span> writeFile(<span class="t-str">'CHANGELOG.md'</span>, input.markdown);
-    <span class="t-kw">return</span> {'{'} path: <span class="t-str">'CHANGELOG.md'</span> {'}'};
-  {'}'},
-{'}'});
-
 <span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'}
   name: <span class="t-str">'changelog'</span>, entry: <span class="t-str">'audience'</span>,
   triggers: [<span class="t-str">'generate changelog'</span>, <span class="t-str">'prep release notes'</span>],
@@ -64,7 +54,15 @@ const base = import.meta.env.BASE_URL;
     prompt: ({'{'} stash {'}'}) {'=>'} <span class="t-str">`Scan recent commits. Write a ${'{'}</span>stash.tone === <span class="t-str">'devs'</span>
       ? <span class="t-str">'technical'</span> : <span class="t-str">'friendly'</span><span class="t-str">{'}'} changelog.`</span>,
     output: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
-    action: writeChangelog,
+    action: <span class="t-fn">action</span>({'{'}
+      name: <span class="t-str">'write-changelog'</span>,
+      input: z.<span class="t-fn">object</span>({'{'} markdown: z.<span class="t-fn">string</span>() {'}'}),
+      output: z.<span class="t-fn">object</span>({'{'} path: z.<span class="t-fn">string</span>() {'}'}),
+      run: <span class="t-kw">async</span> ({'{'} input {'}'}) {'=>'} {'{'}
+        <span class="t-kw">await</span> writeFile(<span class="t-str">'CHANGELOG.md'</span>, input.markdown);
+        <span class="t-kw">return</span> {'{'} path: <span class="t-str">'CHANGELOG.md'</span> {'}'};
+      {'}'},
+    {'}'}),
     next: {'{'} terminal: <span class="t-bool">true</span> {'}'},
   {'}'})
   .<span class="t-fn">build</span>();</code></pre>
