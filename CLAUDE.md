@@ -40,7 +40,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Workflow
 
-- **Always work on a branch** — never commit directly to main. One branch per task. Descriptive names: `feat/builder-api`, `fix/preamble-wiring`.
+- **Always work on a branch** — never commit or push directly to main, not even single-line fixes. One branch per task, land via PR. Descriptive names: `feat/builder-api`, `fix/preamble-wiring`.
 - **Conventional commits, committed frequently.** Commit the task doc first, then the code changes it produced. _Frequent_ means each logical stage gets its own commit as soon as it compiles on its own — not one giant `feat:` at the end containing a whole iteration. Target one commit per coherent slice: a refactor, a new pure module, a data-layer change, a test suite. When in doubt, commit. A reviewer should be able to read the branch top-to-bottom and follow the thinking; they should not have to diff 1200 lines in one shot.
 - **Each commit must stand on its own.** Typecheck and tests pass at every commit — not just at the tip. If the stage you're committing depends on something you haven't written yet (e.g., a type export referenced by a module that doesn't exist), land the dependency first. This keeps `git bisect` useful and keeps `git revert` from unravelling the whole iteration.
 - **Unrelated cleanups go in their own commit.** A `style:` / `chore:` commit for incidental Prettier or lint fixups on files you didn't otherwise touch. Don't smuggle them into a feature commit where they bloat the diff and muddle the history.
