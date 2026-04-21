@@ -593,25 +593,38 @@ Interactive testing adapter for manual evaluation. Not yet implemented in v0.1.
 Compiles a skill into a distributable [agentskills.io](https://agentskills.io/specification)-compliant directory:
 
 ```bash
-skill-kit build <entry.ts> -o <dir>
+skill-kit build <entry.ts> -o <dir>                        # default (bun mode)
+skill-kit build <entry.ts> -o <dir> --mode node             # Node.js bundle
 skill-kit build <entry.ts> -o <dir> --targets darwin-arm64,linux-x64,linux-arm64
-skill-kit build <entry.ts> -o <dir> --single   # current platform only (fast dev builds)
+skill-kit build <entry.ts> -o <dir> --single                # current platform only (fast dev builds)
 ```
 
-| Flag        | Required | Description                                                     |
-| ----------- | -------- | --------------------------------------------------------------- |
-| `-o, --out` | yes      | Output directory                                                |
-| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64` |
-| `--single`  | no       | Build only for current platform                                 |
+| Flag        | Required | Description                                                                     |
+| ----------- | -------- | ------------------------------------------------------------------------------- |
+| `-o, --out` | yes      | Output directory                                                                |
+| `--mode`    | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
+| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only. |
+| `--single`  | no       | Build only for current platform. Bun mode only.                                 |
 
-Output:
+Output (bun mode):
 
 ```
 <dir>/
   SKILL.md               ← Generated agent-facing docs
   package.json           ← Name and version
-  scripts/run            ← Shell wrapper (public interface)
+  scripts/run            ← Shell wrapper (platform dispatcher)
   bin/<name>-<platform>  ← Compiled Bun executables
+  references/            ← Copied from source
+```
+
+Output (node mode):
+
+```
+<dir>/
+  SKILL.md               ← Generated agent-facing docs
+  package.json           ← Name and version
+  scripts/run            ← Shell wrapper (Node version check)
+  bin/<name>.mjs         ← Single ESM bundle
   references/            ← Copied from source
 ```
 

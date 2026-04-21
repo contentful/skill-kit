@@ -16,7 +16,7 @@
 
 A prose skill is a blob of markdown the agent reads all at once. That works until it doesn't — multi-step workflows need branching and validation, and large reference docs need progressive disclosure.
 
-skill-kit gives you two tools. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions. **Reference skills** are on-demand topic loaders — the agent reads the SKILL.md, then loads detailed content one topic at a time. Both compile into self-contained executables that agents invoke via Bash.
+skill-kit gives you two tools. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions. **Reference skills** are on-demand topic loaders — the agent reads the SKILL.md, then loads detailed content one topic at a time. Both bundle into self-contained packages that agents invoke via Bash.
 
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
@@ -97,7 +97,8 @@ const result = await runSkill(greet, {
 ### Build a distributable skill
 
 ```bash
-npx skill-kit build src/skill.ts -o skill
+npx skill-kit build src/skill.ts -o skill --mode node    # lightweight Node.js bundle
+npx skill-kit build src/skill.ts -o skill                 # standalone executables (default)
 ```
 
 Output is an [agentskills.io](https://agentskills.io/specification)-compliant directory:
@@ -109,8 +110,10 @@ skill/
   scripts/
     run                  ← Shell wrapper. The public interface.
   bin/
-    greet-darwin-arm64
-    greet-linux-x64
+    greet.mjs            ← Node mode: single bundle (~100-500KB)
+    # — OR for default bun mode: —
+    # greet-darwin-arm64  ← Standalone executables (~50-100MB each)
+    # greet-linux-x64
 ```
 
 Install it anywhere — `skills add`, `agents-kit install`, or just `git clone`.
@@ -157,10 +160,10 @@ No JSON, no history, no state machine. Just `topic <name>` → text.
 ## How It Works
 
 ```
-┌─────────┐  scripts/run start   ┌─────────────┐
+┌─────────┐  scripts/run         ┌─────────────┐
 │         │ ───────────────────► │             │
 │  Agent  │  ◄ JSON: prompt,     │  Skill CLI  │
-│         │    schema            │  (compiled) │
+│         │    schema            │  (bundled)  │
 │         │                      │             │
 │         │  scripts/run advance │             │
 │         │ ───────────────────► │             │
@@ -169,7 +172,7 @@ No JSON, no history, no state machine. Just `topic <name>` → text.
 └─────────┘                      └─────────────┘
 ```
 
-Each invocation is **stateless**. The agent passes the full conversation history via `--history` on every `advance` call. The binary reconstructs state, validates the output against the Zod schema, and returns the next step's prompt as JSON. No persistent processes — just Bash calls that every agent host already supports.
+Each invocation is **stateless**. The agent passes the full conversation history via `--history` on every `advance` call. The skill reconstructs state, validates the output against the Zod schema, and returns the next step's prompt as JSON. No persistent processes — just Bash calls that every agent host already supports.
 
 ### Host-aware primitives
 
@@ -280,11 +283,12 @@ import { runSkill, mockModel } from '@contentful/skill-kit/test';
 ### CLI
 
 ```bash
-skill-kit build <entry.ts> -o <dir>       # Compile to distributable skill
-skill-kit build ... --targets linux-arm64  # Override platform targets
-skill-kit build ... --single               # Current platform only (fast)
-skill-kit run <skill.ts> start --context   # Dev mode — run without compiling
-skill-kit check <skill.ts>                 # Lint for portability issues
+skill-kit build <entry.ts> -o <dir>                # Bundle skill (default: bun executables)
+skill-kit build <entry.ts> -o <dir> --mode node    # Lightweight Node.js bundle
+skill-kit build ... --targets linux-arm64           # Override platform targets (bun mode)
+skill-kit build ... --single                        # Current platform only (bun mode, fast)
+skill-kit run <skill.ts> --context '{}' --host ...  # Dev mode — run without building
+skill-kit check <skill.ts>                          # Lint for portability issues
 ```
 
 <details>
@@ -334,7 +338,7 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 - **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
 - **Abstract verb system.** Step prose uses verbs (`ASK_STRUCTURED`, `ASK_FREEFORM`). The preamble maps them to host-specific tools.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.
-- **Two skill types, one build pipeline.** Workflow skills (`skill()`) for multi-step state machines. Reference skills (`reference()`) for progressive disclosure. Both compile to the same agentskills.io directory structure.
+- **Two skill types, one build pipeline.** Workflow skills (`skill()`) for multi-step state machines. Reference skills (`reference()`) for progressive disclosure. Both build to the same agentskills.io directory structure.
 
 ---
 

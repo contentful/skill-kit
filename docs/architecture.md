@@ -6,14 +6,14 @@ How `@contentful/skill-kit` works internally. For the author-facing API, see [ap
 
 ## The Stateless CLI Protocol
 
-A compiled skill is a binary invoked by agents via Bash — one call per step. Each call is stateless: the agent passes the full conversation history on every invocation. JSON goes to stdout, diagnostics to stderr.
+A built skill is invoked by agents via Bash — one call per step. Each call is stateless: the agent passes the full conversation history on every invocation. JSON goes to stdout, diagnostics to stderr.
 
 ### Lifecycle
 
-**1. Start** — Agent calls `scripts/run start`:
+**1. Start** — Agent calls `scripts/run` (defaults to `start`):
 
 ```bash
-scripts/run start --context '{"repoPath":"."}' --host claude-code
+scripts/run --context '{"repoPath":"."}' --host claude-code
 ```
 
 Returns a `PromptResult`:
@@ -156,13 +156,22 @@ The lint rule `no-host-tool-names` enforces that raw tool names only appear insi
 
 `skill-kit build <entry.ts> -o <dir>` produces a distributable, [agentskills.io](https://agentskills.io/specification)-compliant skill directory.
 
+### Build modes
+
+The `--mode` flag selects the bundling strategy:
+
+- **`--mode bun`** (default) — Compiles platform-specific executables via `bun build --compile`. Standalone, no runtime dependency, ~50-100MB per target.
+- **`--mode node`** — Bundles into a single `.mjs` file via esbuild. Requires Node.js ≥ 24 at runtime, ~100-500KB.
+
 ### Pipeline steps
 
 1. **Load** — Import the entry file, extract the default export (must be a `SkillDefinition` or `ReferenceDefinition`).
 2. **Validate** — Run lint checks (cycle guards, schema consistency).
 3. **Generate wrapper** — Create a temporary entry point that imports the skill and calls `main()` from `@contentful/skill-kit/cli`.
-4. **Compile** — For each target platform, run `bun build --compile --target bun-<platform>`. Individual target failures don't halt the pipeline; zero successful targets does.
-5. **Generate scripts/run** — Shell wrapper that detects OS/architecture and delegates to the correct binary in `bin/`.
+4. **Bundle** — Mode-dependent:
+   - **Bun mode:** For each target platform, run `bun build --compile --target bun-<platform>`. Individual target failures don't halt the pipeline; zero successful targets does.
+   - **Node mode:** Run esbuild to produce a single `.mjs` bundle with all dependencies inlined.
+5. **Generate scripts/run** — Shell wrapper (mode-dependent: platform dispatcher for bun, Node version check for node).
 6. **Generate SKILL.md** — Agent-facing documentation with invocation instructions, step descriptions, and reference pointers.
 7. **Generate package.json** — Minimal metadata (name, version).
 8. **Copy references/** — Markdown files from the source `references/` directory.
@@ -170,26 +179,42 @@ The lint rule `no-host-tool-names` enforces that raw tool names only appear insi
 
 ### Output structure
 
+**Bun mode:**
+
 ```
 <dir>/
   SKILL.md               ← Agent reads this first
   package.json
   scripts/
-    run                  ← Public interface (chmod +x)
+    run                  ← Detects OS/arch, delegates to binary
   bin/
     <name>-darwin-arm64  ← macOS Apple Silicon
-    <name>-darwin-x64    ← macOS Intel
     <name>-linux-x64     ← Linux x86_64
-    <name>-linux-arm64   ← Linux ARM
   references/
     *.md                 ← Bundled content files
 ```
 
 Default targets: `darwin-arm64` and `linux-x64`. Override with `--targets`. Use `--single` for current-platform-only dev builds.
 
+**Node mode:**
+
+```
+<dir>/
+  SKILL.md               ← Agent reads this first
+  package.json
+  scripts/
+    run                  ← Checks Node ≥ 24, runs bundle
+  bin/
+    <name>.mjs           ← Single ESM bundle
+  references/
+    *.md                 ← Bundled content files
+```
+
 ### The scripts/run wrapper
 
-Agents call `scripts/run`, never `bin/` directly. The wrapper detects the current platform, selects the correct binary, and execs it with all arguments forwarded:
+Agents call `scripts/run`, never `bin/` directly. The wrapper varies by mode but the contract is identical.
+
+**Bun mode** — detects OS/architecture, selects the correct binary:
 
 ```bash
 #!/usr/bin/env bash
@@ -201,9 +226,22 @@ BIN="$SKILL_DIR/bin/<name>-${OS}-${ARCH}"
 exec "$BIN" "$@"
 ```
 
+**Node mode** — checks Node version, sets `SKILL_DIR` for reference resolution:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+NODE_VERSION="$(node -e 'process.stdout.write(process.versions.node.split(".")[0])')"
+if [ "$NODE_VERSION" -lt 24 ] 2>/dev/null; then
+  echo "error: Node.js >= 24 required" >&2; exit 1
+fi
+export SKILL_DIR
+exec node "$SKILL_DIR/bin/<name>.mjs" "$@"
+```
+
 This decouples the skill's contract (SKILL.md references `scripts/run`) from its internal layout.
 
-### The compile step
+### The compile/bundle step
 
 The SDK generates a temporary entry point:
 
@@ -213,7 +251,9 @@ import { main } from '@contentful/skill-kit/cli';
 main(skill);
 ```
 
-`bun build --compile` bundles everything — the SDK, Zod, the skill code — into a single self-contained executable. The SDK itself has no Bun runtime dependency; Bun is used only as a build tool.
+**Bun mode:** `bun build --compile` bundles everything — the SDK, Zod, the skill code — into a single self-contained executable. The SDK itself has no Bun runtime dependency; Bun is used only as a build tool.
+
+**Node mode:** esbuild bundles the same tree into a single `.mjs` file. All dependencies are inlined; only Node.js built-ins are external.
 
 ---
 
