@@ -1,0 +1,170 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: "Example: ts-patterns"
+---
+
+# Example: ts-patterns
+
+A TypeScript patterns and idioms reference skill built with the `reference()` builder. This is a concise example showing how to create a non-workflow skill that serves as a progressive-disclosure knowledge base.
+
+**Source:** `examples/ts-patterns/src/skill.ts`
+
+---
+
+## What it does
+
+The skill provides a reference for common TypeScript patterns — generics, discriminated unions, the builder pattern, and error handling. When an agent installs this skill, it gains access to these topics on demand. The agent reads the SKILL.md, sees the available topics, and requests specific ones as needed rather than loading everything at once.
+
+---
+
+## Key patterns
+
+### The reference builder
+
+Instead of `skill()`, reference skills use the `reference()` builder. No steps, no stash, no workflow — just named topics with lazy content:
+
+```typescript
+import { reference, render } from '@contentful/skill-kit';
+
+export default reference({
+  name: 'ts-patterns',
+  version: '1.0.0',
+  description:
+    'TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick ' +
+    'refresher on generics, discriminated unions, builder patterns, or error handling.',
+})
+  .topic('generics', { /* ... */ })
+  .topic('discriminated-unions', { /* ... */ })
+  .topic('builder-pattern', { /* ... */ })
+  .topic('error-handling', { /* ... */ })
+  .build();
+```
+
+The `name` and `description` end up in the generated SKILL.md. The description is what helps the agent decide when to use this skill.
+
+### Loading content from references/
+
+The `generics` topic loads its content from a markdown file in the `references/` directory. This keeps large content out of the TypeScript source:
+
+```typescript
+.topic('generics', {
+  label: 'Generics cheat sheet — constraints, conditional types, mapped types, infer',
+  content: ({ refs }) => refs.load('generics.md'),
+})
+```
+
+The `refs.load()` function reads from the skill's `references/` directory. At build time, these files are copied into the output alongside the compiled binary. The `label` is what the agent sees in the topic list — it should be descriptive enough for the agent to decide whether to load the topic.
+
+### Inline content with render helpers
+
+Topics can also generate content inline. The `discriminated-unions` topic builds its content using `render.code`:
+
+```typescript
+.topic('discriminated-unions', {
+  label: 'Discriminated unions — type narrowing with literal discriminants',
+  content: () =>
+    [
+      '# Discriminated Unions',
+      '',
+      'Use a literal `type` or `kind` field to narrow union members:',
+      '',
+      render.code(
+        [
+          'type Shape =',
+          "  | { kind: 'circle'; radius: number }",
+          "  | { kind: 'rect'; width: number; height: number };",
+          '',
+          'function area(s: Shape): number {',
+          '  switch (s.kind) {',
+          "    case 'circle': return Math.PI * s.radius ** 2;",
+          "    case 'rect':   return s.width * s.height;",
+          '  }',
+          '}',
+        ].join('\n'),
+        'typescript',
+      ),
+      '',
+      'TypeScript narrows the type inside each `case` branch automatically.',
+      'Exhaustiveness: add `default: return s satisfies never;` to catch missing cases.',
+    ].join('\n'),
+})
+```
+
+### Tables for structured data
+
+The `error-handling` topic uses `render.table` to present patterns in a scannable format:
+
+```typescript
+.topic('error-handling', {
+  label: 'Error handling — Result types, custom errors, exhaustive matching',
+  content: () => {
+    const patterns = render.table(
+      [
+        { pattern: 'try/catch', use: 'External APIs, I/O', note: 'Catch specific error types' },
+        { pattern: 'Result<T, E>', use: 'Domain logic', note: 'Forces caller to handle both paths' },
+        { pattern: 'Custom Error class', use: 'Typed error codes', note: 'Extend Error, add fields' },
+        { pattern: 'never in switch', use: 'Exhaustive matching', note: 'Compile-time missing-case check' },
+      ],
+      { columns: ['pattern', 'use', 'note'] },
+    );
+
+    return ['# Error Handling Patterns', '', patterns].join('\n');
+  },
+})
+```
+
+`render.table` produces a markdown table with aligned columns. The `columns` option controls column order.
+
+---
+
+## Testing
+
+Reference skills are simpler to test than workflow skills — there is no model to mock and no step transitions to verify. The tests check metadata and content generation:
+
+```typescript
+import ref from './skill.js';
+
+test('ts-patterns reference has correct metadata', () => {
+  assert.equal(ref.kind, 'reference');
+  assert.equal(ref.name, 'ts-patterns');
+  assert.equal(ref.version, '1.0.0');
+});
+
+test('ts-patterns has all expected topics', () => {
+  const names = Object.keys(ref.topics);
+  assert.ok(names.includes('generics'));
+  assert.ok(names.includes('discriminated-unions'));
+  assert.ok(names.includes('builder-pattern'));
+  assert.ok(names.includes('error-handling'));
+});
+```
+
+Testing a topic that loads from `references/` requires a mock `refs` object:
+
+```typescript
+test('generics topic loads from references/', () => {
+  const mockRefs = {
+    load: (f: string) => {
+      assert.equal(f, 'generics.md');
+      return '# Generics\n\nContent here.';
+    },
+    asset: (p: string) => p,
+  };
+
+  const content = ref.topics['generics']!.content({ refs: mockRefs });
+  assert.ok(content.includes('Generics'));
+});
+```
+
+Inline topics can be tested directly with a no-op refs:
+
+```typescript
+test('error-handling topic renders a table', () => {
+  const noopRefs = { load: () => '', asset: (p: string) => p };
+  const content = ref.topics['error-handling']!.content({ refs: noopRefs });
+  assert.ok(content.includes('Result<T, E>'));
+  assert.ok(content.includes('| pattern |'));
+});
+```
+
+This pattern — mock what loads from disk, assert on what the content function produces — works for any reference skill.

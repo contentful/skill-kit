@@ -1,0 +1,74 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: "Getting Started"
+---
+
+`@contentful/skill-kit` is a TypeScript SDK for building agent skills. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions where the agent sees one step at a time. **Reference skills** are on-demand topic loaders for progressive disclosure of large docs. Both compile into self-contained packages that agents invoke via Bash.
+
+## Installation
+
+Published to GitHub Packages. Configure your `.npmrc` first:
+
+```bash
+@contentful:registry=https://npm.pkg.github.com/
+```
+
+Then install:
+
+```bash
+pnpm add @contentful/skill-kit
+```
+
+## Define a skill
+
+A minimal two-step workflow skill:
+
+```typescript
+import { skill, z } from '@contentful/skill-kit';
+
+export default skill({
+  name: 'greet',
+  entry: 'ask',
+})
+  .step('ask', {
+    prompt: 'Ask the user for their name.',
+    output: z.object({ name: z.string() }),
+    next: 'welcome',
+  })
+  .step('welcome', {
+    prompt: ({ prev }) => `Say hello to ${(prev as { name: string }).name}.`,
+    output: z.object({ message: z.string() }),
+    next: { terminal: true },
+  })
+  .build();
+```
+
+`skill()` returns a builder. `.step()` adds steps with a prompt, a Zod output schema, and a transition. `.build()` freezes the definition. The agent sees one step at a time, returns structured output matching the schema, and the skill decides what happens next.
+
+## Run it without an agent
+
+Use `runSkill` and `mockModel` to drive a skill through its steps in a test:
+
+```typescript
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+import greet from './skill.ts';
+
+const result = await runSkill(greet, {
+  model: mockModel({
+    ask: { name: 'Alice' },
+    welcome: { message: 'Hello, Alice!' },
+  }),
+});
+
+// result.path    → ['ask', 'welcome']
+// result.output  → { message: 'Hello, Alice!' }
+```
+
+`mockModel` maps step names to canned responses. `runSkill` drives the skill to completion and returns the full execution trace — path visited, outputs per step, and the final output.
+
+## Next steps
+
+- [Testing Skills](../getting-started/testing/) — full `runSkill` and `mockModel` API, assertion patterns, host testing
+- [Building & Distribution](../getting-started/building/) — compile to executables or Node.js bundles, lint with `skill-kit check`
+- [Workflow Skills guide](../guides/workflow-skills/) — branching, stash, context, actions, modules
+- [Reference Skills guide](../guides/reference-skills/) — progressive disclosure with topics

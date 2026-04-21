@@ -1,0 +1,258 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: "Reference Skills"
+---
+
+Reference skills provide progressive disclosure for large documentation. Instead of a state machine, they expose named **topics** that agents load on demand. The agent reads the SKILL.md, sees what topics are available, and requests the ones it needs. No JSON protocol, no step-by-step workflow — just `topic <name>` and text back.
+
+This is the right shape for knowledge that agents consult mid-task: pattern libraries, style guides, API references, checklists. The agent loads what it needs, when it needs it, without ingesting thousands of lines of prose upfront.
+
+## `reference()` configuration
+
+`reference(config)` returns a `ReferenceBuilder`. Configuration is minimal — reference skills have no state machine, no context, and no stash.
+
+```typescript
+import { reference } from '@contentful/skill-kit';
+
+export default reference({
+  name: 'ts-patterns',
+  version: '1.0.0',
+  description:
+    'TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick ' +
+    'refresher on generics, discriminated unions, builder patterns, or error handling.',
+})
+  .topic('generics', { /* ... */ })
+  .topic('error-handling', { /* ... */ })
+  .build();
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Reference skill identifier. Used in build output and SKILL.md. |
+| `description` | `string` | Yes | Human-readable description. Tells the agent when to use this reference. |
+| `version` | `string` | No | Semver version. Defaults to `'0.0.0'`. |
+
+## `.topic(name, config)`
+
+Adds a named topic. Each topic has a label (shown in the topic listing) and a content function that produces the text.
+
+```typescript
+.topic('generics', {
+  label: 'Generics cheat sheet — constraints, conditional types, mapped types, infer',
+  content: ({ refs }) => refs.load('generics.md'),
+})
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `label` | `string` | Yes | Short description shown when the agent lists available topics. |
+| `content` | `(ctx: { refs: ReferenceLoader }) => string` | Yes | Function that returns the topic's full text content. |
+
+### Content sources
+
+Topic content can come from two places:
+
+**External markdown via `refs.load()`** — load from the `references/` directory. Best for longer content that benefits from standalone editing.
+
+```typescript
+.topic('generics', {
+  label: 'Generics cheat sheet',
+  content: ({ refs }) => refs.load('generics.md'),
+})
+```
+
+**Inline with render helpers** — build content programmatically using the SDK's render utilities. Good for structured content like tables and code examples.
+
+```typescript
+import { render } from '@contentful/skill-kit';
+
+.topic('error-handling', {
+  label: 'Error handling patterns',
+  content: () => {
+    const table = render.table(
+      [
+        { pattern: 'try/catch', use: 'External APIs, I/O', note: 'Catch specific error types' },
+        { pattern: 'Result<T, E>', use: 'Domain logic', note: 'Forces caller to handle both paths' },
+      ],
+      { columns: ['pattern', 'use', 'note'] },
+    );
+    return ['# Error Handling Patterns', '', table].join('\n');
+  },
+})
+```
+
+## `.build()` validation
+
+Calling `.build()` freezes the reference definition and validates:
+
+- `name` is present
+- `description` is present
+- At least one topic is registered
+
+The returned `ReferenceDefinition` is frozen with `kind: 'reference'`.
+
+## Build output
+
+Reference skills produce the same agentskills.io-compliant directory structure as workflow skills:
+
+```
+skills/ts-patterns/
+  SKILL.md                # Generated — lists available topics and invocation commands
+  package.json            # Generated — name and version
+  scripts/
+    run                   # Shell wrapper
+  bin/
+    ts-patterns.mjs       # Bundled CLI (node mode)
+  references/
+    generics.md           # Copied from source
+```
+
+The generated SKILL.md instructs the agent to use `scripts/run topics` to discover available topics, then `scripts/run topic <name>` to load specific content.
+
+## CLI invocation
+
+The reference skill CLI supports three commands:
+
+### List all topics
+
+```bash
+scripts/run topics
+```
+
+Output (one per line, `name: label` format):
+
+```
+generics: Generics cheat sheet — constraints, conditional types, mapped types, infer
+discriminated-unions: Discriminated unions — type narrowing with literal discriminants
+builder-pattern: Builder pattern — fluent APIs with type accumulation
+error-handling: Error handling — Result types, custom errors, exhaustive matching
+```
+
+### Load a specific topic
+
+```bash
+scripts/run topic generics
+```
+
+Returns the full topic content to stdout. The agent reads it and uses it in context.
+
+### Help
+
+```bash
+scripts/run --help
+```
+
+Prints usage information to stderr listing available commands and all registered topics.
+
+## Complete example: ts-patterns reference
+
+This is the reference skill from the examples directory. It demonstrates all content patterns — external markdown loading, inline render helpers, and programmatic table generation.
+
+```typescript
+import { reference, render } from '@contentful/skill-kit';
+
+export default reference({
+  name: 'ts-patterns',
+  version: '1.0.0',
+  description:
+    'TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick ' +
+    'refresher on generics, discriminated unions, builder patterns, or error handling.',
+})
+  // Topic loaded from references/generics.md
+  .topic('generics', {
+    label: 'Generics cheat sheet — constraints, conditional types, mapped types, infer',
+    content: ({ refs }) => refs.load('generics.md'),
+  })
+
+  // Topic with inline content using render.code()
+  .topic('discriminated-unions', {
+    label: 'Discriminated unions — type narrowing with literal discriminants',
+    content: () =>
+      [
+        '# Discriminated Unions',
+        '',
+        'Use a literal `type` or `kind` field to narrow union members:',
+        '',
+        render.code(
+          [
+            'type Shape =',
+            "  | { kind: 'circle'; radius: number }",
+            "  | { kind: 'rect'; width: number; height: number };",
+            '',
+            'function area(s: Shape): number {',
+            '  switch (s.kind) {',
+            "    case 'circle': return Math.PI * s.radius ** 2;",
+            "    case 'rect':   return s.width * s.height;",
+            '  }',
+            '}',
+          ].join('\n'),
+          'typescript',
+        ),
+        '',
+        'TypeScript narrows the type inside each `case` branch automatically.',
+        'Exhaustiveness: add `default: return s satisfies never;` to catch missing cases.',
+      ].join('\n'),
+  })
+
+  // Topic with render.table()
+  .topic('error-handling', {
+    label: 'Error handling — Result types, custom errors, exhaustive matching',
+    content: () => {
+      const patterns = render.table(
+        [
+          { pattern: 'try/catch', use: 'External APIs, I/O', note: 'Catch specific error types' },
+          { pattern: 'Result<T, E>', use: 'Domain logic', note: 'Forces caller to handle both paths' },
+          { pattern: 'Custom Error class', use: 'Typed error codes', note: 'Extend Error, add fields' },
+          { pattern: 'never in switch', use: 'Exhaustive matching', note: 'Compile-time missing-case check' },
+        ],
+        { columns: ['pattern', 'use', 'note'] },
+      );
+      return ['# Error Handling Patterns', '', patterns].join('\n');
+    },
+  })
+
+  .build();
+```
+
+### Testing
+
+Reference skills are plain data — test them by checking metadata and invoking topic content functions directly.
+
+```typescript
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import ref from './skill.js';
+
+test('reference has correct metadata', () => {
+  assert.equal(ref.kind, 'reference');
+  assert.equal(ref.name, 'ts-patterns');
+  assert.equal(ref.version, '1.0.0');
+});
+
+test('has all expected topics', () => {
+  const names = Object.keys(ref.topics);
+  assert.ok(names.includes('generics'));
+  assert.ok(names.includes('discriminated-unions'));
+  assert.ok(names.includes('error-handling'));
+});
+
+test('generics topic loads from references/', () => {
+  const mockRefs = {
+    load: (f: string) => {
+      assert.equal(f, 'generics.md');
+      return '# Generics\n\nContent here.';
+    },
+    asset: (p: string) => p,
+  };
+
+  const content = ref.topics['generics']!.content({ refs: mockRefs });
+  assert.ok(content.includes('Generics'));
+});
+
+test('error-handling topic renders a table', () => {
+  const noopRefs = { load: () => '', asset: (p: string) => p };
+  const content = ref.topics['error-handling']!.content({ refs: noopRefs });
+  assert.ok(content.includes('Result<T, E>'));
+  assert.ok(content.includes('| pattern |'));
+});
+```

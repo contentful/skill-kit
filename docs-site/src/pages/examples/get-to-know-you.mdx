@@ -1,0 +1,313 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: "Example: get-to-know-you"
+---
+
+# Example: get-to-know-you
+
+A playful interview skill that gets to know the user through a series of questions and produces a developer trading card. This is the most comprehensive example in the SDK, demonstrating nearly every workflow feature.
+
+**Source:** `examples/get-to-know-you/src/skill.ts`
+
+---
+
+## What it does
+
+The skill runs through a multi-step interview:
+
+1. **Greet** the user and ask their name
+2. **Ask their role** (developer, designer, manager, or other) using structured selection
+3. **Branch** to a role-specific follow-up question (tech stack, design tools, team size, or specialty)
+4. **Collect hobbies** in a loop (the user can add multiple)
+5. **Confirm** the profile before generating
+6. **Render a trading card** with all collected data and write the profile as an action
+
+---
+
+## Key patterns
+
+### Fragments for reusable tone
+
+The skill defines a `playfulTone` fragment that gets embedded into multiple step prompts, keeping the interview style consistent without repeating the instructions:
+
+```typescript
+const playfulTone = fragment(
+  'playful-tone',
+  `Keep it light and fun. Use casual language. Throw in the occasional
+   joke or pun if it fits. You're a friendly interviewer, not a form.`,
+);
+```
+
+Fragments are interpolated into the `prompt` tagged template literal. The tag auto-dedents, so you can indent naturally in code:
+
+```typescript
+prompt: ({ context }) =>
+  prompt`
+    ${playfulTone}
+
+    ${context.greeting} You're about to interview the user
+    to build their developer trading card. Start by asking their name.
+  `,
+```
+
+### Context and stash
+
+The skill declares both immutable context (a greeting string with a default) and mutable stash (name, role, and latest hobby accumulated across steps):
+
+```typescript
+context: z.object({
+  greeting: z.string().default('Hey there!'),
+}),
+stash: z.object({
+  name: z.string(),
+  role: z.string(),
+  latestHobby: z.string(),
+}),
+```
+
+Each step merges into the stash via its `stash` callback. Types flow automatically — `stash.name` in a later prompt is typed as `string` without annotations.
+
+### Structured askUser with branching
+
+The `ask-role` step uses `askUser` with structured options. The SDK generates host-appropriate prose (an `AskUserQuestion` tool call on Claude Code, a prose option list elsewhere). The step then branches dynamically based on the role:
+
+```typescript
+.step('ask-role', {
+  ask: askUser({
+    type: 'structured',
+    question: "What's your primary role?",
+    options: [
+      { value: 'dev', label: 'Developer', description: 'I write code for a living' },
+      { value: 'designer', label: 'Designer', description: 'I make things pretty and usable' },
+      { value: 'manager', label: 'Manager', description: 'I herd cats professionally' },
+      { value: 'other', label: 'Something else', description: 'I defy your categories' },
+    ],
+  }),
+  output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
+  stash: ({ output }) => ({ role: output.role }),
+  next: ({ output }) => {
+    switch (output.role) {
+      case 'dev':      return 'ask-stack';
+      case 'designer': return 'ask-tools';
+      case 'manager':  return 'ask-team-size';
+      default:         return 'ask-specialty';
+    }
+  },
+})
+```
+
+### Shared steps with `.extend()`
+
+All four role-specific follow-up steps share the same shape: open-ended question, string answer, move on. Rather than duplicating the config, a standalone step defines the base:
+
+```typescript
+const openQuestionStep = step({
+  output: z.object({ answer: z.string() }),
+  next: '__parent__',
+});
+```
+
+Each variant extends it with specific prompt and ask config:
+
+```typescript
+.extend('ask-stack', openQuestionStep, {
+  ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+  prompt: ({ stash }) =>
+    prompt`
+      ${playfulTone}
+
+      ${stash.name} is a developer — nice!
+      Ask what their go-to tech stack is. Languages, frameworks, the works.
+    `,
+  next: 'ask-hobby',
+})
+```
+
+The `__parent__` sentinel in the base step is overridden by each extension's concrete `next`.
+
+### Loop guards on hobby collection
+
+The `ask-hobby` step can loop back to itself when the user wants to add more hobbies, but it has a safety valve:
+
+```typescript
+.step('ask-hobby', {
+  // ...
+  output: z.object({
+    hobby: z.string(),
+    wantsMore: z.boolean(),
+  }),
+  stash: ({ output }) => ({ latestHobby: output.hobby }),
+  maxVisits: 2,
+  onMaxVisits: 'confirm-profile',
+  next: ({ output }) => (output.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+})
+```
+
+After 2 visits, the skill automatically redirects to `confirm-profile` instead of looping again. Without `maxVisits`, the cycle guard lint rule would flag this as an error.
+
+### Confirm with bounce-back
+
+The `confirm-profile` step uses the `confirm` primitive. If the user declines, they bounce back to add another hobby:
+
+```typescript
+.step('confirm-profile', {
+  confirm: {
+    kind: 'confirm',
+    message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
+    destructive: false,
+    defaultAnswer: 'yes',
+  },
+  output: z.object({ approved: z.boolean() }),
+  next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
+  maxVisits: 3,
+  onMaxVisits: 'profile-card',
+})
+```
+
+### Render helpers for the trading card
+
+The terminal `profile-card` step uses a `render` function to compose the card from accumulated data. It pulls from stash, history, and even `refs.load()` for fun facts:
+
+```typescript
+render: ({ history, getStep, refs, stash }) => {
+  const name = stash.name ?? 'Mystery Person';
+  const role = stash.role ?? 'Enigma';
+
+  const specialty =
+    getStep<{ answer: string }>('ask-stack')?.output.answer ??
+    getStep<{ answer: string }>('ask-tools')?.output.answer ??
+    // ... fallbacks for each role path
+
+  const hobbies = history
+    .filter((s) => s.step === 'ask-hobby')
+    .map((s) => (s.output as { hobby: string }).hobby);
+
+  const stats = render.kv({
+    Name: name,
+    Role: roleLabels[role] ?? role,
+    Specialty: specialty,
+  });
+
+  const hobbyList = render.checklist(
+    hobbies.map((h) => ({ text: h, done: true })),
+  );
+
+  return [
+    render.section(`${name}'s Trading Card`, stats),
+    '',
+    render.section('Hobbies & Interests', hobbyList || '(none listed)'),
+    '',
+    `> *${funFact}*`,
+  ].join('\n');
+},
+```
+
+This demonstrates `render.kv`, `render.checklist`, `render.section`, `getStep` for typed history access, and `refs.load` for loading bundled reference files.
+
+### Actions for side effects
+
+The skill defines a `writeProfile` action that writes the profile to disk. It is attached to the terminal step:
+
+```typescript
+const writeProfile = action({
+  name: 'write-profile',
+  input: z.object({ profile: ProfileSchema }),
+  output: z.object({ path: z.string() }),
+  run: async ({ input }) => {
+    const path = `/tmp/profile-${Date.now()}.json`;
+    // write the file...
+    return { path };
+  },
+});
+
+// Attached via:
+.step('profile-card', {
+  // ...
+  action: writeProfile,
+  next: { terminal: true },
+})
+```
+
+### Observers
+
+The skill registers a transition observer that logs step transitions to stderr — useful for debugging during development:
+
+```typescript
+observers: {
+  onTransition: ({ from, to }) => {
+    process.stderr.write(`[get-to-know-you] ${from} -> ${to}\n`);
+  },
+},
+```
+
+---
+
+## Testing
+
+The test file (`skill.test.ts`) uses `runSkill` and `mockModel` to drive the skill through different paths without any real model calls.
+
+**Developer path (happy path):**
+
+```typescript
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+import skill from './skill.js';
+
+const result = await runSkill(skill, {
+  context: { greeting: 'Howdy!' },
+  model: mockModel({
+    greet: { name: 'Alice' },
+    'ask-role': { role: 'dev' },
+    'ask-stack': { answer: 'TypeScript + Bun + Zod' },
+    'ask-hobby': { hobby: 'Rock climbing', wantsMore: false },
+    'confirm-profile': { approved: true },
+    'profile-card': {
+      card: 'rendered card',
+      profile: {
+        name: 'Alice',
+        role: 'dev',
+        specialty: 'TypeScript + Bun + Zod',
+        hobbies: ['Rock climbing'],
+        funFact: 'A group of developers is called a "merge conflict."',
+      },
+    },
+  }),
+});
+
+assert.deepEqual(result.path, [
+  'greet', 'ask-role', 'ask-stack', 'ask-hobby', 'confirm-profile', 'profile-card',
+]);
+```
+
+**Testing the hobby loop** with array-based mock responses that cycle through on repeated visits:
+
+```typescript
+model: mockModel({
+  // ...
+  'ask-hobby': [
+    { hobby: 'Baking', wantsMore: true },   // first visit
+    { hobby: 'Chess', wantsMore: false },    // second visit
+  ],
+  // ...
+}),
+
+// result.path includes 'ask-hobby' twice
+```
+
+**Testing the confirm bounce-back** — the user declines confirmation, adds another hobby, then confirms:
+
+```typescript
+model: mockModel({
+  // ...
+  'ask-hobby': [
+    { hobby: 'Gaming', wantsMore: false },
+    { hobby: 'Cooking', wantsMore: false },
+  ],
+  'confirm-profile': [
+    { approved: false },   // first visit — bounce back
+    { approved: true },    // second visit — proceed
+  ],
+  // ...
+}),
+```
+
+The test suite covers all four role branches (developer, designer, manager, other), the hobby loop, and the confirm bounce-back — verifying paths and ensuring the workflow terminates correctly in every case.

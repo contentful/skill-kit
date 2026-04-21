@@ -1,0 +1,24 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: "Examples"
+---
+
+# Examples
+
+`@contentful/skill-kit` ships with two bundled examples that demonstrate different skill types.
+
+---
+
+## get-to-know-you (Workflow)
+
+A playful interview skill that asks the user a series of questions and produces a developer trading card. This example demonstrates the full workflow builder API: context, stash, fragments, `askUser` (both structured and open), `confirm`, dynamic branching based on role selection, render helpers for composing the final card, actions for side effects, loop guards on the hobby collection step, shared steps via `.extend()`, and observers for transition logging.
+
+[View full walkthrough](/examples/get-to-know-you)
+
+---
+
+## ts-patterns (Reference)
+
+A TypeScript patterns and idioms reference skill built with the `reference()` builder. This example demonstrates the reference skill type: topic registration with labels, lazy content loading from `references/` files via `refs.load()`, inline content generation using `render.table` and `render.code`, and the progressive-disclosure pattern where the agent surfaces topic content on demand rather than dumping everything at once.
+
+[View full walkthrough](/examples/ts-patterns)
