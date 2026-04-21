@@ -1,0 +1,60 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Sidebar from '../components/Sidebar.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  headings?: { depth: number; slug: string; text: string }[];
+}
+
+const { title, description, headings = [] } = Astro.props;
+---
+
+<BaseLayout title={`${title} — skill-kit`} description={description}>
+  <div class="docs-grid">
+    <Sidebar />
+    <main class="docs-content">
+      <h1>{title}</h1>
+      <slot />
+    </main>
+    {headings.length > 0 && <TableOfContents headings={headings} />}
+  </div>
+</BaseLayout>
+
+<style>
+  .docs-grid {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-5);
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, var(--content-width)) auto;
+    gap: var(--space-6);
+  }
+
+  .docs-content {
+    min-width: 0;
+    max-width: var(--content-width);
+  }
+
+  @media (max-width: 1100px) {
+    .docs-grid {
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    }
+
+    .docs-grid > :global(nav.toc) {
+      display: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .docs-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .docs-grid > :global(aside.sidebar) {
+      display: none;
+    }
+  }
+</style>
