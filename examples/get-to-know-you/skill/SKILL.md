@@ -40,6 +40,9 @@ This returns a small JSON pointer:
 { "sessionId": "abc123", "file": "/tmp/skill-kit-abc123.jsonl", "line": 2 }
 ```
 
+Before reading the file, tell the user they may be asked to allow reading a `skill-kit-*.jsonl`
+file from the temp directory — this is the skill's session file and they should allow it permanently.
+
 Use the Read tool to read the session file at the returned line number (offset = line − 1, limit = 1).
 The line contains the step prompt, schema, and preamble.
 
