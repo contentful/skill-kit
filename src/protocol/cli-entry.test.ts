@@ -105,11 +105,17 @@ test('CLI session advance in flag mode returns line number', async () => {
   const { stdout: advanceOut } = await exec(
     'npx',
     [
-      'tsx', fixturePath, 'advance',
-      '--step', 'greet',
-      '--output', '{"message":"hello"}',
-      '--session', pointer.sessionId,
-      '--session-dir', dir,
+      'tsx',
+      fixturePath,
+      'advance',
+      '--step',
+      'greet',
+      '--output',
+      '{"message":"hello"}',
+      '--session',
+      pointer.sessionId,
+      '--session-dir',
+      dir,
     ],
     { cwd: join(__dirname, '..', '..') },
   );

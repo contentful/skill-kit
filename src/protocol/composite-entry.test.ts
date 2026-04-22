@@ -197,7 +197,10 @@ test('composite session: dispatcher advance with subskill redirect (file mode)',
   const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
-  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n');
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n',
+  );
 
   const { stdout: advOut } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
   const line = parseInt(advOut.trim(), 10);
@@ -232,7 +235,10 @@ test('composite session: full lifecycle dispatcher → subskill (file mode)', as
   const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
-  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n');
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n',
+  );
   const { stdout: adv1 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
   const line1 = parseInt(adv1.trim(), 10);
 
@@ -240,7 +246,10 @@ test('composite session: full lifecycle dispatcher → subskill (file mode)', as
   const subskillPrompt = linesAfterRedirect[line1 - 1]!;
   assert.equal(subskillPrompt.step, 'doctor/diagnose');
 
-  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: 'fixed' } }) + '\n');
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: 'fixed' } }) + '\n',
+  );
   const { stdout: adv2 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
   const line2 = parseInt(adv2.trim(), 10);
 
@@ -263,16 +272,27 @@ test('composite session: direct subskill start (file mode)', async () => {
 test('composite session: flag mode advance', async () => {
   const dir = createTempDir();
   const { stdout: startOut } = await run(
-    '--context', '{}', '--session', 'new', '--session-dir', dir, '--output-mode', 'flag',
+    '--context',
+    '{}',
+    '--session',
+    'new',
+    '--session-dir',
+    dir,
+    '--output-mode',
+    'flag',
   );
   const pointer = JSON.parse(startOut.trim());
 
   const { stdout: advOut } = await run(
     'advance',
-    '--step', 'classify',
-    '--output', '{"intent":"faq"}',
-    '--session', pointer.sessionId,
-    '--session-dir', dir,
+    '--step',
+    'classify',
+    '--output',
+    '{"intent":"faq"}',
+    '--session',
+    pointer.sessionId,
+    '--session-dir',
+    dir,
   );
   const line = parseInt(advOut.trim(), 10);
 

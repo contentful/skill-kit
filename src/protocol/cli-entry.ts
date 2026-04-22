@@ -46,7 +46,9 @@ export async function main(skill: SkillDefinition): Promise<void> {
           if (session.header.outputMode === 'file' && !flags['output']) {
             const lastOutput = session.readLastOutput();
             if (!lastOutput) {
-              process.stderr.write('error: no output found in session file. Write your output to the session file before advancing.\n');
+              process.stderr.write(
+                'error: no output found in session file. Write your output to the session file before advancing.\n',
+              );
               process.exit(1);
             }
             stepName = lastOutput.step;

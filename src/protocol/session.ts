@@ -2,13 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, appendFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type {
-  SessionHeader,
-  SessionOutputMode,
-  SessionPointer,
-  CliResult,
-  StepResult,
-} from '../types.js';
+import type { SessionHeader, SessionOutputMode, SessionPointer, CliResult, StepResult } from '../types.js';
 
 const SESSION_ID_LENGTH = 4;
 const SESSION_FILE_PREFIX = 'skill-kit-';
