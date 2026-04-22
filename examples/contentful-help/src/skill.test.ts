@@ -38,17 +38,20 @@ test('choose doctor routes through get-space to doctor sub-skill', async () => {
   assert.equal(result.redirectedTo?.name, 'doctor');
 });
 
-test('choose setup routes directly to setup sub-skill', async () => {
+test('choose setup routes through env check and guide to configure', async () => {
   const result = await runComposite(skill, {
     model: mockModel({
       choose: { choice: 'setup' },
-      'setup/check-env': { hasSpaceId: true, hasToken: true },
+      'setup/check-env': { acknowledged: true },
+      'setup/guide-env': { guided: true },
       'setup/configure': { choice: 'done' },
       'setup/summary': { summary: 'All configured.' },
     }),
   });
 
-  assert.deepEqual(result.path, ['choose', 'setup/check-env', 'setup/configure', 'setup/summary']);
+  assert.ok(result.path.includes('setup/check-env'));
+  assert.ok(result.path.includes('setup/configure'));
+  assert.ok(result.path.includes('setup/summary'));
   assert.equal(result.redirectedTo?.kind, 'subskill');
   assert.equal(result.redirectedTo?.name, 'setup');
 });

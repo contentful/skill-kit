@@ -1,24 +1,48 @@
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, action, askUser } from '@contentful/skill-kit';
+
+const checkEnv = action({
+  name: 'check-env',
+  input: z.object({}),
+  output: z.object({
+    hasSpaceId: z.boolean(),
+    hasToken: z.boolean(),
+    spaceId: z.string().optional(),
+  }),
+  run: async () => ({
+    hasSpaceId: !!process.env['CONTENTFUL_SPACE_ID'],
+    hasToken: !!process.env['CONTENTFUL_ACCESS_TOKEN'],
+    spaceId: process.env['CONTENTFUL_SPACE_ID'] || undefined,
+  }),
+});
 
 export default skill({
   name: 'setup',
   version: '1.0.0',
   description: 'Guided Contentful space setup and configuration.',
   entry: 'check-env',
-  stash: z.object({ hasToken: z.boolean() }),
+  stash: z.object({ hasSpaceId: z.boolean(), hasToken: z.boolean() }),
 })
   .step('check-env', {
-    prompt: 'Check if Contentful environment variables are set (CONTENTFUL_SPACE_ID, CONTENTFUL_ACCESS_TOKEN).',
-    output: z.object({ hasSpaceId: z.boolean(), hasToken: z.boolean() }),
-    stash: ({ output }) => ({ hasToken: output.hasToken }),
-    next: ({ output }) => (output.hasSpaceId && output.hasToken ? 'configure' : 'guide-env'),
+    prompt: 'Acknowledge the environment check results and proceed.',
+    output: z.object({ acknowledged: z.boolean() }),
+    action: checkEnv,
+    afterAction: ({ action: act }) => ({
+      hasSpaceId: act.hasSpaceId,
+      hasToken: act.hasToken,
+    }),
+    next: ({ action: act }) => (act.hasSpaceId && act.hasToken ? 'configure' : 'guide-env'),
   })
 
   .step('guide-env', {
     prompt: ({ stash }) => {
       const missing: string[] = [];
+      if (!stash.hasSpaceId) missing.push('CONTENTFUL_SPACE_ID');
       if (!stash.hasToken) missing.push('CONTENTFUL_ACCESS_TOKEN');
-      return `Guide the user to set up: ${missing.join(', ')}. Explain where to find these values in the Contentful web app.`;
+      return (
+        `The following environment variables are missing: ${missing.join(', ')}.\n\n` +
+        'Guide the user to set them up. Explain where to find these values in the Contentful web app ' +
+        '(Settings > API keys).'
+      );
     },
     output: z.object({ guided: z.boolean() }),
     next: 'configure',
