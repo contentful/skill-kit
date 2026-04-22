@@ -51,5 +51,7 @@ export type {
   ReferenceDefinition,
   ReferenceBuilderConfig,
   TopicConfig,
+  SubskillRegistration,
+  RedirectResult,
   Buildable,
 } from './types.js';

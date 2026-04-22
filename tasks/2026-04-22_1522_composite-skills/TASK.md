@@ -106,7 +106,7 @@ export default skill({
     context: (_output, stash) => ({ mode: 'guided' }),
   })
 
-  .build()
+  .build();
 ```
 
 #### New types (`src/types.ts`)
@@ -118,13 +118,14 @@ interface SubskillRegistration {
 }
 
 interface RedirectResult {
-  redirect: string;       // e.g. 'subskill:doctor', 'topic:rate-limits'
-  completed: StepResult;  // the step that produced the redirect
-  stash: unknown;         // dispatcher's accumulated stash
+  redirect: string; // e.g. 'subskill:doctor', 'topic:rate-limits'
+  completed: StepResult; // the step that produced the redirect
+  stash: unknown; // dispatcher's accumulated stash
 }
 ```
 
 `SkillDefinition` gains two optional fields:
+
 ```typescript
 readonly subskills?: Readonly<Record<string, SubskillRegistration>>;
 readonly topics?: Readonly<Record<string, TopicConfig>>;  // TopicConfig already exists
@@ -177,6 +178,7 @@ Arg parsing logic: `argv[2]` — if known sub-skill name → sub-skill mode; if 
 #### Redirect handling in composite entry
 
 When engine `advance` returns `RedirectResult`:
+
 - `subskill:X` → look up registration, call `contextMap(completed.output, stash)`, create sub-skill engine, `start()`, return `PromptResult` with prefixed step name
 - `topic:X` → look up topic, load content via `ReferenceLoader`, return `DoneResult` with content
 
