@@ -4,11 +4,49 @@ How `@contentful/skill-kit` works internally. For the author-facing API, see [ap
 
 ---
 
-## The Stateless CLI Protocol
+## CLI Protocol
 
-A built skill is invoked by agents via Bash — one call per step. Each call is stateless: the agent passes the full conversation history on every invocation. JSON goes to stdout, diagnostics to stderr.
+A built skill is invoked by agents via Bash — one call per step. The SDK supports two invocation modes: **session mode** (recommended) which uses a temp file for communication, and **stateless mode** (fallback) which passes everything via CLI args and stdout.
 
-### Lifecycle
+### Session mode (recommended)
+
+Session mode moves protocol data to a JSONL temp file, reducing noise in the agent's Bash output and eliminating the growing `--history` flag.
+
+**1. Start** — Agent creates a session:
+
+```bash
+scripts/run --context '{"repoPath":"."}' --host claude-code --session new
+```
+
+Returns a minimal `SessionPointer` to stdout:
+
+```json
+{ "sessionId": "abc123", "file": "/tmp/skill-kit-abc123.jsonl", "line": 2 }
+```
+
+The agent reads line 2 from the session file (via the host's Read tool) to get the prompt, schema, and preamble.
+
+**2. Write output** — Agent appends its response to the session file:
+
+```bash
+echo '{"type":"output","step":"diagnose","output":{"checks":[...]}}' >> /tmp/skill-kit-abc123.jsonl
+```
+
+**3. Advance** — Agent calls advance with just the session ID:
+
+```bash
+scripts/run advance --session abc123
+```
+
+Returns a line number (e.g., `4`). The agent reads that line for the next prompt or done signal.
+
+**4. Repeat** until the line contains `"type":"done"`.
+
+The session file is JSONL with typed lines: `header`, `prompt`, `output`, `done`, `error`. See [SPEC.md §10](../SPEC.md) for the full session file format.
+
+### Stateless mode (fallback)
+
+In stateless mode, the agent passes the full conversation history on every invocation. JSON goes to stdout.
 
 **1. Start** — Agent calls `scripts/run` (defaults to `start`):
 
@@ -55,19 +93,22 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 ### CLI Flags
 
-| Flag        | Required     | Description                                                    |
-| ----------- | ------------ | -------------------------------------------------------------- |
-| `--context` | On `start`   | JSON string validated against the skill's context schema       |
-| `--step`    | On `advance` | Name of the step whose output is being submitted               |
-| `--output`  | On `advance` | JSON string — the agent's response for the step                |
-| `--history` | On `advance` | JSON array of `{ step, output, action? }` — full history       |
-| `--host`    | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic` |
+| Flag            | Required     | Description                                                                  |
+| --------------- | ------------ | ---------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                     |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode   |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`       |
+| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic`               |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                  |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                      |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode     |
 
-### Why stateless
+### Why stateless is still supported
 
 No persistent processes, no stdin piping, no subprocess lifecycle management. The agent makes sequential Bash calls and parses JSON — a pattern every agent host supports today. Statelessness also enables horizontal scaling, resumable workflows, and retry/redo logic without session corruption.
 
-History replay is cheap. The engine reconstructs state (stash, visit counts) from history data without re-executing actions or observers.
+History replay is cheap. The engine reconstructs state (stash, visit counts) from history data without re-executing actions or observers. Session mode uses the same replay mechanism — it just reads history from the file instead of CLI args.
 
 ---
 

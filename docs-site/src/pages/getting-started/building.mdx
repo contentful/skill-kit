@@ -67,11 +67,16 @@ skill/
 Dev mode — run a skill directly from source without compiling:
 
 ```bash
+# Session mode (recommended)
+skill-kit run <entry.ts> start --context '{}' --host claude-code --session new
+skill-kit run <entry.ts> advance --session <id>
+
+# Stateless mode
 skill-kit run <entry.ts> start --context '{}' --host claude-code
 skill-kit run <entry.ts> advance --step greet --output '{"name":"Alice"}' --history '[]' --host claude-code
 ```
 
-Useful for rapid iteration. The `start` command initializes the skill and returns the first step's prompt. The `advance` command feeds output back and returns the next step (or signals completion).
+Useful for rapid iteration. The `start` command initializes the skill and returns the first step's prompt. The `advance` command feeds output back and returns the next step (or signals completion). With `--session new`, protocol data is written to a JSONL temp file instead of stdout.
 
 ## `skill-kit check`
 

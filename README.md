@@ -194,7 +194,7 @@ Sub-skills are standalone `skill().build()` definitions — testable independent
 └─────────┘                      └─────────────┘
 ```
 
-Each invocation is **stateless**. The agent passes the full conversation history via `--history` on every `advance` call. The skill reconstructs state, validates the output against the Zod schema, and returns the next step's prompt as JSON. No persistent processes — just Bash calls that every agent host already supports.
+The SDK supports two invocation modes. **Session mode** (recommended) writes protocol data to a JSONL temp file — the agent reads/writes the file instead of parsing verbose JSON from stdout. **Stateless mode** passes the full conversation history via `--history` on every `advance` call. Both modes reconstruct state, validate against Zod schemas, and return the next step's prompt. No persistent processes — just Bash calls that every agent host already supports.
 
 ### Host-aware primitives
 

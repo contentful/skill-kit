@@ -293,15 +293,39 @@ The composite entry point handles this — the host never sees `RedirectResult` 
 
 ### CLI protocol for composites
 
+Session mode (recommended):
+
 ```bash
-scripts/run --context '{...}'                        # dispatcher start
-scripts/run advance --step doctor/diagnose --output ..  # sub-skill advance
-scripts/run doctor --context '{...}'                 # direct sub-skill start
-scripts/run topics                                   # list topics
-scripts/run topic rate-limits                        # load a topic
+scripts/run --context '{...}' --session new           # dispatcher start → SessionPointer
+scripts/run advance --session <id>                     # advance (agent wrote output to file)
+scripts/run doctor --context '{...}' --session new     # direct sub-skill start
+```
+
+Stateless mode (fallback):
+
+```bash
+scripts/run --context '{...}'                          # dispatcher start
+scripts/run advance --step doctor/diagnose --output .. # sub-skill advance
+scripts/run doctor --context '{...}'                   # direct sub-skill start
+scripts/run topics                                     # list topics
+scripts/run topic rate-limits                          # load a topic
 ```
 
 Sub-skill step names are prefixed `<subskill>/<step>` at the protocol layer.
+
+### `SessionPointer`
+
+Returned by `--session new` on start:
+
+```typescript
+interface SessionPointer {
+  sessionId: string; // 8-char hex ID
+  file: string; // path to the JSONL session file
+  line: number; // line number to read for the first prompt
+}
+```
+
+See [Architecture — Session mode](./architecture.md#session-mode-recommended) for the full session lifecycle.
 
 ### Testing composites
 

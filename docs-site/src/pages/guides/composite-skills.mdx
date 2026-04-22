@@ -81,20 +81,28 @@ The engines never see prefixes — the composite entry handles this automaticall
 
 ## CLI protocol
 
-All commands go through `scripts/run`:
+All commands go through `scripts/run`. Session mode is recommended:
 
 ```bash
-# Dispatcher flow
+# Session mode (recommended)
+scripts/run --context '{"query":"my types are broken"}' --session new
+# → {"sessionId":"abc123","file":"/tmp/skill-kit-abc123.jsonl","line":2}
+scripts/run advance --session abc123
+# → 4  (line number to read)
+
+# Stateless mode (fallback)
 scripts/run --context '{"query":"my types are broken"}'
 scripts/run advance --step classify --output '{"intent":"doctor","confidence":0.9}' --history '[...]'
 
 # Direct sub-skill access (bypasses dispatcher)
-scripts/run doctor --context '{"spaceId":"abc123"}'
+scripts/run doctor --context '{"spaceId":"abc123"}' --session new
 
 # Reference topics
 scripts/run topics
 scripts/run topic rate-limits
 ```
+
+One session spans the entire composite workflow — dispatcher and subskill steps are tracked in the same JSONL file.
 
 ## Testing composites
 
