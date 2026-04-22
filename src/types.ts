@@ -89,15 +89,6 @@ export interface SubtaskConfig {
 
 export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | TasksConfig | SubtaskConfig;
 
-// --- Capabilities ---
-
-export interface CapabilityManifest {
-  fs?: { read?: string[]; write?: string[] };
-  net?: string[];
-  subprocess?: string[];
-  env?: string[];
-}
-
 // --- Type helpers ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,7 +187,6 @@ export interface SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TSta
   entry: string;
   context?: TContext;
   stash?: TStash;
-  capabilities?: CapabilityManifest;
   observers?: ObserverMap;
   finalOutput?: z.ZodType;
   skillMd?: string | ((skill: SkillDefinition) => string);
@@ -213,7 +203,6 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly context: TContext | undefined;
   readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;
-  readonly capabilities: CapabilityManifest | undefined;
   readonly observers: ObserverMap | undefined;
   readonly finalOutput: z.ZodType | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;

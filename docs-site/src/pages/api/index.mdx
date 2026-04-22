@@ -12,7 +12,7 @@ Full reference for `@contentful/skill-kit`. Start with the [Getting Started](/ge
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput?, skillMd? })
+skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -21,19 +21,18 @@ skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput?, 
 
 ### `skill()` config
 
-| Field          | Type                                           | Required | Description                                                       |
-| -------------- | ---------------------------------------------- | -------- | ----------------------------------------------------------------- |
-| `name`         | `string`                                       | yes      | Skill identifier                                                  |
-| `entry`        | `string`                                       | yes      | Name of the first step                                            |
-| `version`      | `string`                                       | no       | Defaults to `'0.0.0'`                                             |
-| `description`  | `string`                                       | no       | Used in generated SKILL.md                                        |
-| `triggers`     | `string[]`                                     | no       | Keywords appended to description for agent discoverability        |
-| `context`      | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                       |
-| `stash`        | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                           |
-| `finalOutput`  | `z.ZodType`                                    | no       | Schema for the terminal step's output                             |
-| `capabilities` | `CapabilityManifest`                           | no       | Declares host tools, filesystem, subprocess, env var requirements |
-| `observers`    | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                     |
-| `skillMd`      | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                 |
+| Field         | Type                                           | Required | Description                                                |
+| ------------- | ---------------------------------------------- | -------- | ---------------------------------------------------------- |
+| `name`        | `string`                                       | yes      | Skill identifier                                           |
+| `entry`       | `string`                                       | yes      | Name of the first step                                     |
+| `version`     | `string`                                       | no       | Defaults to `'0.0.0'`                                      |
+| `description` | `string`                                       | no       | Used in generated SKILL.md                                 |
+| `triggers`    | `string[]`                                     | no       | Keywords appended to description for agent discoverability |
+| `context`     | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                |
+| `stash`       | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                    |
+| `finalOutput` | `z.ZodType`                                    | no       | Schema for the terminal step's output                      |
+| `observers`   | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))              |
+| `skillMd`     | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                          |
 
 Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 

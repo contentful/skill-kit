@@ -244,7 +244,7 @@ TypeScript patterns reference with on-demand topic loading. Shows `render.table`
 ### Workflow Builder
 
 ```typescript
-skill({ name, entry, description?, triggers?, context?, stash?, observers?, capabilities?, finalOutput? })
+skill({ name, entry, description?, triggers?, context?, stash?, observers?, finalOutput? })
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type

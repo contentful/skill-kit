@@ -86,7 +86,6 @@ export class SkillBuilder<TContext, TStash> {
       context: this.config.context,
       stash: this.config.stash,
       steps: Object.freeze({ ...this.steps }),
-      capabilities: this.config.capabilities,
       observers: this.config.observers,
       finalOutput: this.config.finalOutput,
       skillMd: this.config.skillMd,

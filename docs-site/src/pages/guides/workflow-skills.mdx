@@ -20,10 +20,6 @@ export default skill({
   context: z.object({ env: z.string().default('staging') }),
   stash: z.object({ checksPassed: z.number() }),
   finalOutput: z.object({ ready: z.boolean(), report: z.string() }),
-  capabilities: {
-    fs: { read: ['./**'] },
-    subprocess: ['git', 'npm'],
-  },
   observers: {
     onStepComplete: ({ step, durationMs }) => {
       process.stderr.write(`[deploy-check] ${step} completed in ${durationMs}ms\n`);
@@ -37,19 +33,18 @@ export default skill({
   .build();
 ```
 
-| Field          | Type                            | Required | Description                                                                    |
-| -------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `name`         | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
-| `entry`        | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
-| `version`      | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
-| `description`  | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
-| `triggers`     | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
-| `context`      | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
-| `stash`        | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
-| `finalOutput`  | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
-| `capabilities` | `CapabilityManifest`            | No       | Declares filesystem, network, subprocess, and env var access.                  |
-| `observers`    | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
-| `skillMd`      | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
+| Field         | Type                            | Required | Description                                                                    |
+| ------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`        | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
+| `entry`       | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
+| `version`     | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
+| `description` | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
+| `triggers`    | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
+| `context`     | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
+| `stash`       | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
+| `finalOutput` | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
+| `observers`   | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
+| `skillMd`     | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
 
 ## `.step(name, config)`
 

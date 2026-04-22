@@ -669,29 +669,7 @@ The word choice is deliberate: "observers," not "hooks." Hooks imply leverage; o
 
 ---
 
-## 9. Capability manifest
-
-Declared once, enforced everywhere.
-
-```typescript
-skill({
-  capabilities: {
-    fs: { read: ['./**'], write: ['./report.md', './.repo-doctor/**'] },
-    net: ['api.github.com'],
-    subprocess: ['git', 'npm'],
-    env: ['GITHUB_TOKEN'],
-  },
-  // ...
-});
-```
-
-The harness reads this at install time and grants or denies. At runtime the CLI enforces it — actions exceeding declared capabilities error before executing.
-
-Enterprise review becomes tractable: one block, machine-readable, diff-able between versions.
-
----
-
-## 10. Testing
+## 9. Testing
 
 ```typescript
 // skill.test.ts

@@ -336,8 +336,6 @@ These are non-negotiable choices with specific rationale. For the full list, see
 
 **Cycles have implicit bounds.** The cycle guard validator detects potential cycles and applies a default runtime limit (10 visits). Explicit `maxVisits` + `onMaxVisits` provides control over the fallback behavior. Unguarded cycles are a lint warning, not a load-time error — the runtime safety net prevents infinite loops.
 
-**Capabilities are declared, not discovered.** Skills declare what host capabilities they need upfront via the `capabilities` manifest. The harness reads this at install time. No runtime probing.
-
 **Actions are declared, not inferred.** Any CLI-side side effect must exist as a named `action()` with typed input/output schemas. No implicit I/O in step callbacks.
 
 **Steps are named string keys.** The state machine is inspectable as data. Transitions reference step names as strings, not closures. This makes the workflow diffable, serializable, and debuggable.
