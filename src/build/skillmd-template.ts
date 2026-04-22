@@ -95,24 +95,31 @@ ${generateSubskillSection(skill)}${generateTopicSection(skill)}`.trim();
 function generateSubskillSection(skill: SkillDefinition): string {
   if (!skill.subskills || Object.keys(skill.subskills).length === 0) return '';
 
-  const lines = [
-    '',
-    '',
-    '## Sub-skills',
-    '',
-    'This skill contains sub-skills that can be accessed directly or via the dispatcher.',
-    'Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`).',
-    '',
-    '### Direct sub-skill access',
-    '',
-    '```bash',
-    "${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'",
-    "${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'",
-    '```',
-    '',
-    '### Available sub-skills',
-    '',
-  ];
+  const hasDispatcher = Object.keys(skill.steps).length > 0;
+
+  const lines = ['', '', '## Sub-skills', ''];
+
+  if (hasDispatcher) {
+    lines.push(
+      'This skill contains sub-skills that the workflow routes to automatically.',
+      'Start the skill normally — the dispatcher will determine which sub-skill to use.',
+      'Only use direct sub-skill access if the user explicitly requests a specific sub-skill by name.',
+    );
+  } else {
+    lines.push(
+      'This skill contains independent sub-skills. Choose the one that best matches',
+      "the user's intent, or ask the user which one they need.",
+    );
+  }
+
+  lines.push('', 'Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`).', '');
+
+  lines.push('### Direct sub-skill access', '');
+  lines.push('```bash');
+  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'");
+  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
+  lines.push('```');
+  lines.push('', '### Available sub-skills', '');
 
   for (const [name, reg] of Object.entries(skill.subskills)) {
     const desc = reg.definition.description || '(no description)';
