@@ -647,14 +647,14 @@ skill-kit check <entry.ts>
 
 Rules:
 
-| Rule                        | Severity       | What it catches                                                                |
-| --------------------------- | -------------- | ------------------------------------------------------------------------------ |
-| `cycle-guard`               | warning/error  | Warning when cycles lack `maxVisits` (implicit limit applies at runtime); error when cycle-guard config is invalid (e.g., `onMaxVisits` targets a non-existent step) |
-| `no-host-tool-names`        | error          | Direct host tool name references without `host.toolsAvailable` guard           |
-| `primitive-schema-mismatch` | error          | `askUser` option values missing from output enum (or vice versa)               |
-| `orphan-references`         | warning        | Files in `references/` not mentioned in any step prompt                        |
-| `unknown-tool-names`        | warning        | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
-| `host-branching-density`    | warning        | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
+| Rule                        | Severity      | What it catches                                                                                                                                                      |
+| --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cycle-guard`               | warning/error | Warning when cycles lack `maxVisits` (implicit limit applies at runtime); error when cycle-guard config is invalid (e.g., `onMaxVisits` targets a non-existent step) |
+| `no-host-tool-names`        | error         | Direct host tool name references without `host.toolsAvailable` guard                                                                                                 |
+| `primitive-schema-mismatch` | error         | `askUser` option values missing from output enum (or vice versa)                                                                                                     |
+| `orphan-references`         | warning       | Files in `references/` not mentioned in any step prompt                                                                                                              |
+| `unknown-tool-names`        | warning       | `host.toolsAvailable.includes()` checks referencing unrecognized tools                                                                                               |
+| `host-branching-density`    | warning       | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive)                                                                                       |
 
 ---
 
@@ -675,9 +675,9 @@ for (const d of diagnostics) {
 
 **Parameters:**
 
-| Parameter | Type              | Description                                               |
-| --------- | ----------------- | --------------------------------------------------------- |
-| `skill`   | `SkillDefinition` | A built skill definition (the return value of `.build()`) |
+| Parameter | Type              | Description                                                        |
+| --------- | ----------------- | ------------------------------------------------------------------ |
+| `skill`   | `SkillDefinition` | A built skill definition (the return value of `.build()`)          |
 | `rootDir` | `string`          | Root directory of the skill project (for `orphan-references` rule) |
 
 **Returns:** `LintDiagnostic[]` — an array of diagnostics, each with:
