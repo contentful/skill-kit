@@ -337,7 +337,7 @@ interface LintDiagnostic {
 
 ## Design Decisions
 
-These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §14](../SPEC.md).
+These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §13](../SPEC.md).
 
 **State is append-only.** Prior step outputs are never mutated. The stash accumulates via shallow merge; history is a linear append. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
 

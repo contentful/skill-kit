@@ -349,7 +349,7 @@ interface LintDiagnostic {
 
 ## Design Decisions
 
-These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §14](https://github.com/contentful/skill-kit/blob/main/SPEC.md#14-opinionated-decisions).
+These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §13](https://github.com/contentful/skill-kit/blob/main/SPEC.md#13-what-the-sdk-is-opinionated-about).
 
 **State is append-only.** Prior step outputs are never mutated. The stash accumulates via shallow merge; history is a linear append. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
 
