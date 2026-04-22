@@ -14,11 +14,10 @@ const refs: ReferenceLoader = {
   asset: (path: string) => join(__dirname, path),
 };
 
-test('dispatcher routes to doctor sub-skill via get-space', async () => {
+test('choose doctor routes through get-space to doctor sub-skill', async () => {
   const result = await runComposite(skill, {
-    context: { query: 'my entries are broken' },
     model: mockModel({
-      classify: { intent: 'doctor', confidence: 0.9 },
+      choose: { choice: 'doctor' },
       'get-space': { spaceId: 'abc123' },
       'doctor/diagnose': { issues: ['broken refs'], healthy: false },
       'doctor/suggest-fix': { fixes: [{ issue: 'broken refs', fix: 'republish' }] },
@@ -28,7 +27,7 @@ test('dispatcher routes to doctor sub-skill via get-space', async () => {
   });
 
   assert.deepEqual(result.path, [
-    'classify',
+    'choose',
     'get-space',
     'doctor/diagnose',
     'doctor/suggest-fix',
@@ -39,67 +38,45 @@ test('dispatcher routes to doctor sub-skill via get-space', async () => {
   assert.equal(result.redirectedTo?.name, 'doctor');
 });
 
-test('dispatcher routes to setup sub-skill directly', async () => {
+test('choose setup routes directly to setup sub-skill', async () => {
   const result = await runComposite(skill, {
-    context: { query: 'set up my space' },
     model: mockModel({
-      classify: { intent: 'setup', confidence: 0.95 },
+      choose: { choice: 'setup' },
       'setup/check-env': { hasSpaceId: true, hasToken: true },
       'setup/configure': { choice: 'done' },
       'setup/summary': { summary: 'All configured.' },
     }),
   });
 
-  assert.deepEqual(result.path, ['classify', 'setup/check-env', 'setup/configure', 'setup/summary']);
+  assert.deepEqual(result.path, ['choose', 'setup/check-env', 'setup/configure', 'setup/summary']);
   assert.equal(result.redirectedTo?.kind, 'subskill');
   assert.equal(result.redirectedTo?.name, 'setup');
 });
 
-test('dispatcher resolves FAQ topic directly', async () => {
+test('choose faq routes through ask-topic to topic content', async () => {
   const result = await runComposite(skill, {
-    context: { query: 'what are the rate limits' },
     refs,
     model: mockModel({
-      classify: { intent: 'faq', confidence: 0.99, faqTopic: 'rate-limits' },
+      choose: { choice: 'faq' },
+      'ask-topic': { topicName: 'rate-limits' },
     }),
   });
 
-  assert.deepEqual(result.path, ['classify']);
+  assert.deepEqual(result.path, ['choose', 'ask-topic']);
   assert.equal(result.redirectedTo?.kind, 'topic');
   assert.equal(result.redirectedTo?.name, 'rate-limits');
   assert.ok((result.output as { content: string }).content.includes('78 requests/second'));
 });
 
-test('low confidence routes through clarify step', async () => {
+test('faq with locales topic loads correct content', async () => {
   const result = await runComposite(skill, {
-    context: { query: 'help' },
-    model: mockModel({
-      classify: { intent: 'unclear', confidence: 0.3 },
-      clarify: { choice: 'setup' },
-      'setup/check-env': { hasSpaceId: true, hasToken: true },
-      'setup/configure': { choice: 'done' },
-      'setup/summary': { summary: 'Done.' },
-    }),
-  });
-
-  assert.ok(result.path.includes('clarify'));
-  assert.equal(result.redirectedTo?.kind, 'subskill');
-  assert.equal(result.redirectedTo?.name, 'setup');
-});
-
-test('clarify FAQ routes through ask-topic to topic', async () => {
-  const result = await runComposite(skill, {
-    context: { query: 'question' },
     refs,
     model: mockModel({
-      classify: { intent: 'unclear', confidence: 0.2 },
-      clarify: { choice: 'faq' },
+      choose: { choice: 'faq' },
       'ask-topic': { topicName: 'locales' },
     }),
   });
 
-  assert.deepEqual(result.path, ['classify', 'clarify', 'ask-topic']);
-  assert.equal(result.redirectedTo?.kind, 'topic');
   assert.equal(result.redirectedTo?.name, 'locales');
   assert.ok((result.output as { content: string }).content.includes('Fallback chain'));
 });

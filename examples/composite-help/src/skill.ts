@@ -7,33 +7,10 @@ export default skill({
   version: '1.0.0',
   description: 'Diagnose, configure, and look up Contentful topics.',
   triggers: ['contentful help', 'contentful doctor', 'contentful setup'],
-  entry: 'classify',
-  context: z.object({ query: z.string().default('') }),
+  entry: 'choose',
   stash: z.object({ intent: z.string(), spaceId: z.string() }),
 })
-  .step('classify', {
-    prompt: ({ context }) =>
-      `The user needs help with Contentful. Their query: "${context.query}"\n\n` +
-      'Classify the intent:\n' +
-      '- "doctor" — they have an issue to diagnose\n' +
-      '- "setup" — they want to configure or set up something\n' +
-      '- "faq" — they have a quick question\n' +
-      '- "unclear" — you need more information',
-    output: z.object({
-      intent: z.enum(['doctor', 'setup', 'faq', 'unclear']),
-      confidence: z.number().min(0).max(1),
-      faqTopic: z.string().optional(),
-    }),
-    stash: ({ output }) => ({ intent: output.intent, spaceId: '' }),
-    next: ({ output }) => {
-      if (output.intent === 'faq' && output.faqTopic) return `topic:${output.faqTopic}`;
-      if (output.confidence < 0.7 || output.intent === 'unclear') return 'clarify';
-      if (output.intent === 'doctor') return 'get-space';
-      return `subskill:${output.intent}`;
-    },
-  })
-
-  .step('clarify', {
+  .step('choose', {
     ask: askUser({
       type: 'structured',
       question: 'What would you like help with?',
