@@ -115,7 +115,14 @@ interface ProseGenerator {
 }
 ```
 
-Implementations exist for `claude-code`, `codex`, `opencode`, and `generic`.
+A shared default implementation (`prose/default.ts`) covers all five methods. The registry maps host names to generators — currently all point to the default. To add host-specific prose, spread the default and override individual methods:
+
+```typescript
+const generators = {
+  'claude-code': { ...defaultGenerator, askUser: claudeCodeAskUser },
+  // others fall through to defaultGenerator
+};
+```
 
 ### Why primitives matter
 
