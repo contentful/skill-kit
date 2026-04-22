@@ -312,7 +312,7 @@ const result = await runComposite(skill, {
   context: { query: 'help' },
   refs, // optional ReferenceLoader for topic content
   model: mockModel({
-    classify: { intent: 'doctor', confidence: 0.9 },
+    choose: { choice: 'doctor' },
     'get-space': { spaceId: 'abc' },
     'doctor/diagnose': { issues: [], healthy: true },
     'doctor/report-clean': { summary: 'All good!' },
@@ -322,7 +322,15 @@ const result = await runComposite(skill, {
 assert.equal(result.redirectedTo?.name, 'doctor');
 ```
 
-Use `directSubskill: 'doctor'` to bypass the dispatcher in tests.
+| Option           | Type              | Required | Description                                           |
+| ---------------- | ----------------- | -------- | ----------------------------------------------------- |
+| `model`          | `ModelAdapter`    | yes      | Provides responses for dispatcher and sub-skill steps |
+| `context`        | `object`          | no       | Dispatcher context                                    |
+| `refs`           | `ReferenceLoader` | no       | For topic content resolution (defaults to no-op)      |
+| `host`           | `Handshake`       | no       | Host identity. Defaults to generic                    |
+| `directSubskill` | `string`          | no       | Skip dispatcher, start a sub-skill directly           |
+
+The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string }` alongside the standard `path`, `outputs`, `output`, and `history` fields.
 
 ---
 
@@ -741,14 +749,19 @@ skill-kit check <entry.ts>
 
 Rules:
 
-| Rule                        | Severity      | What it catches                                                                                                                                                      |
-| --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cycle-guard`               | warning/error | Warning when cycles lack `maxVisits` (implicit limit applies at runtime); error when cycle-guard config is invalid (e.g., `onMaxVisits` targets a non-existent step) |
-| `no-host-tool-names`        | error         | Direct host tool name references without `host.toolsAvailable` guard                                                                                                 |
-| `primitive-schema-mismatch` | error         | `askUser` option values missing from output enum (or vice versa)                                                                                                     |
-| `orphan-references`         | warning       | Files in `references/` not mentioned in any step prompt                                                                                                              |
-| `unknown-tool-names`        | warning       | `host.toolsAvailable.includes()` checks referencing unrecognized tools                                                                                               |
-| `host-branching-density`    | warning       | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive)                                                                                       |
+| Rule                           | Severity      | What it catches                                                                                                                                                      |
+| ------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cycle-guard`                  | warning/error | Warning when cycles lack `maxVisits` (implicit limit applies at runtime); error when cycle-guard config is invalid (e.g., `onMaxVisits` targets a non-existent step) |
+| `no-host-tool-names`           | error         | Direct host tool name references without `host.toolsAvailable` guard                                                                                                 |
+| `primitive-schema-mismatch`    | error         | `askUser` option values missing from output enum (or vice versa)                                                                                                     |
+| `orphan-references`            | warning       | Files in `references/` not mentioned in any step prompt                                                                                                              |
+| `unknown-tool-names`           | warning       | `host.toolsAvailable.includes()` checks referencing unrecognized tools                                                                                               |
+| `host-branching-density`       | warning       | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive)                                                                                       |
+| `composite-step-name`          | error         | Dispatcher step name contains `/` (reserved for sub-skill namespacing)                                                                                               |
+| `composite-duplicate-subskill` | error         | Duplicate sub-skill name                                                                                                                                             |
+| `composite-duplicate-topic`    | error         | Duplicate topic name                                                                                                                                                 |
+
+For composite skills, `checkSkill` also recursively lints each registered sub-skill. Sub-skill diagnostics are prefixed with `[subskill:<name>]`.
 
 ---
 

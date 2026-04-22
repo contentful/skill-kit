@@ -3,7 +3,7 @@ layout: ../../layouts/DocsLayout.astro
 title: 'Examples'
 ---
 
-`@contentful/skill-kit` ships with two bundled examples that demonstrate different skill types.
+`@contentful/skill-kit` ships with three bundled examples that demonstrate different skill patterns.
 
 ---
 
@@ -20,3 +20,11 @@ A playful interview skill that asks the user a series of questions and produces 
 A TypeScript patterns and idioms reference skill built with the `reference()` builder. This example demonstrates the reference skill type: topic registration with labels, lazy content loading from `references/` files via `refs.load()`, inline content generation using `render.table` and `render.code`, and the progressive-disclosure pattern where the agent surfaces topic content on demand rather than dumping everything at once.
 
 [View full walkthrough](/examples/ts-patterns)
+
+---
+
+## contentful-help (Composite)
+
+A composite skill that dispatches to doctor and setup sub-skills, or resolves FAQ topics directly. This example demonstrates the composite pattern: a dispatcher state machine with `askUser` for intent selection, `.subskill()` registration with context mapping, `.topic()` registration for reference content, actions for deterministic environment checks, `subskill:` and `topic:` routing from `next`, step name namespacing, and `runComposite` for testing.
+
+[View full walkthrough](/examples/contentful-help)

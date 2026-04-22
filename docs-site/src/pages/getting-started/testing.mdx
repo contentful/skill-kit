@@ -143,3 +143,42 @@ const result = await runSkill(mySkill, {
 ```
 
 See the [Handling validation errors](/guides/workflow-skills/#handling-validation-errors) section in the workflow skills guide for more detail.
+
+## Testing composite skills
+
+Use `runComposite` to drive a composite skill through its dispatcher and into sub-skills or topics:
+
+```typescript
+import { runComposite, mockModel } from '@contentful/skill-kit/test';
+import skill from './skill.ts';
+
+const result = await runComposite(skill, {
+  refs, // ReferenceLoader for topic content
+  model: mockModel({
+    choose: { choice: 'doctor' },
+    'get-space': { spaceId: 'abc123' },
+    'doctor/diagnose': { issues: [], healthy: true },
+    'doctor/report-clean': { summary: 'All good!' },
+  }),
+});
+
+// result.path → ['choose', 'get-space', 'doctor/diagnose', 'doctor/report-clean']
+// result.redirectedTo → { kind: 'subskill', name: 'doctor' }
+```
+
+Sub-skill steps use prefixed names in the mock model (`'doctor/diagnose'`). The `redirectedTo` field tells you which sub-skill or topic was activated.
+
+To test a sub-skill in isolation, bypassing the dispatcher:
+
+```typescript
+const result = await runComposite(skill, {
+  directSubskill: 'doctor',
+  context: { spaceId: 'test-space' },
+  model: mockModel({
+    'doctor/diagnose': { issues: [], healthy: true },
+    'doctor/report-clean': { summary: 'All good!' },
+  }),
+});
+```
+
+See the [Composite Skills guide](/guides/composite-skills/) for the full API.

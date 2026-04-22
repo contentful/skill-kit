@@ -1,0 +1,145 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: 'Example: contentful-help'
+---
+
+A composite skill that dispatches to doctor and setup sub-skills, or resolves FAQ topics directly. This is the composite example in the SDK, demonstrating sub-skill registration, topic routing, actions, and multi-skill testing.
+
+**Source:** `examples/contentful-help/src/skill.ts`
+
+---
+
+## Skill structure
+
+```
+examples/contentful-help/src/
+  skill.ts                   # Dispatcher — routes to sub-skills or topics
+  skill.test.ts              # Tests with runComposite
+  subskills/
+    doctor.ts                # Diagnose and fix issues (standalone skill)
+    setup.ts                 # Guided space configuration (standalone skill)
+  references/
+    rate-limits.md           # API rate limit reference
+    locales.md               # Locale configuration reference
+```
+
+The dispatcher (`skill.ts`) is a regular `skill()` with `.subskill()` and `.topic()` calls. Each sub-skill is a standalone `skill().build()` in its own file.
+
+## The dispatcher
+
+The entry step uses `askUser` to let the user pick their intent:
+
+```typescript
+.step('choose', {
+  ask: askUser({
+    type: 'structured',
+    question: 'What would you like help with?',
+    options: [
+      { value: 'doctor', label: 'Diagnose issues', description: 'Find and fix problems' },
+      { value: 'setup', label: 'Set up Contentful', description: 'Configure your space' },
+      { value: 'faq', label: 'Quick question', description: 'Look up reference information' },
+    ],
+  }),
+  output: z.object({ choice: z.enum(['doctor', 'setup', 'faq']) }),
+  next: ({ output }) => {
+    if (output.choice === 'faq') return 'ask-topic';
+    if (output.choice === 'doctor') return 'get-space';
+    return `subskill:${output.choice}`;
+  },
+})
+```
+
+The dispatcher can have multiple steps before routing — `get-space` gathers the space ID before handing off to the doctor sub-skill, and `ask-topic` asks which topic to look up before resolving it.
+
+## Sub-skill registration
+
+Sub-skills are imported and registered with an optional context mapping:
+
+```typescript
+import doctorSkill from './subskills/doctor.js';
+import setupSkill from './subskills/setup.js';
+
+.subskill('doctor', doctorSkill, {
+  context: (_output, stash) => ({ spaceId: stash.spaceId }),
+})
+.subskill('setup', setupSkill)
+```
+
+The context function receives the dispatching step's output and the dispatcher's accumulated stash. Its return value becomes the sub-skill's context.
+
+## Topic registration
+
+Topics are reference entries that can be resolved directly from the dispatcher via `topic:<name>`:
+
+```typescript
+.topic('rate-limits', {
+  label: 'API rate limits and throttling',
+  content: ({ refs }) => refs.load('rate-limits.md'),
+})
+```
+
+When `next` returns `'topic:rate-limits'`, the skill loads the topic content and returns it as a `DoneResult` — no sub-skill workflow needed.
+
+## The doctor sub-skill
+
+A multi-step workflow: diagnose → suggest fixes → confirm → apply → report. Shows conditional branching (healthy spaces skip remediation) and `askUser` for fix confirmation.
+
+## The setup sub-skill
+
+Uses an `action` for deterministic environment variable detection — no LLM guessing. The `checkEnv` action reads `process.env` directly:
+
+```typescript
+const checkEnv = action({
+  name: 'check-env',
+  input: z.object({}),
+  output: z.object({ hasSpaceId: z.boolean(), hasToken: z.boolean() }),
+  run: async () => ({
+    hasSpaceId: !!process.env['CONTENTFUL_SPACE_ID'],
+    hasToken: !!process.env['CONTENTFUL_ACCESS_TOKEN'],
+  }),
+});
+```
+
+The step's `afterAction` callback stashes the results, and `next` routes based on the action output — either to guided setup or directly to configuration.
+
+## Testing
+
+Tests use `runComposite` which handles dispatcher→sub-skill routing automatically:
+
+```typescript
+import { runComposite, mockModel } from '@contentful/skill-kit/test';
+
+test('choose doctor routes through get-space to doctor sub-skill', async () => {
+  const result = await runComposite(skill, {
+    model: mockModel({
+      choose: { choice: 'doctor' },
+      'get-space': { spaceId: 'abc123' },
+      'doctor/diagnose': { issues: ['broken refs'], healthy: false },
+      'doctor/suggest-fix': { fixes: [{ issue: 'broken refs', fix: 'republish' }] },
+      'doctor/confirm-fix': { choice: 'skip' },
+      'doctor/report-issues': { summary: 'Found 1 issue.' },
+    }),
+  });
+
+  assert.equal(result.redirectedTo?.name, 'doctor');
+});
+```
+
+Sub-skill steps use prefixed names in the mock (`'doctor/diagnose'`). Topic tests provide a `refs` option pointing to the actual reference files:
+
+```typescript
+test('choose faq routes through ask-topic to topic content', async () => {
+  const result = await runComposite(skill, {
+    refs,
+    model: mockModel({
+      choose: { choice: 'faq' },
+      'ask-topic': { topicName: 'rate-limits' },
+    }),
+  });
+
+  assert.equal(result.redirectedTo?.name, 'rate-limits');
+  assert.ok(result.output.content.includes('78 requests/second'));
+});
+```
+
+Use `directSubskill` to test a sub-skill in isolation, bypassing the dispatcher entirely.

@@ -846,6 +846,28 @@ Each invocation reconstructs the workflow engine from the skill definition + his
 
 This design means no persistent process, no stdin piping, and no reliance on the agent managing a subprocess lifecycle. The agent makes sequential Bash calls and parses JSON output — a pattern every agent host supports today.
 
+### Composite CLI protocol
+
+Skills with registered sub-skills and/or topics accept additional commands. All go through `scripts/run` (hosts grant `scripts/run *` via "Always allow").
+
+**Direct sub-skill access** — bypass the dispatcher and start a sub-skill directly:
+
+```bash
+./scripts/run doctor --context '{"spaceId":"abc"}' --host claude-code
+./scripts/run doctor advance --step diagnose --output '{...}' --history '[...]'
+```
+
+**Reference topics** — list or load topics:
+
+```bash
+./scripts/run topics                 # list all topics with labels
+./scripts/run topic rate-limits      # load topic content to stdout
+```
+
+**Namespaced step names** — sub-skill steps are prefixed at the protocol layer. The host sees `doctor/diagnose` in the `step` field and passes it back on `advance`. The composite entry strips the prefix before routing to the sub-skill engine.
+
+**RedirectResult** — when the dispatcher's `next` resolves to `subskill:<name>` or `topic:<name>`, the engine returns a `RedirectResult` (the target doesn't exist in the local step map). The composite entry intercepts this and either starts the sub-skill or loads the topic. The host never sees `RedirectResult` — it receives the sub-skill's first `PromptResult` or a `DoneResult` with topic content.
+
 ### Script design conventions
 
 The binary follows the [agentskills.io script design conventions](https://agentskills.io/specification):
@@ -973,6 +995,12 @@ The build generates a SKILL.md with:
 
 Authors customize via `skill.description` and optional `skill.skillMd` template override.
 
+For composite skills, the generated SKILL.md also includes:
+
+- A **Sub-skills** section listing available sub-skills with descriptions and direct-access commands
+- A **Reference topics** section listing topics with `scripts/run topics` and `scripts/run topic <name>` commands
+- Context-aware guidance: when a dispatcher exists, the SKILL.md tells the agent to start normally and let the workflow route; direct sub-skill access is presented as a fallback for explicit user requests
+
 ### The compile/bundle step
 
 The build generates a temporary entry point:
@@ -986,6 +1014,8 @@ main(skill);
 **Bun mode:** `bun build --compile` bundles everything — the SDK, Zod, the skill code — into a single self-contained executable per target platform.
 
 **Node mode:** esbuild bundles the same dependency tree into a single `.mjs` file. All dependencies (SDK, Zod) are inlined; only Node.js built-ins are external. The result is a portable ESM module that runs under `node`.
+
+**Composite skills** build identically — same `skill-kit build` command, same output structure. The build pipeline detects `def.subskills` and generates a wrapper calling `compositeMain` instead of `main`. No special flags or separate build step needed.
 
 ---
 

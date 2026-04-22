@@ -262,6 +262,10 @@ export const gatherFacts = step({
 
 For groups of steps that belong together, are reused across skills, and carry their own state. Use when you have a multi-step sequence (auth, onboarding, data collection) that appears in more than one skill.
 
+### 4. Composite skills (sub-skills)
+
+For independent workflows bundled into a single artifact with shared references. Sub-skills have isolated stash, their own entry points, and can be tested standalone — unlike modules which flatten into the parent. Use when you have related skills that overlap in scope (e.g., doctor + setup + FAQ under one dispatcher). See the [Composite Skills guide](/guides/composite-skills/).
+
 ## Testing skills with modules
 
 When testing a composed skill, the `mockModel` map uses the original step names from the module — they are merged directly into the skill's step map.
