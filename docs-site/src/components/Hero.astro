@@ -1,0 +1,276 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="hero">
+  <div class="hero-scanline" aria-hidden="true"></div>
+  <div class="hero-banner">
+    <img src={`${base}images/banner.jpg`} alt="" class="hero-banner-img" loading="eager" />
+    <div class="hero-banner-fade"></div>
+  </div>
+  <div class="hero-content">
+    <div class="hero-badge">@contentful/skill-kit</div>
+    <h1 class="hero-title">
+      Build agent skills<br />
+      <span class="hero-title-accent">that actually work.</span>
+    </h1>
+    <p class="hero-subtitle">
+      Typed state machines for multi-step workflows. Progressive disclosure for reference docs. Both compile to
+      standalone CLI packages that any agent can invoke via Bash.
+    </p>
+    <div class="hero-actions">
+      <a href={`${base}getting-started/`} class="hero-btn hero-btn--primary">Get Started</a>
+      <a href={`${base}api/`} class="hero-btn hero-btn--secondary">API Reference</a>
+    </div>
+  </div>
+  <div class="hero-terminal">
+    <div class="terminal-header">
+      <span class="terminal-dot"></span>
+      <span class="terminal-dot"></span>
+      <span class="terminal-dot"></span>
+      <span class="terminal-title">skill.ts</span>
+    </div>
+    <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, askUser, prompt {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
+
+<span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'}
+  name: <span class="t-str">'changelog'</span>, entry: <span class="t-str">'audience'</span>,
+  triggers: [<span class="t-str">'generate changelog'</span>, <span class="t-str">'prep release notes'</span>],
+  stash: z.<span class="t-fn">object</span>({'{'} audience: z.<span class="t-fn">string</span>() {'}'}),
+{'}'})
+  .<span class="t-fn">step</span>(<span class="t-str">'audience'</span>, {'{'}
+    ask: <span class="t-fn">askUser</span>({'{'}
+      type: <span class="t-str">'structured'</span>,
+      question: <span class="t-str">'Who is the changelog for?'</span>,
+      options: [
+        {'{'} value: <span class="t-str">'devs'</span>, label: <span class="t-str">'Developers'</span> {'}'},
+        {'{'} value: <span class="t-str">'users'</span>, label: <span class="t-str">'End users'</span> {'}'},
+      ],
+    {'}'}),
+    output: z.<span class="t-fn">object</span>({'{'} audience: z.<span class="t-fn">enum</span>([<span class="t-str">'devs'</span>, <span class="t-str">'users'</span>]) {'}'}),
+    stash: ({'{'} output {'}'}) {'=>'} ({'{'} audience: output.audience{'}'}),
+    next: <span class="t-str">'draft'</span>,
+  {'}'})
+  .<span class="t-fn">step</span>(<span class="t-str">'draft'</span>, {'{'}
+    prompt: ({'{'} stash {'}'}) {'=>'} <span class="t-fn">prompt</span><span class="t-str">`
+      Scan recent commits. Write a
+      ${'{'}</span>stash.audience === <span class="t-str">'devs'</span> ? <span class="t-str">'technical'</span> : <span class="t-str">'friendly'</span><span class="t-str">{'}'}
+      changelog to CHANGELOG.md.
+    `</span>,
+    output: z.<span class="t-fn">object</span>({'{'} path: z.<span class="t-fn">string</span>() {'}'}),
+    next: {'{'} terminal: <span class="t-bool">true</span> {'}'},
+  {'}'})
+  .<span class="t-fn">build</span>();</code></pre>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding: var(--space-9) var(--space-5) var(--space-8);
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-7);
+  }
+
+  /* Scan line */
+  .hero-scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+    animation: scanline 2s ease-out forwards;
+    animation-delay: 0.5s;
+    opacity: 0;
+    z-index: 2;
+  }
+
+  /* Banner background */
+  .hero-banner {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .hero-banner-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.15;
+  }
+
+  .hero-banner-fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(10, 10, 10, 0.3) 0%, var(--color-bg) 85%);
+  }
+
+  /* Content */
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 48rem;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent-dim);
+    padding: var(--space-1) var(--space-3);
+    margin-bottom: var(--space-5);
+    letter-spacing: 0.05em;
+    background: var(--color-accent-glow);
+  }
+
+  .hero-title {
+    font-size: var(--text-5xl);
+    line-height: 1.1;
+    margin-bottom: var(--space-5);
+    letter-spacing: -0.03em;
+  }
+
+  .hero-title-accent {
+    color: var(--color-accent);
+  }
+
+  .hero-subtitle {
+    font-size: var(--text-lg);
+    color: var(--color-text-muted);
+    max-width: 36rem;
+    margin: 0 auto var(--space-6);
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: var(--space-4);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .hero-btn {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    padding: var(--space-3) var(--space-5);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .hero-btn--primary {
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border: 1px solid var(--color-accent);
+  }
+
+  .hero-btn--primary:hover {
+    background: var(--color-accent-bright);
+    border-color: var(--color-accent-bright);
+    color: var(--color-bg);
+  }
+
+  .hero-btn--secondary {
+    background: transparent;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent-dim);
+  }
+
+  .hero-btn--secondary:hover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-glow);
+    color: var(--color-accent-bright);
+  }
+
+  /* Terminal */
+  .hero-terminal {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 40rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+  }
+
+  .terminal-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--color-border-focus);
+  }
+
+  .terminal-title {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+    margin-left: auto;
+  }
+
+  .terminal-body {
+    margin: 0;
+    padding: var(--space-4) !important;
+    background: var(--color-bg-elevated) !important;
+    border: none !important;
+    border-left: none !important;
+    font-size: var(--text-sm);
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+
+  .terminal-body code {
+    font-family: var(--font-display);
+  }
+
+  /* Syntax classes */
+  .t-dim {
+    color: var(--color-text-dim);
+  }
+  .t-kw {
+    color: #c792ea;
+  }
+  .t-str {
+    color: var(--color-accent);
+  }
+  .t-fn {
+    color: #82aaff;
+  }
+  .t-bool {
+    color: var(--color-accent-bright);
+  }
+  .t-accent {
+    color: var(--color-accent);
+  }
+
+  @media (max-width: 768px) {
+    .hero {
+      padding: var(--space-7) var(--space-4) var(--space-6);
+      min-height: auto;
+    }
+
+    .hero-title {
+      font-size: var(--text-3xl);
+    }
+
+    .hero-subtitle {
+      font-size: var(--text-base);
+    }
+  }
+</style>

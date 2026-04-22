@@ -1,0 +1,257 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: 'Primitives'
+---
+
+Primitives are host-aware prose generators. They let you express intent — "ask the user a question," "present a plan for approval" — and the SDK produces prose calibrated for whichever agent host is running the skill. On Claude Code, that means naming `AskUserQuestion`. On Codex, it means a prose fallback with option lists. Same skill, same contract, different prose.
+
+The CLI can only emit text. Primitives are the mechanism that makes that text reliable across hosts, and the place where prompt-engineering effort compounds across the ecosystem.
+
+## How primitives work
+
+When a step declares a primitive (via `ask`, `confirm`, `plan`, `tasks`, or `subtask`), the engine generates host-specific prose and prepends it to the step's prompt. The `output` schema is the contract regardless of host — downstream steps never know how the answer was obtained.
+
+At session start, the engine also emits a **preamble** that maps abstract verbs (`ASK_STRUCTURED`, `PRESENT_PLAN`, etc.) to host-specific behavior. This sets conventions once so that per-step prose can be shorter and more focused.
+
+## `askUser()` — structured and open questions
+
+A single primitive with two modes, discriminated by `type`.
+
+### Structured mode
+
+Presents fixed options via the host's structured question tool (if available) or via a prose option list.
+
+```typescript
+import { askUser, z } from '@contentful/skill-kit';
+
+.step('choose-target', {
+  ask: askUser({
+    type: 'structured',
+    question: 'Which deployment target?',
+    options: [
+      { value: 'production', label: 'Production', description: 'Live, customer-facing' },
+      { value: 'staging', label: 'Staging', description: 'Pre-production mirror' },
+      { value: 'local', label: 'Local', description: 'Dev environment' },
+    ],
+  }),
+  output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
+  next: ({ output }) => `deploy-${output.target}`,
+})
+```
+
+| Field         | Type              | Required | Description                                           |
+| ------------- | ----------------- | -------- | ----------------------------------------------------- |
+| `type`        | `'structured'`    | Yes      | Discriminant for structured mode.                     |
+| `question`    | `string`          | Yes      | The question text shown to the user.                  |
+| `options`     | `AskUserOption[]` | Yes      | Array of `{ value, label, description? }` objects.    |
+| `multiSelect` | `boolean`         | No       | Allow multiple selections. Defaults to single-select. |
+
+### Open mode
+
+Free-text conversation. Never uses a structured question tool — the agent asks conversationally and the user answers in their own words.
+
+```typescript
+.step('ask-stack', {
+  ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+  prompt: 'Ask about their stack — get specific, not generic.',
+  output: z.object({ answer: z.string() }),
+  next: 'done',
+})
+```
+
+| Field      | Type     | Required | Description                 |
+| ---------- | -------- | -------- | --------------------------- |
+| `type`     | `'open'` | Yes      | Discriminant for open mode. |
+| `question` | `string` | Yes      | The question text.          |
+
+When both `ask` and `prompt` are set, the primitive prose is prepended to the prompt text.
+
+## `confirm()` — binary approval
+
+Binary yes/no confirmation with support for destructive-operation warnings and default answers.
+
+```typescript
+import { confirm, z } from '@contentful/skill-kit';
+
+.step('confirm-delete', {
+  confirm: confirm({
+    message: 'This will delete 47 files in .cache/. Continue?',
+    destructive: true,
+    defaultAnswer: 'no',
+  }),
+  output: z.object({ approved: z.boolean() }),
+  next: ({ output }) => output.approved ? 'proceed' : 'abort',
+})
+```
+
+| Field           | Type            | Required | Description                                                                   |
+| --------------- | --------------- | -------- | ----------------------------------------------------------------------------- |
+| `message`       | `string`        | Yes      | The confirmation message shown to the user.                                   |
+| `destructive`   | `boolean`       | No       | Flags the operation as destructive. Adds warning emphasis in generated prose. |
+| `defaultAnswer` | `'yes' \| 'no'` | No       | Default answer on ambiguity. Defaults to `'no'` if not specified.             |
+
+The `confirm` primitive is distinct from `askUser` because destructive-op confirmation needs stronger defaults and warning framing that differs from a neutral question.
+
+## `plan()` — present a plan for approval
+
+Shows a structured plan (summary + ordered steps) and asks the user whether to proceed.
+
+```typescript
+import { plan, z } from '@contentful/skill-kit';
+
+.step('review-plan', {
+  plan: plan({
+    summary: 'Migrate auth from session cookies to JWTs',
+    steps: [
+      'Add JWT signing and verification helpers',
+      'Update login flow to issue JWTs',
+      'Add compatibility layer for existing sessions',
+      'Update middleware to accept both',
+      'Migration script for active sessions',
+    ],
+  }),
+  output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
+  next: ({ output }) => output.approved ? 'execute' : 'revise',
+})
+```
+
+| Field     | Type       | Required | Description                                           |
+| --------- | ---------- | -------- | ----------------------------------------------------- |
+| `summary` | `string`   | Yes      | High-level description of what the plan accomplishes. |
+| `steps`   | `string[]` | Yes      | Ordered list of plan steps.                           |
+
+On Claude Code, this maps to `EnterPlanMode`/`ExitPlanMode` for a first-class plan UI. On other hosts, it renders as a numbered list with an explicit approval prompt.
+
+## `tasks()` — create a task list
+
+Creates a tracked list of tasks the agent should work through.
+
+```typescript
+import { tasks, z } from '@contentful/skill-kit';
+
+.step('create-tasks', {
+  tasks: tasks({
+    create: [
+      { title: 'Fix CI configuration', status: 'pending' },
+      { title: 'Update dependencies', status: 'pending' },
+      { title: 'Run integration tests', status: 'pending' },
+    ],
+  }),
+  output: z.object({ acknowledged: z.boolean() }),
+  next: 'execute-tasks',
+})
+```
+
+| Field    | Type                                       | Required | Description                                              |
+| -------- | ------------------------------------------ | -------- | -------------------------------------------------------- |
+| `create` | `Array<{ title: string; status: string }>` | Yes      | Tasks to register, each with a title and initial status. |
+
+## `subtask()` — spawn an isolated sub-agent
+
+Delegates a focused piece of work to a sub-agent with its own context window. The sub-agent works independently and returns structured output.
+
+```typescript
+import { subtask, z } from '@contentful/skill-kit';
+
+const ResearchSummary = z.object({
+  findings: z.array(z.object({
+    cve: z.string(),
+    severity: z.enum(['low', 'medium', 'high', 'critical']),
+    affected: z.string(),
+  })),
+});
+
+.step('research', {
+  subtask: subtask({
+    prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
+    output: ResearchSummary,
+    contextBudget: 'narrow',
+  }),
+  output: ResearchSummary,
+  next: 'incorporate-findings',
+})
+```
+
+| Field           | Type                             | Required | Description                                                 |
+| --------------- | -------------------------------- | -------- | ----------------------------------------------------------- |
+| `prompt`        | `string`                         | Yes      | Instructions for the sub-agent.                             |
+| `output`        | `z.ZodType`                      | Yes      | Zod schema the sub-agent's result must match.               |
+| `contextBudget` | `'narrow' \| 'normal' \| 'wide'` | No       | Hint for context window allocation. Defaults to `'normal'`. |
+
+On hosts without real agent isolation (no `Agent` tool), the prose fallback still produces correct output but doesn't get the context-window benefit.
+
+## Host-aware verb mapping
+
+The SDK uses abstract verbs in step prose. The preamble (sent once at session start) maps these verbs to host-specific behavior. Here is the complete mapping:
+
+| Verb             | Claude Code                               | Codex                                               | OpenCode                                            | Generic                                             |
+| ---------------- | ----------------------------------------- | --------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| `ASK_STRUCTURED` | `AskUserQuestion` tool with exact options | Prose with numbered option list, re-ask on mismatch | Prose with numbered option list, re-ask on mismatch | Prose with numbered option list, re-ask on mismatch |
+| `ASK_FREEFORM`   | Plain text conversation, no tool          | Plain text conversation                             | Plain text conversation                             | Plain text conversation                             |
+| `PRESENT_PLAN`   | `EnterPlanMode`/`ExitPlanMode`            | `update_plan` + explicit ask                        | `todowrite` + explicit ask                          | Numbered list + explicit ask                        |
+| `CREATE_TASKS`   | `TaskCreate`/`TaskUpdate`                 | `update_plan` checklist                             | `todowrite`/`todoread`                              | Visible checklist in output                         |
+| `SPAWN_SUBTASK`  | `Agent` tool with isolated context        | Subagent (if available)                             | `task` tool                                         | Focus on subtask inline, then return                |
+
+The resolution logic checks which tools the host advertises. If `AskUserQuestion` is in the tool list, the Claude Code prose generator is used. If `apply_patch` and `update_plan` are present, Codex. If `multiedit` is present, OpenCode. Otherwise, the generic fallback.
+
+## Fragments and prompts
+
+Two utilities for composing prose across steps and skills.
+
+### `fragment()` — named prose snippets
+
+Fragments are reusable chunks of prose with a name for tracking and deduplication.
+
+```typescript
+import { fragment } from '@contentful/skill-kit';
+
+export const enterpriseTone = fragment(
+  'enterprise-tone',
+  `Use a professional, concise tone. Avoid jargon unless the user
+   introduced it. Prefer concrete recommendations over hedging.`,
+);
+
+export const jsonOutputRules = fragment(
+  'json-output',
+  `Return only valid JSON matching the schema. No preamble,
+   no markdown fences, no commentary outside the object.`,
+);
+```
+
+| Argument  | Type     | Description                                                    |
+| --------- | -------- | -------------------------------------------------------------- |
+| `name`    | `string` | Required. Identifier for tooling, tracking, and deduplication. |
+| `content` | `string` | The prose text. Automatically trimmed.                         |
+
+The returned `Fragment` object is frozen with `{ name, content }`.
+
+### `prompt` — tagged template literal with auto-dedent
+
+The `prompt` tag handles indentation cleanup and fragment interpolation. Without it, template literals in indented TypeScript produce ugly whitespace.
+
+```typescript
+import { prompt } from '@contentful/skill-kit';
+import { enterpriseTone, jsonOutputRules } from '../fragments/tone.js';
+
+.step('analyze', {
+  prompt: ({ prev }) => prompt`
+    ${enterpriseTone}
+
+    Analyze the dependency tree at ${prev.repoPath}.
+    Flag packages with known CVEs.
+
+    ${jsonOutputRules}
+  `,
+  output: AnalysisSchema,
+  next: 'report',
+})
+```
+
+**How it works:**
+
+- Leading and trailing empty lines are stripped
+- Common indentation is removed (dedented to the leftmost non-empty line)
+- `Fragment` objects are interpolated as their `.content` string
+- Non-fragment values are converted with `String()`
+
+This is the only sugar the SDK provides for prose authoring. Everything else is standard functions.

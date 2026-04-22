@@ -1,0 +1,458 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: 'Workflow Skills'
+---
+
+Workflow skills are typed state machines. Each step has a prompt, an output schema, and a transition. The agent sees one step at a time — the CLI controls the order, validates outputs, and decides what comes next.
+
+## `skill()` configuration
+
+`skill(config)` returns a `SkillBuilder`. One per entry file. Context and stash Zod schemas declared here flow into all step callbacks via contextual type inference.
+
+```typescript
+import { skill, z } from '@contentful/skill-kit';
+
+export default skill({
+  name: 'deploy-check',
+  version: '1.0.0',
+  description: 'Validates deployment readiness across environments.',
+  entry: 'gather-info',
+  context: z.object({ env: z.string().default('staging') }),
+  stash: z.object({ checksPassed: z.number() }),
+  finalOutput: z.object({ ready: z.boolean(), report: z.string() }),
+  capabilities: {
+    fs: { read: ['./**'] },
+    subprocess: ['git', 'npm'],
+  },
+  observers: {
+    onStepComplete: ({ step, durationMs }) => {
+      process.stderr.write(`[deploy-check] ${step} completed in ${durationMs}ms\n`);
+    },
+  },
+  skillMd: 'Custom SKILL.md template override',
+})
+  .step('gather-info', {
+    /* ... */
+  })
+  .build();
+```
+
+| Field          | Type                            | Required | Description                                                                    |
+| -------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`         | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
+| `entry`        | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
+| `version`      | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
+| `description`  | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
+| `triggers`     | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
+| `context`      | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
+| `stash`        | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
+| `finalOutput`  | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
+| `capabilities` | `CapabilityManifest`            | No       | Declares filesystem, network, subprocess, and env var access.                  |
+| `observers`    | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
+| `skillMd`      | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
+
+## `.step(name, config)`
+
+Adds a step to the skill. The prompt and stash callbacks receive typed `context` and `stash` from the builder — no manual annotations needed.
+
+```typescript
+.step('gather-info', {
+  prompt: ({ context }) => `Check deployment readiness for ${context.env}.`,
+  output: z.object({
+    checks: z.array(z.object({
+      name: z.string(),
+      passed: z.boolean(),
+      detail: z.string(),
+    })),
+  }),
+  render: ({ history }) => render.table(/* ... */),
+  stash: ({ output }) => ({ checksPassed: output.checks.filter(c => c.passed).length }),
+  action: writeReportAction,
+  actionInput: ({ output, stash }) => ({ checks: output.checks }),
+  afterAction: ({ action }) => ({ reportPath: action.path }),
+  next: ({ output }) => output.checks.every(c => c.passed) ? 'approve' : 'remediate',
+  maxVisits: 3,
+  onMaxVisits: 'force-report',
+  ask: askUser({ type: 'structured', question: '...', options: [...] }),
+  confirm: confirm({ message: '...', destructive: true }),
+})
+```
+
+### Full step config shape
+
+| Field         | Type                                              | Required | Description                                                                |
+| ------------- | ------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `prompt`      | `string \| (ctx: PromptContext) => string`        | No       | The prose shown to the agent. Can be static or dynamic.                    |
+| `output`      | `z.ZodType`                                       | Yes      | Zod schema the agent's response must match. Validated before transition.   |
+| `next`        | `string \| (ctx) => string \| { terminal: true }` | Yes      | Where to go after this step. Static name, dynamic function, or terminal.   |
+| `render`      | `(ctx: PromptContext) => string`                  | No       | Deterministic output generation. Result available as `rendered` in prompt. |
+| `stash`       | `(ctx: { output }) => Partial<Stash>`             | No       | Shallow-merge updates into the cross-step scratchpad.                      |
+| `action`      | `ActionDefinition`                                | No       | CLI-side side effect that runs after output validation.                    |
+| `actionInput` | `(ctx: { output, stash }) => unknown`             | No       | Transform step output into action input when shapes differ.                |
+| `afterAction` | `(ctx: { output, action }) => Partial<Stash>`     | No       | Stash updates from action results, avoiding type casts from history.       |
+| `maxVisits`   | `number`                                          | No       | Explicit visit limit for this step.                                        |
+| `onMaxVisits` | `string`                                          | No       | Fallback step when `maxVisits` is exceeded.                                |
+| `ask`         | `AskUserConfig`                                   | No       | Primitive: structured or open user question.                               |
+| `confirm`     | `ConfirmConfig`                                   | No       | Primitive: binary yes/no approval.                                         |
+| `plan`        | `PlanConfig`                                      | No       | Primitive: present a plan for approval.                                    |
+| `tasks`       | `TasksConfig`                                     | No       | Primitive: create a tracked task list.                                     |
+| `subtask`     | `SubtaskConfig`                                   | No       | Primitive: spawn an isolated sub-agent.                                    |
+
+## PromptContext
+
+Every dynamic `prompt` function and `render` function receives a `PromptContext` object. These are the fields available:
+
+| Field      | Type                                                            | Description                                                                    |
+| ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `prev`     | `unknown`                                                       | Typed output of the immediately preceding step.                                |
+| `history`  | `readonly StepResult[]`                                         | All prior step results as `{ step, output, action? }` objects.                 |
+| `getStep`  | `<T, A>(name: string) => { output: T; action: A } \| undefined` | Type-safe lookup of a specific step's result from history.                     |
+| `context`  | `TContext`                                                      | Global skill context (config defaults + runtime overrides).                    |
+| `rendered` | `string \| undefined`                                           | Output of this step's `render()` function, if defined.                         |
+| `refs`     | `ReferenceLoader`                                               | Lazy loader for reference files: `refs.load('file.md')`, `refs.asset('path')`. |
+| `attempts` | `number`                                                        | How many times this step has been visited (zero-indexed, useful for retries).  |
+| `host`     | `Handshake`                                                     | Host info: `{ host: string, toolsAvailable: string[] }`.                       |
+| `stash`    | `Readonly<TStash>`                                              | Current cross-step scratchpad state. Frozen — read-only in prompts.            |
+
+## Transitions
+
+Every step declares a `next` that determines where the workflow goes after the agent responds.
+
+### Static transition
+
+A fixed step name. The simplest case.
+
+```typescript
+.step('gather', {
+  output: GatherSchema,
+  next: 'analyze',
+})
+```
+
+### Dynamic transition
+
+A function that receives the step output and returns a step name. Use this for branching logic.
+
+```typescript
+.step('diagnose', {
+  output: z.object({ severity: z.enum(['low', 'medium', 'high']) }),
+  next: ({ output }) => output.severity === 'high' ? 'escalate' : 'auto-fix',
+})
+```
+
+The function receives `{ output, attempts, action }` where `action` is the action result if one ran.
+
+### Terminal transition
+
+Ends the workflow. The last step's output becomes the skill's final output.
+
+```typescript
+.step('report', {
+  output: ReportSchema,
+  next: { terminal: true },
+})
+```
+
+### Self-transition
+
+Return `'self'` from a dynamic `next` to revisit the current step. Always pair with a loop guard.
+
+```typescript
+.step('refine', {
+  output: z.object({ confidence: z.number(), result: z.string() }),
+  next: ({ output, attempts }) =>
+    output.confidence < 0.8 && attempts < 3 ? 'self' : 'done',
+  maxVisits: 3,
+  onMaxVisits: 'done',
+})
+```
+
+## Loop guards
+
+Cycles are detected by static graph analysis at build time. Any step that participates in a cycle gets an implicit visit limit of **10**. For explicit control, declare `maxVisits` and `onMaxVisits`.
+
+| Config                                   | Behavior                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| No `maxVisits` declared, step in a cycle | Implicit limit of 10 visits. Throws `CycleGuardError` when exceeded. |
+| `maxVisits` without `onMaxVisits`        | Throws `CycleGuardError` when the limit is hit (fail-closed).        |
+| `maxVisits` + `onMaxVisits`              | Redirects to the `onMaxVisits` step when the limit is hit.           |
+
+Linear workflows with function-based `next` don't need cycle guards — the conservative graph analysis handles safety automatically by treating dynamic transitions as potentially reaching all steps.
+
+```typescript
+.step('retry-step', {
+  output: RetrySchema,
+  next: ({ output }) => output.ok ? 'done' : 'self',
+  maxVisits: 5,
+  onMaxVisits: 'fallback',  // required safety valve
+})
+```
+
+## Stash merging
+
+The stash is a cross-step scratchpad typed by the skill's `stash` schema. Updates are **shallow-merged** — each `stash` callback returns a partial object that overwrites top-level keys.
+
+```typescript
+// Step 1 sets name
+stash: ({ output }) => ({ name: output.name }),
+// Stash is now { name: 'Alice' }
+
+// Step 2 sets role — name is preserved
+stash: ({ output }) => ({ role: output.role }),
+// Stash is now { name: 'Alice', role: 'dev' }
+```
+
+The stash exposed in prompt functions is a **frozen** (read-only) snapshot. Mutations are only possible through `stash` and `afterAction` callbacks — never inside prompts or render functions.
+
+## `.extend(name, base, overrides)`
+
+Wires a shared step into the skill with typed overrides. The base step provides defaults; overrides replace specific fields. Context and stash types from the builder flow into the override callbacks.
+
+```typescript
+import { step, z } from '@contentful/skill-kit';
+
+// Shared step — no context/stash types
+const openQuestion = step({
+  output: z.object({ answer: z.string() }),
+  next: '__parent__',
+});
+
+// In a skill — .extend() applies typed context/stash:
+skill({ context: ContextSchema, stash: StashSchema, entry: 'ask', ... })
+  .extend('ask', openQuestion, {
+    prompt: ({ stash }) => `${stash.name}, tell me about yourself.`,  // typed
+    next: 'done',  // overrides __parent__
+  })
+```
+
+## `.build()` validation
+
+Calling `.build()` freezes the skill definition and validates:
+
+- `name` is present
+- `entry` is present and matches a registered step
+- At least one step exists
+- No unresolved `__parent__` sentinels remain (they must be overridden via `.extend()` or `.register()`)
+
+Triggers, if present, are appended to the description string for agent discoverability.
+
+## Standalone `step()` function
+
+For shared, reusable steps defined outside a skill. These steps have no typed context or stash — they default to `unknown`. Use `__parent__` as the next transition, then override it with `.extend()`.
+
+```typescript
+import { step, z } from '@contentful/skill-kit';
+
+export const gatherRepoFacts = step({
+  prompt: 'Inspect the repo and list languages, build tools, CI config.',
+  output: z.object({
+    languages: z.array(z.string()),
+    buildTools: z.array(z.string()),
+    ci: z.string().nullable(),
+  }),
+  next: '__parent__',
+});
+```
+
+The standalone `step()` validates that `output` and `next` are provided. The returned `StepDefinition` is frozen and has an `.extend(overrides)` method for inline customization.
+
+## Complete worked example
+
+A deploy-check skill that gathers environment info, asks the user which checks to run, validates results, and produces a report.
+
+```typescript
+import { skill, step, z, prompt, fragment, render, askUser, confirm } from '@contentful/skill-kit';
+
+// --- Fragments ---
+
+const strictTone = fragment(
+  'strict-tone',
+  `Be precise and thorough. No hand-waving. Every claim must be backed
+   by a specific file path, command output, or config value.`,
+);
+
+// --- Schemas ---
+
+const CheckResult = z.object({
+  name: z.string(),
+  passed: z.boolean(),
+  detail: z.string(),
+});
+
+// --- Skill ---
+
+export default skill({
+  name: 'deploy-check',
+  version: '1.0.0',
+  description: 'Validates deployment readiness across environments.',
+  entry: 'choose-env',
+
+  context: z.object({
+    defaultEnv: z.string().default('staging'),
+  }),
+
+  stash: z.object({
+    env: z.string(),
+    failCount: z.number(),
+  }),
+
+  finalOutput: z.object({
+    ready: z.boolean(),
+    summary: z.string(),
+  }),
+})
+  // Step 1: Ask the user which environment to check
+  .step('choose-env', {
+    ask: askUser({
+      type: 'structured',
+      question: 'Which environment should we validate?',
+      options: [
+        { value: 'staging', label: 'Staging' },
+        { value: 'production', label: 'Production', description: 'Live environment' },
+        { value: 'local', label: 'Local dev' },
+      ],
+    }),
+    output: z.object({ env: z.enum(['staging', 'production', 'local']) }),
+    stash: ({ output }) => ({ env: output.env }),
+    next: 'run-checks',
+  })
+
+  // Step 2: Run the checks
+  .step('run-checks', {
+    prompt: ({ stash }) => prompt`
+      ${strictTone}
+
+      Run deployment checks for the **${stash.env}** environment:
+      1. Verify the build completes without errors
+      2. Check that all tests pass
+      3. Confirm environment variables are set
+      4. Validate database migrations are current
+
+      Return each check with its pass/fail status and detail.
+    `,
+    output: z.object({ checks: z.array(CheckResult) }),
+    stash: ({ output }) => ({
+      failCount: output.checks.filter((c) => !c.passed).length,
+    }),
+    next: ({ output }) => (output.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
+  })
+
+  // Step 3a: Remediation (if checks failed)
+  .step('remediate', {
+    prompt: ({ prev, stash }) => prompt`
+      ${strictTone}
+
+      ${stash.failCount} check(s) failed for **${stash.env}**.
+      Failed checks: ${JSON.stringify(prev, null, 2)}
+
+      For each failure, propose a concrete fix. Then re-run the checks.
+    `,
+    output: z.object({ checks: z.array(CheckResult) }),
+    stash: ({ output }) => ({
+      failCount: output.checks.filter((c) => !c.passed).length,
+    }),
+    next: ({ output, attempts }) => {
+      if (output.checks.every((c) => c.passed)) return 'approve';
+      if (attempts >= 2) return 'force-report';
+      return 'self';
+    },
+    maxVisits: 3,
+    onMaxVisits: 'force-report',
+  })
+
+  // Step 3b: Approval (if all checks passed)
+  .step('approve', {
+    confirm: {
+      kind: 'confirm',
+      message: 'All checks passed. Ready to generate the deployment report?',
+      destructive: false,
+      defaultAnswer: 'yes',
+    },
+    output: z.object({ approved: z.boolean() }),
+    next: ({ output }) => (output.approved ? 'report' : 'run-checks'),
+  })
+
+  // Step 4a: Final report (happy path)
+  .step('report', {
+    prompt: ({ rendered }) => prompt`
+      Output the following deployment report exactly as shown:
+
+      ${rendered ?? ''}
+    `,
+    output: z.object({ ready: z.boolean(), summary: z.string() }),
+    render: ({ history, stash }) => {
+      const lastChecks = history.filter((s) => s.step === 'run-checks' || s.step === 'remediate').pop();
+      const checks =
+        (lastChecks?.output as { checks: Array<{ name: string; passed: boolean; detail: string }> })?.checks ?? [];
+      const table = render.table(checks, { columns: ['name', 'passed', 'detail'] });
+      return render.section(`Deployment Report: ${stash.env}`, table);
+    },
+    next: { terminal: true },
+  })
+
+  // Step 4b: Force report (after max remediation attempts)
+  .step('force-report', {
+    prompt: ({ stash }) => prompt`
+      Remediation attempts exhausted for **${stash.env}**.
+      Generate a summary noting which checks still fail and recommend manual intervention.
+    `,
+    output: z.object({ ready: z.boolean(), summary: z.string() }),
+    next: { terminal: true },
+  })
+
+  .build();
+```
+
+### Testing the deploy-check skill
+
+```typescript
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+import skill from './skill.js';
+
+test('happy path: all checks pass', async () => {
+  const result = await runSkill(skill, {
+    context: { defaultEnv: 'staging' },
+    model: mockModel({
+      'choose-env': { env: 'staging' },
+      'run-checks': {
+        checks: [
+          { name: 'build', passed: true, detail: 'Build succeeded' },
+          { name: 'tests', passed: true, detail: '142 tests passed' },
+        ],
+      },
+      approve: { approved: true },
+      report: { ready: true, summary: 'All checks passed for staging.' },
+    }),
+  });
+
+  assert.deepEqual(result.path, ['choose-env', 'run-checks', 'approve', 'report']);
+  assert.equal((result.output as { ready: boolean }).ready, true);
+});
+
+test('remediation path: failed checks trigger fixes', async () => {
+  const result = await runSkill(skill, {
+    model: mockModel({
+      'choose-env': { env: 'production' },
+      'run-checks': {
+        checks: [
+          { name: 'build', passed: true, detail: 'OK' },
+          { name: 'migrations', passed: false, detail: 'Pending migration' },
+        ],
+      },
+      remediate: {
+        checks: [
+          { name: 'build', passed: true, detail: 'OK' },
+          { name: 'migrations', passed: true, detail: 'Migration applied' },
+        ],
+      },
+      approve: { approved: true },
+      report: { ready: true, summary: 'Fixed and ready.' },
+    }),
+  });
+
+  assert.ok(result.path.includes('remediate'));
+  assert.ok(result.path.includes('approve'));
+});
+```

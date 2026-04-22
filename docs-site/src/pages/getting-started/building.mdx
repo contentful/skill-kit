@@ -1,0 +1,95 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: 'Building & Distribution'
+---
+
+skill-kit compiles skills into self-contained, [agentskills.io](https://agentskills.io/specification)-compliant directories that any agent host can invoke via Bash.
+
+## `skill-kit build`
+
+```bash
+skill-kit build <entry.ts> -o <dir>                        # default: bun mode
+skill-kit build <entry.ts> -o <dir> --mode node             # Node.js bundle
+skill-kit build <entry.ts> -o <dir> --targets darwin-arm64,linux-x64,linux-arm64
+skill-kit build <entry.ts> -o <dir> --single                # current platform only (fast)
+```
+
+### Flags
+
+| Flag        | Required | Description                                                                     |
+| ----------- | -------- | ------------------------------------------------------------------------------- |
+| `-o, --out` | yes      | Output directory                                                                |
+| `--mode`    | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
+| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only  |
+| `--single`  | no       | Build only for current platform. Bun mode only                                  |
+
+## Build modes
+
+### Bun mode (default)
+
+Compiles to standalone executables using `bun build --compile`. No runtime dependencies required on the target machine.
+
+**Trade-off:** Each executable is ~50-100MB because it embeds the Bun runtime. Use `--single` during development to build only for your current platform and skip the cross-compilation wait.
+
+Output structure:
+
+```
+skill/
+  SKILL.md                  # Generated agent-facing docs
+  package.json              # Name and version
+  scripts/run               # Shell wrapper (platform dispatcher)
+  bin/
+    greet-darwin-arm64      # Compiled Bun executables
+    greet-linux-x64
+  references/               # Copied from source (if present)
+```
+
+### Node mode
+
+Bundles to a single ESM file using esbuild. Requires Node.js on the target machine, but the output is lightweight.
+
+**Trade-off:** ~100-500KB bundle size, but depends on the target having Node.js 24+ installed. The `scripts/run` wrapper includes a version check.
+
+Output structure:
+
+```
+skill/
+  SKILL.md                  # Generated agent-facing docs
+  package.json              # Name and version
+  scripts/run               # Shell wrapper (Node version check)
+  bin/
+    greet.mjs               # Single ESM bundle
+  references/               # Copied from source (if present)
+```
+
+## `skill-kit run`
+
+Dev mode — run a skill directly from source without compiling:
+
+```bash
+skill-kit run <entry.ts> start --context '{}' --host claude-code
+skill-kit run <entry.ts> advance --step greet --output '{"name":"Alice"}' --history '[]' --host claude-code
+```
+
+Useful for rapid iteration. The `start` command initializes the skill and returns the first step's prompt. The `advance` command feeds output back and returns the next step (or signals completion).
+
+## `skill-kit check`
+
+Lint a skill for portability and correctness issues:
+
+```bash
+skill-kit check <entry.ts>
+```
+
+### Lint rules
+
+| Rule                        | Severity | What it catches                                                                |
+| --------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `cycle-guard`               | error    | Circular step transitions without `maxVisits` + `onMaxVisits`                  |
+| `no-host-tool-names`        | error    | Direct host tool name references without `host.toolsAvailable` guard           |
+| `primitive-schema-mismatch` | error    | `askUser` option values missing from output enum (or vice versa)               |
+| `orphan-references`         | warning  | Files in `references/` not mentioned in any step prompt                        |
+| `unknown-tool-names`        | warning  | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
+| `host-branching-density`    | warning  | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
+
+Run `check` before building to catch issues early. The `cycle-guard` and `primitive-schema-mismatch` rules in particular will save you from runtime errors that are hard to debug through an agent.

@@ -1,0 +1,77 @@
+---
+interface Props {
+  headings: { depth: number; slug: string; text: string }[];
+}
+
+const { headings } = Astro.props;
+const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+
+{
+  toc.length > 0 && (
+    <nav class="toc" aria-label="Table of contents">
+      <h4 class="toc-heading">On this page</h4>
+      <ul class="toc-list">
+        {toc.map((heading) => (
+          <li class:list={[{ 'toc-indent': heading.depth === 3 }]}>
+            <a href={`#${heading.slug}`} class="toc-link">
+              {heading.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+<style>
+  .toc {
+    position: sticky;
+    top: calc(var(--nav-height) + var(--space-5));
+    align-self: start;
+    max-height: calc(100vh - var(--nav-height) - var(--space-8));
+    overflow-y: auto;
+    width: 14rem;
+    padding-left: var(--space-5);
+    border-left: 1px solid var(--color-border);
+  }
+
+  .toc-heading {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+  }
+
+  .toc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .toc-list li {
+    margin: 0;
+  }
+
+  .toc-indent {
+    padding-left: var(--space-4);
+  }
+
+  .toc-link {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    padding: var(--space-1) 0;
+    transition: color var(--transition-fast);
+  }
+
+  .toc-link:hover {
+    color: var(--color-accent);
+  }
+</style>

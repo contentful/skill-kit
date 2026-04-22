@@ -5,3 +5,6 @@ dist
 /tmp
 examples/*/skill/bin/
 .skill-kit-build-*
+docs-site/node_modules
+docs-site/dist
+docs-site/.astro
