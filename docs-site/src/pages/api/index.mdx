@@ -27,6 +27,7 @@ skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput?, 
 | `entry`        | `string`                                       | yes      | Name of the first step                                            |
 | `version`      | `string`                                       | no       | Defaults to `'0.0.0'`                                             |
 | `description`  | `string`                                       | no       | Used in generated SKILL.md                                        |
+| `triggers`     | `string[]`                                     | no       | Keywords appended to description for agent discoverability        |
 | `context`      | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                       |
 | `stash`        | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                           |
 | `finalOutput`  | `z.ZodType`                                    | no       | Schema for the terminal step's output                             |
