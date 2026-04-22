@@ -493,6 +493,100 @@ skill({ stash: z.object({ appName: z.string() }), ... })
 
 **Opinion:** Modules are for groups of steps that are reused across skills with their own state. Most composition needs are met by shared steps + `.extend()`.
 
+### D. Composite skills (sub-skills and topics)
+
+When related skills share references, context, or user-facing scope, they can be combined into a single composite skill. A composite is a regular `skill()` that has sub-skills and/or topics registered on it.
+
+```typescript
+import { skill, z, askUser } from '@contentful/skill-kit';
+import doctorSkill from './subskills/doctor.js';
+import setupSkill from './subskills/setup.js';
+
+export default skill({
+  name: 'contentful-help',
+  entry: 'classify',
+  context: z.object({ query: z.string() }),
+  stash: z.object({ intent: z.string(), spaceId: z.string() }),
+})
+  .step('classify', {
+    prompt: ({ context }) => `Classify intent: "${context.query}"`,
+    output: z.object({ intent: z.string(), confidence: z.number() }),
+    stash: ({ output }) => ({ intent: output.intent, spaceId: '' }),
+    next: ({ output }) => {
+      if (output.confidence < 0.7) return 'clarify';
+      return `subskill:${output.intent}`;
+    },
+  })
+  .step('clarify', {
+    /* ask user, then route */
+  })
+  .topic('rate-limits', {
+    label: 'API rate limits',
+    content: ({ refs }) => refs.load('rate-limits.md'),
+  })
+  .subskill('doctor', doctorSkill, {
+    context: (_output, stash) => ({ spaceId: stash.spaceId }),
+  })
+  .subskill('setup', setupSkill)
+  .build();
+```
+
+**Sub-skills** are standalone `SkillDefinition`s imported and registered via `.subskill(name, def, opts?)`. They have independent state machines, stash, and context. They can be developed and tested independently with `runSkill()`.
+
+**Topics** are reference entries registered via `.topic(name, config)` — same as on `reference()`. They can be resolved as dispatch targets or looked up directly via CLI.
+
+#### Routing
+
+Any step's `next` can return special prefixed targets to exit the dispatcher:
+
+- `'subskill:doctor'` — transitions into the `doctor` sub-skill. The engine returns a `RedirectResult` (the target doesn't exist in the local step map). The composite entry point intercepts the redirect, calls the sub-skill's `contextMap` to produce context, and starts the sub-skill's engine.
+- `'topic:rate-limits'` — resolves the topic and returns its content as a `DoneResult`.
+- Regular step names route within the dispatcher as normal.
+
+The dispatcher is a full state machine — it can have as many steps as needed before routing (classify, triage, gather context, ask clarifications).
+
+#### Context mapping
+
+Each `.subskill()` registration accepts an optional `context` function:
+
+```typescript
+.subskill('doctor', doctorSkill, {
+  context: (stepOutput, stash) => ({ spaceId: stash.spaceId }),
+})
+```
+
+The function receives the output of the step that triggered the redirect and the dispatcher's accumulated stash. It returns the context object for the sub-skill's engine.
+
+#### Step name namespacing
+
+Sub-skill step names are prefixed with `subskillName/` at the protocol layer:
+
+- Dispatcher steps: `classify`, `clarify` (no prefix)
+- Sub-skill steps: `doctor/diagnose`, `setup/configure`
+
+Engines never see prefixes — the composite entry handles prefixing/unprefixing.
+
+#### CLI protocol
+
+All commands go through `scripts/run`:
+
+```bash
+scripts/run --context '{...}'                          # dispatcher start
+scripts/run advance --step classify --output '{...}'   # dispatcher advance
+scripts/run advance --step doctor/diagnose --output ..  # sub-skill advance
+scripts/run doctor --context '{...}'                   # direct sub-skill start
+scripts/run topics                                     # list reference topics
+scripts/run topic rate-limits                          # load a topic
+```
+
+#### Constraints
+
+- **No nesting**: `.subskill()` throws at runtime if the sub-skill definition already has subskills.
+- **No `/` in dispatcher step names**: the slash is reserved for namespacing.
+- **Sub-skills share references**: one `references/` directory, one `ReferenceLoader`.
+
+**Difference from modules:** Modules flatten into the parent's step namespace and merge stash. Sub-skills are independent — isolated stash, own entry points, testable standalone, invokable as CLI subcommands.
+
 ---
 
 ## 7. Context and state
