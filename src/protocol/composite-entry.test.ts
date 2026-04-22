@@ -4,6 +4,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { mkdtempSync, readFileSync, appendFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { parseCompositeArgs, type CompositeCommand } from './composite-entry.js';
 
 const exec = promisify(execFile);
@@ -13,6 +15,17 @@ const cwd = join(__dirname, '..', '..');
 
 async function run(...args: string[]): Promise<{ stdout: string; stderr: string }> {
   return exec('npx', ['tsx', fixturePath, ...args], { cwd });
+}
+
+function createTempDir(): string {
+  return mkdtempSync(join(tmpdir(), 'skill-kit-composite-test-'));
+}
+
+function readSessionLines(filePath: string): Array<Record<string, unknown>> {
+  return readFileSync(filePath, 'utf-8')
+    .trimEnd()
+    .split('\n')
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
 // --- parseCompositeArgs ---
@@ -160,4 +173,111 @@ test('composite: --help lists subskills and topics', async () => {
   assert.ok(stderr.includes('basics'));
   assert.ok(stderr.includes('Sub-skills'));
   assert.ok(stderr.includes('Reference topics'));
+});
+
+// --- Session mode tests ---
+
+test('composite session: dispatcher start creates session file', async () => {
+  const dir = createTempDir();
+  const { stdout } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(stdout.trim());
+
+  assert.ok(pointer.sessionId);
+  assert.ok(pointer.file);
+  assert.equal(pointer.line, 2);
+
+  const lines = readSessionLines(pointer.file);
+  assert.equal(lines[0]!.type, 'header');
+  assert.equal(lines[1]!.type, 'prompt');
+  assert.equal(lines[1]!.step, 'classify');
+});
+
+test('composite session: dispatcher advance with subskill redirect (file mode)', async () => {
+  const dir = createTempDir();
+  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(startOut.trim());
+
+  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n');
+
+  const { stdout: advOut } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line = parseInt(advOut.trim(), 10);
+
+  const lines = readSessionLines(pointer.file);
+  const resultLine = lines[line - 1]!;
+  assert.equal(resultLine.type, 'prompt');
+  assert.equal(resultLine.step, 'doctor/diagnose');
+  assert.ok(resultLine.completed);
+});
+
+test('composite session: dispatcher advance with topic redirect (file mode)', async () => {
+  const dir = createTempDir();
+  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(startOut.trim());
+
+  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'faq' } }) + '\n');
+
+  const { stdout: advOut } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line = parseInt(advOut.trim(), 10);
+
+  const lines = readSessionLines(pointer.file);
+  const resultLine = lines[line - 1]!;
+  assert.equal(resultLine.type, 'done');
+  assert.equal((resultLine as Record<string, unknown>).done, true);
+  assert.equal((resultLine.finalOutput as Record<string, unknown>).topic, 'basics');
+});
+
+test('composite session: full lifecycle dispatcher → subskill (file mode)', async () => {
+  const dir = createTempDir();
+
+  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(startOut.trim());
+
+  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n');
+  const { stdout: adv1 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line1 = parseInt(adv1.trim(), 10);
+
+  const linesAfterRedirect = readSessionLines(pointer.file);
+  const subskillPrompt = linesAfterRedirect[line1 - 1]!;
+  assert.equal(subskillPrompt.step, 'doctor/diagnose');
+
+  appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: 'fixed' } }) + '\n');
+  const { stdout: adv2 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line2 = parseInt(adv2.trim(), 10);
+
+  const finalLines = readSessionLines(pointer.file);
+  const doneLine = finalLines[line2 - 1]!;
+  assert.equal(doneLine.type, 'done');
+  assert.deepEqual(doneLine.finalOutput, { issue: 'fixed' });
+});
+
+test('composite session: direct subskill start (file mode)', async () => {
+  const dir = createTempDir();
+  const { stdout } = await run('doctor', '--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(stdout.trim());
+
+  const lines = readSessionLines(pointer.file);
+  assert.equal(lines[1]!.type, 'prompt');
+  assert.equal(lines[1]!.step, 'doctor/diagnose');
+});
+
+test('composite session: flag mode advance', async () => {
+  const dir = createTempDir();
+  const { stdout: startOut } = await run(
+    '--context', '{}', '--session', 'new', '--session-dir', dir, '--output-mode', 'flag',
+  );
+  const pointer = JSON.parse(startOut.trim());
+
+  const { stdout: advOut } = await run(
+    'advance',
+    '--step', 'classify',
+    '--output', '{"intent":"faq"}',
+    '--session', pointer.sessionId,
+    '--session-dir', dir,
+  );
+  const line = parseInt(advOut.trim(), 10);
+
+  const lines = readSessionLines(pointer.file);
+  const doneLine = lines[line - 1]!;
+  assert.equal(doneLine.type, 'done');
+  assert.equal((doneLine.finalOutput as Record<string, unknown>).topic, 'basics');
 });
