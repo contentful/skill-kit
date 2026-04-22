@@ -46,7 +46,7 @@ Session mode reduces output noise and manages conversation history automatically
 #### Step 1: Start with a session
 
 \`\`\`bash
-\${CLAUDE_SKILL_DIR}/scripts/run --context '{}' --host claude-code --session new
+scripts/run --context '{}' --host claude-code --session new
 \`\`\`
 
 This returns a small JSON pointer:
@@ -72,7 +72,7 @@ Append your output to the session file, then call advance:
 
 \`\`\`bash
 echo '{"type":"output","step":"<step-name>","output":<your-json>}' >> /tmp/skill-kit-abc123.jsonl
-\${CLAUDE_SKILL_DIR}/scripts/run advance --session abc123
+scripts/run advance --session abc123
 \`\`\`
 
 This returns a line number (e.g., \`4\`). Read that line from the session file for the next prompt.
@@ -89,7 +89,7 @@ If session mode is unavailable, use stateless invocation:
 #### Step 1: Start
 
 \`\`\`bash
-\${CLAUDE_SKILL_DIR}/scripts/run --context '{}' --host claude-code
+scripts/run --context '{}' --host claude-code
 \`\`\`
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
@@ -101,7 +101,7 @@ Read the \`prompt\` field. Do what it says, then produce a JSON object matching 
 #### Step 3: Advance
 
 \`\`\`bash
-\${CLAUDE_SKILL_DIR}/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
+scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
 \`\`\`
 
 - \`--step\`: the step name from the previous response
@@ -153,14 +153,14 @@ function generateSubskillSection(skill: SkillDefinition): string {
   lines.push('### Direct sub-skill access', '');
   lines.push('Session mode:');
   lines.push('```bash');
-  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}' --session new");
-  lines.push('${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --session <id>');
+  lines.push("scripts/run <subskill> --context '{}' --session new");
+  lines.push('scripts/run <subskill> advance --session <id>');
   lines.push('```');
   lines.push('');
   lines.push('Stateless mode:');
   lines.push('```bash');
-  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'");
-  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
+  lines.push("scripts/run <subskill> --context '{}'");
+  lines.push("scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
   lines.push('```');
   lines.push('', '### Available sub-skills', '');
 
@@ -183,8 +183,8 @@ function generateTopicSection(skill: SkillDefinition): string {
     'Quick-reference topics accessible without running the full workflow:',
     '',
     '```bash',
-    '${CLAUDE_SKILL_DIR}/scripts/run topics              # list all topics',
-    '${CLAUDE_SKILL_DIR}/scripts/run topic <name>         # load a specific topic',
+    'scripts/run topics              # list all topics',
+    'scripts/run topic <name>         # load a specific topic',
     '```',
     '',
   ];

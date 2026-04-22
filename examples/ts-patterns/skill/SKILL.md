@@ -9,9 +9,9 @@ metadata:
 
 This skill provides reference information on demand. Load any topic for details:
 
-- `${CLAUDE_SKILL_DIR}/scripts/run topic generics` — Generics cheat sheet — constraints, conditional types, mapped types, infer
-- `${CLAUDE_SKILL_DIR}/scripts/run topic discriminated-unions` — Discriminated unions — type narrowing with literal discriminants
-- `${CLAUDE_SKILL_DIR}/scripts/run topic builder-pattern` — Builder pattern — fluent APIs with type accumulation
-- `${CLAUDE_SKILL_DIR}/scripts/run topic error-handling` — Error handling — Result types, custom errors, exhaustive matching
+- `scripts/run topic generics` — Generics cheat sheet — constraints, conditional types, mapped types, infer
+- `scripts/run topic discriminated-unions` — Discriminated unions — type narrowing with literal discriminants
+- `scripts/run topic builder-pattern` — Builder pattern — fluent APIs with type accumulation
+- `scripts/run topic error-handling` — Error handling — Result types, custom errors, exhaustive matching
 
-To list all available topics: `${CLAUDE_SKILL_DIR}/scripts/run`
+To list all available topics: `scripts/run`

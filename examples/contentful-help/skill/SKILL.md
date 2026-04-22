@@ -25,7 +25,7 @@ Determine which agent host you are running in, and pass it as `--host`:
 ### Step 1: Start
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run --context '{}' --host claude-code
+scripts/run --context '{}' --host claude-code
 ```
 
 The output is JSON with these fields:
@@ -46,7 +46,7 @@ Do what the prompt says, then produce a JSON object matching the `schema`.
 Pass your JSON output back, along with the conversation history:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
+scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
 ```
 
 - `--step`: the step name from the previous response
@@ -85,8 +85,8 @@ Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`)
 ### Direct sub-skill access
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'
-${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'
+scripts/run <subskill> --context '{}'
+scripts/run <subskill> advance --step <step> --output '...' --history '[...]'
 ```
 
 ### Available sub-skills
@@ -99,8 +99,8 @@ ${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' 
 Quick-reference topics accessible without running the full workflow:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run topics              # list all topics
-${CLAUDE_SKILL_DIR}/scripts/run topic <name>         # load a specific topic
+scripts/run topics              # list all topics
+scripts/run topic <name>         # load a specific topic
 ```
 
 - **rate-limits**: API rate limits and throttling

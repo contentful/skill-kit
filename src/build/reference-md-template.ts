@@ -11,7 +11,7 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
   frontmatter.push('---');
 
   const topicList = Object.entries(def.topics)
-    .map(([name, topic]) => `- \`\${CLAUDE_SKILL_DIR}/scripts/run topic ${name}\` — ${topic.label}`)
+    .map(([name, topic]) => `- \`scripts/run topic ${name}\` — ${topic.label}`)
     .join('\n');
 
   const body = `
@@ -21,7 +21,7 @@ This skill provides reference information on demand. Load any topic for details:
 
 ${topicList}
 
-To list all available topics: \`\${CLAUDE_SKILL_DIR}/scripts/run\`
+To list all available topics: \`scripts/run\`
 `.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';
