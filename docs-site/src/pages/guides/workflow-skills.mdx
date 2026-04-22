@@ -299,10 +299,10 @@ The standalone `step()` validates that `output` and `next` are provided. The ret
 
 ## Complete worked example
 
-A deploy-check skill that gathers environment info, asks the user which checks to run, validates results, and produces a report.
+A deploy-check skill that gathers environment info, presents a plan, asks the user which checks to run, tracks remediation tasks, and produces a report. Demonstrates `askUser`, `plan`, `tasks`, `confirm`, fragments, stash, branching, and loop guards.
 
 ```typescript
-import { skill, step, z, prompt, fragment, render, askUser, confirm } from '@contentful/skill-kit';
+import { skill, step, z, prompt, fragment, render, askUser, confirm, plan, tasks } from '@contentful/skill-kit';
 
 // --- Fragments ---
 
@@ -355,10 +355,25 @@ export default skill({
     }),
     output: z.object({ env: z.enum(['staging', 'production', 'local']) }),
     stash: ({ output }) => ({ env: output.env }),
-    next: 'run-checks',
+    next: 'plan-checks',
   })
 
-  // Step 2: Run the checks
+  // Step 2: Present the check plan for approval
+  .step('plan-checks', {
+    plan: plan({
+      summary: 'Deployment readiness checks',
+      steps: [
+        'Verify the build completes without errors',
+        'Run the full test suite',
+        'Confirm environment variables are set',
+        'Validate database migrations are current',
+      ],
+    }),
+    output: z.object({ approved: z.boolean() }),
+    next: ({ output }) => (output.approved ? 'run-checks' : 'force-report'),
+  })
+
+  // Step 3: Run the checks
   .step('run-checks', {
     prompt: ({ stash }) => prompt`
       ${strictTone}
@@ -378,8 +393,14 @@ export default skill({
     next: ({ output }) => (output.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
   })
 
-  // Step 3a: Remediation (if checks failed)
+  // Step 4a: Remediation (if checks failed) — uses tasks() to track fixes
   .step('remediate', {
+    tasks: tasks({
+      create: [
+        { title: 'Fix failing deployment checks', status: 'in_progress' },
+        { title: 'Re-run validation suite', status: 'pending' },
+      ],
+    }),
     prompt: ({ prev, stash }) => prompt`
       ${strictTone}
 
@@ -401,7 +422,7 @@ export default skill({
     onMaxVisits: 'force-report',
   })
 
-  // Step 3b: Approval (if all checks passed)
+  // Step 4b: Approval (if all checks passed)
   .step('approve', {
     confirm: {
       kind: 'confirm',
@@ -413,7 +434,7 @@ export default skill({
     next: ({ output }) => (output.approved ? 'report' : 'run-checks'),
   })
 
-  // Step 4a: Final report (happy path)
+  // Step 5a: Final report (happy path)
   .step('report', {
     prompt: ({ rendered }) => prompt`
       Output the following deployment report exactly as shown:
@@ -431,7 +452,7 @@ export default skill({
     next: { terminal: true },
   })
 
-  // Step 4b: Force report (after max remediation attempts)
+  // Step 5b: Force report (after max remediation attempts)
   .step('force-report', {
     prompt: ({ stash }) => prompt`
       Remediation attempts exhausted for **${stash.env}**.
@@ -457,6 +478,7 @@ test('happy path: all checks pass', async () => {
     context: { defaultEnv: 'staging' },
     model: mockModel({
       'choose-env': { env: 'staging' },
+      'plan-checks': { approved: true },
       'run-checks': {
         checks: [
           { name: 'build', passed: true, detail: 'Build succeeded' },
@@ -468,7 +490,7 @@ test('happy path: all checks pass', async () => {
     }),
   });
 
-  assert.deepEqual(result.path, ['choose-env', 'run-checks', 'approve', 'report']);
+  assert.deepEqual(result.path, ['choose-env', 'plan-checks', 'run-checks', 'approve', 'report']);
   assert.equal((result.output as { ready: boolean }).ready, true);
 });
 
@@ -476,6 +498,7 @@ test('remediation path: failed checks trigger fixes', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'choose-env': { env: 'production' },
+      'plan-checks': { approved: true },
       'run-checks': {
         checks: [
           { name: 'build', passed: true, detail: 'OK' },
