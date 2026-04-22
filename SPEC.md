@@ -711,7 +711,7 @@ test('routes to remediate when checks fail', async () => {
 });
 ```
 
-`mockModel` takes either a map of step → canned output or a function. For real-model eval, swap `mockModel` for `liveModel` and run against recorded fixtures.
+`mockModel` takes either a map of step → canned output or a function. `liveModel` is planned for a future release (currently throws at runtime) — it will allow real-time interactive evaluation.
 
 ---
 
