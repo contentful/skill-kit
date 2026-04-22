@@ -25,16 +25,19 @@ Audit of the full public API surface against all documentation found 8 gaps rang
 
 ## Steps
 
-- [ ] Commit 1: SPEC.md fixes
-- [ ] Commit 2: liveModel status
-- [ ] Commit 3: checkSkill + cycle-guard severity
-- [ ] Commit 4: docs-site cosmetic sync
-- [ ] Commit 5: observer examples
-- [ ] Commit 6: validation error handling
-- [ ] Commit 7: plan/tasks primitive examples
-- [ ] Commit 8: modules testing section
-- [ ] Final verification: prettier, tsc, astro build
+- [x] Commit 1: SPEC.md fixes
+- [x] Commit 2: liveModel status
+- [x] Commit 3: checkSkill + cycle-guard severity
+- [x] Commit 4: docs-site cosmetic sync
+- [x] Commit 5: observer examples
+- [x] Commit 6: validation error handling
+- [x] Commit 7: plan/tasks primitive examples
+- [x] Commit 8: modules testing section
+- [x] Final verification: prettier, tsc, astro build
 
 ## Notes
 
-_(Running log — decisions made during implementation)_
+- cycle-guard severity: code uses warning for the common case (unguarded cycles), error only when config is invalid. All docs were wrong — fixed everywhere.
+- SPEC.md `render.interactiveTable()` replaced with a realistic `render.checklist` / `render.table` host-check example rather than just deleting it.
+- deploy-check worked example now demonstrates 5 of 5 primitives (askUser, plan, tasks, confirm, + subtask covered separately in primitives guide).
+- Formatting fix needed as a separate commit after the content commits.
