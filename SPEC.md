@@ -359,13 +359,13 @@ Custom renderers are just `(args) => string`. No registration; anything returnin
 
 ### Host-aware rendering
 
-For cases where a host can render something richer than markdown (e.g., an interactive table on Claude Code vs. a plain markdown table elsewhere), the `render` function can inspect what the current host offers:
+For cases where a host can render something richer than markdown, the `render` function can inspect what the current host offers:
 
 ```typescript
 step({
   render: ({ host, history }) => {
-    if (host.toolsAvailable.includes('InteractiveTable')) {
-      return render.interactiveTable(rows); // host-specific prose
+    if (host.toolsAvailable.includes('TodoWrite')) {
+      return render.checklist(items); // host supports task tracking
     }
     return render.table(rows); // markdown fallback
   },
@@ -579,6 +579,7 @@ An action is **node-side plumbing**, not a tool. The distinction matters.
 Actions are how skills do things; tools are how agents do things. They don't share a surface.
 
 ```typescript
+import { writeFile } from 'node:fs/promises';
 import { action } from '@contentful/skill-kit';
 
 const writeReport = action({
@@ -586,7 +587,7 @@ const writeReport = action({
   input: z.object({ path: z.string(), content: z.string() }),
   output: z.object({ bytesWritten: z.number() }),
   run: async ({ input, signal }) => {
-    await Bun.write(input.path, input.content);
+    await writeFile(input.path, input.content);
     return { bytesWritten: input.content.length };
   },
 });
