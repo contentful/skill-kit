@@ -70,6 +70,8 @@ pnpm exec tsc --noEmit && node --test --import tsx/esm 'src/**/*.test.ts' && pnp
 
 The docs site (`docs-site/`) is an Astro static site deployed to GitHub Pages. Its content pages are adapted from `docs/api.md`, `docs/architecture.md`, and the README. These are **not** auto-synced — when you change the markdown docs, update the corresponding MDX pages in `docs-site/src/pages/` and vice versa.
 
+**Known issue:** Pages is private, so GitHub assigns a random `*.pages.github.io` domain and serves at root (no base path). The `contentful.github.io/skill-kit/` URL 301-redirects there. Fix by either making Pages public (serves at `contentful.github.io/skill-kit/`, re-add `base: '/skill-kit/'` to `astro.config.mjs`) or configuring a custom domain.
+
 ## Key references
 
 - `SPEC.md` — the full SDK specification
