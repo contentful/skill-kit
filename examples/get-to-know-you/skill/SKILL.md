@@ -43,7 +43,7 @@ This returns a small JSON pointer:
 { "sessionId": "abc123", "file": "/tmp/skill-kit-abc123.jsonl", "line": 2 }
 ```
 
-Read exactly that line from the session file. It contains the step prompt, schema, and preamble.
+Read **exactly and only** the line indicated by `line` from the session file. It contains the step prompt, schema, and preamble. Do not read any other lines.
 
 **Read the `preamble` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
 that prompts use throughout the skill. Follow these mappings for every step.
@@ -62,7 +62,7 @@ Pass your output back with the step name:
 <skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
 ```
 
-This returns a line number (e.g., `4`). Read that line from the session file for the next prompt.
+This returns a single line number (e.g., `4`). Read **exactly and only that line** from the session file — it contains the next prompt. Do not read any other lines.
 
 ### Step 4: Repeat until done
 
