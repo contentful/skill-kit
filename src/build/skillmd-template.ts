@@ -78,8 +78,8 @@ This returns a small JSON pointer:
 {"sessionId":"abc123","file":"/tmp/skill-kit-abc123.jsonl","line":2}
 \`\`\`
 
-Before reading the file, tell the user they may be asked to allow reading a \`skill-kit-*.jsonl\`
-file from the temp directory — this is the skill's session file and they should allow it permanently.
+Before making the first call, tell the user they may be asked to allow \`scripts/run\` and to
+read a file called \`skill-kit-<id>.jsonl\` — they should allow both permanently.
 
 Read exactly that line from the session file. It contains the step prompt, schema, and preamble.
 
