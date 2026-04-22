@@ -647,14 +647,46 @@ skill-kit check <entry.ts>
 
 Rules:
 
-| Rule                        | Severity | What it catches                                                                |
-| --------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `cycle-guard`               | error    | Circular step transitions without `maxVisits` + `onMaxVisits`                  |
-| `no-host-tool-names`        | error    | Direct host tool name references without `host.toolsAvailable` guard           |
-| `primitive-schema-mismatch` | error    | `askUser` option values missing from output enum (or vice versa)               |
-| `orphan-references`         | warning  | Files in `references/` not mentioned in any step prompt                        |
-| `unknown-tool-names`        | warning  | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
-| `host-branching-density`    | warning  | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
+| Rule                        | Severity       | What it catches                                                                |
+| --------------------------- | -------------- | ------------------------------------------------------------------------------ |
+| `cycle-guard`               | warning/error  | Warning when cycles lack `maxVisits` (implicit limit applies at runtime); error when cycle-guard config is invalid (e.g., `onMaxVisits` targets a non-existent step) |
+| `no-host-tool-names`        | error          | Direct host tool name references without `host.toolsAvailable` guard           |
+| `primitive-schema-mismatch` | error          | `askUser` option values missing from output enum (or vice versa)               |
+| `orphan-references`         | warning        | Files in `references/` not mentioned in any step prompt                        |
+| `unknown-tool-names`        | warning        | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
+| `host-branching-density`    | warning        | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
+
+---
+
+## Linting (`checkSkill`)
+
+The `checkSkill` function validates a skill definition programmatically. It is the same check `skill-kit check` runs under the hood.
+
+```typescript
+import { checkSkill } from '@contentful/skill-kit';
+import type { LintDiagnostic } from '@contentful/skill-kit';
+
+const diagnostics: LintDiagnostic[] = checkSkill(skill.build(), '.');
+
+for (const d of diagnostics) {
+  console.error(`[${d.severity}] ${d.rule}: ${d.message}`);
+}
+```
+
+**Parameters:**
+
+| Parameter | Type              | Description                                               |
+| --------- | ----------------- | --------------------------------------------------------- |
+| `skill`   | `SkillDefinition` | A built skill definition (the return value of `.build()`) |
+| `rootDir` | `string`          | Root directory of the skill project (for `orphan-references` rule) |
+
+**Returns:** `LintDiagnostic[]` — an array of diagnostics, each with:
+
+- `rule` — which lint rule fired
+- `severity` — `'error'` or `'warning'`
+- `message` — human-readable explanation
+- `step?` — the step name involved (when applicable)
+- `file?` — the file path involved (when applicable)
 
 ---
 

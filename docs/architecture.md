@@ -314,7 +314,7 @@ interface LintDiagnostic {
 
 ### Rules
 
-**`cycle-guard`** (error) — Detects circular step transitions (self-loops and multi-step cycles) that lack `maxVisits` + `onMaxVisits`. Enforced at validation time, before the engine runs.
+**`cycle-guard`** (warning/error) — Warns when circular step transitions (self-loops and multi-step cycles) lack `maxVisits` + `onMaxVisits`; an implicit runtime limit of 10 visits applies. Errors when the cycle-guard configuration itself is invalid (e.g., `onMaxVisits` targets a non-existent step). Enforced at validation time, before the engine runs.
 
 **`no-host-tool-names`** (error) — Steps must not reference host tool names directly (e.g., `AskUserQuestion`, `apply_patch`, `TodoWrite`) in prompts without guarding behind `host.toolsAvailable.includes('ToolName')`. Scans both string prompts and function `.toString()` output. The guard pattern exempts the reference.
 
