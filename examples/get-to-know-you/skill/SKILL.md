@@ -43,8 +43,7 @@ This returns a small JSON pointer:
 Before reading the file, tell the user they may be asked to allow reading a `skill-kit-*.jsonl`
 file from the temp directory — this is the skill's session file and they should allow it permanently.
 
-Use the Read tool to read the session file at the returned line number (offset = line − 1, limit = 1).
-The line contains the step prompt, schema, and preamble.
+Read exactly that line from the session file. It contains the step prompt, schema, and preamble.
 
 **Read the `preamble` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
 that prompts use throughout the skill. Follow these mappings for every step.
