@@ -1,6 +1,12 @@
 import type { SkillDefinition } from '../types.js';
 import type { BuildProtocol } from './index.js';
 
+const SKILL_DIR_INSTRUCTION = `This SKILL.md file is inside the skill directory. Resolve the **absolute path** to \`scripts/run\`
+from this file's location (e.g., \`/path/to/skill/scripts/run\`). Use the absolute path in all
+Bash commands — do not \`cd\` into the skill directory.
+
+In the examples below, \`<skill>/scripts/run\` is a placeholder for this absolute path.`;
+
 export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol = 'session'): string {
   const frontmatter = [
     '---',
@@ -34,6 +40,8 @@ field, and passing your response back. **Do not show the raw JSON or Bash comman
 
 ## How to run this skill
 
+${SKILL_DIR_INSTRUCTION}
+
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as \`--host\`:
@@ -62,7 +70,7 @@ function generateSessionInstructions(): string {
   return `### Step 1: Start with a session
 
 \`\`\`bash
-scripts/run --context '{}' --host claude-code --session new
+<skill>/scripts/run --context '{}' --host claude-code --session new
 \`\`\`
 
 This returns a small JSON pointer:
@@ -88,7 +96,7 @@ Append your output to the session file, then call advance:
 
 \`\`\`bash
 echo '{"type":"output","step":"<step-name>","output":<your-json>}' >> /tmp/skill-kit-abc123.jsonl
-scripts/run advance --session abc123
+<skill>/scripts/run advance --session abc123
 \`\`\`
 
 This returns a line number (e.g., \`4\`). Read that line from the session file for the next prompt.
@@ -104,7 +112,7 @@ function generateStatelessInstructions(): string {
   return `### Step 1: Start
 
 \`\`\`bash
-scripts/run --context '{}' --host claude-code
+<skill>/scripts/run --context '{}' --host claude-code
 \`\`\`
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
@@ -119,7 +127,7 @@ Read the \`prompt\` field. Do what it says, then produce a JSON object matching 
 ### Step 3: Advance
 
 \`\`\`bash
-scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
 \`\`\`
 
 - \`--step\`: the step name from the previous response
@@ -159,11 +167,11 @@ function generateSubskillSection(skill: SkillDefinition, protocol: BuildProtocol
   lines.push('### Direct sub-skill access', '');
   lines.push('```bash');
   if (protocol === 'session') {
-    lines.push("scripts/run <subskill> --context '{}' --session new");
-    lines.push('scripts/run <subskill> advance --session <id>');
+    lines.push("<skill>/scripts/run <subskill> --context '{}' --session new");
+    lines.push('<skill>/scripts/run <subskill> advance --session <id>');
   } else {
-    lines.push("scripts/run <subskill> --context '{}'");
-    lines.push("scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
+    lines.push("<skill>/scripts/run <subskill> --context '{}'");
+    lines.push("<skill>/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
   }
   lines.push('```');
   lines.push('', '### Available sub-skills', '');
@@ -187,8 +195,8 @@ function generateTopicSection(skill: SkillDefinition): string {
     'Quick-reference topics accessible without running the full workflow:',
     '',
     '```bash',
-    'scripts/run topics              # list all topics',
-    'scripts/run topic <name>         # load a specific topic',
+    '<skill>/scripts/run topics              # list all topics',
+    '<skill>/scripts/run topic <name>         # load a specific topic',
     '```',
     '',
   ];

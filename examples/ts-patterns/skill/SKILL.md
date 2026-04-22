@@ -7,11 +7,13 @@ metadata:
 
 # ts-patterns
 
-This skill provides reference information on demand. Load any topic for details:
+This skill provides reference information on demand. Resolve the **absolute path** to `scripts/run`
+from this SKILL.md file's directory. Use the absolute path in all commands — do not `cd` into the
+skill directory. In the examples below, `<skill>/scripts/run` is a placeholder for this absolute path.
 
-- `scripts/run topic generics` — Generics cheat sheet — constraints, conditional types, mapped types, infer
-- `scripts/run topic discriminated-unions` — Discriminated unions — type narrowing with literal discriminants
-- `scripts/run topic builder-pattern` — Builder pattern — fluent APIs with type accumulation
-- `scripts/run topic error-handling` — Error handling — Result types, custom errors, exhaustive matching
+- `<skill>/scripts/run topic generics` — Generics cheat sheet — constraints, conditional types, mapped types, infer
+- `<skill>/scripts/run topic discriminated-unions` — Discriminated unions — type narrowing with literal discriminants
+- `<skill>/scripts/run topic builder-pattern` — Builder pattern — fluent APIs with type accumulation
+- `<skill>/scripts/run topic error-handling` — Error handling — Result types, custom errors, exhaustive matching
 
-To list all available topics: `scripts/run`
+To list all available topics: `<skill>/scripts/run`

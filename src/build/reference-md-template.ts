@@ -11,17 +11,19 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
   frontmatter.push('---');
 
   const topicList = Object.entries(def.topics)
-    .map(([name, topic]) => `- \`scripts/run topic ${name}\` — ${topic.label}`)
+    .map(([name, topic]) => `- \`<skill>/scripts/run topic ${name}\` — ${topic.label}`)
     .join('\n');
 
   const body = `
 # ${def.name}
 
-This skill provides reference information on demand. Load any topic for details:
+This skill provides reference information on demand. Resolve the **absolute path** to \`scripts/run\`
+from this SKILL.md file's directory. Use the absolute path in all commands — do not \`cd\` into the
+skill directory. In the examples below, \`<skill>/scripts/run\` is a placeholder for this absolute path.
 
 ${topicList}
 
-To list all available topics: \`scripts/run\`
+To list all available topics: \`<skill>/scripts/run\`
 `.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';
