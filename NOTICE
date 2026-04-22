@@ -1,0 +1,36 @@
+This project includes the following third-party open-source software components. Each is provided under its respective license.
+
+Runtime Dependencies (Production)
+
+esbuild
+    License: MIT
+    https://github.com/evanw/esbuild [npmjs.com]
+tsx
+    License: MIT
+    https://tsx.is [npmjs.com]
+zod
+    License: MIT
+    https://zod.dev [npmjs.com]
+
+
+Development Dependencies
+
+@types/node
+    License: MIT
+    https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node [npmjs.com]
+prettier
+    License: MIT
+    https://prettier.io [npmjs.com]
+release-it
+    License: MIT
+    https://github.com/release-it/release-it#readme [npmjs.com]
+typescript
+    License: Apache-2.0
+    https://www.typescriptlang.org/ [npmjs.com]
+
+
+Each component is used in accordance with its open-source license. The
+applicable license texts are included in this repository under the
+licenses/ directory.
+
+For more details, please refer to the LICENSE file for this project.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://www.contentful.com/security/
+    about: Report vulnerabilities through Contentful's security channel.
+  - name: Support and help center
+    url: https://www.contentful.com/help/getting-started/how-to-get-help/
+    about: For account-specific or sensitive support requests.
