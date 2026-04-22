@@ -513,25 +513,25 @@ skill({
   // ...
   observers: {
     onStepStart: ({ step, context }) => {
-      /* ... */
+      console.error(`→ entering "${step}"`);
     },
     onStepComplete: ({ step, output, durationMs }) => {
-      /* ... */
+      console.error(`✓ "${step}" completed in ${durationMs}ms`);
     },
     onStepValidationFailed: ({ step, raw, error, attempt }) => {
-      /* ... */
+      console.error(`✗ "${step}" attempt ${attempt}: ${error}\n  raw: ${JSON.stringify(raw)}`);
     },
     onTransition: ({ from, to, reason }) => {
-      /* ... */
+      console.error(`  ${from} → ${to} (${reason})`);
     },
     onSkillComplete: ({ path, finalOutput, durationMs }) => {
-      /* ... */
+      console.error(`done in ${durationMs}ms, path: ${path.join(' → ')}`);
     },
   },
 });
 ```
 
-Observers are fire-and-forget — they don't affect workflow execution. All are optional.
+Observers are fire-and-forget — they don't affect workflow execution. All are optional. They write to `stderr` by convention so they don't interfere with the JSON protocol on `stdout`.
 
 ---
 
