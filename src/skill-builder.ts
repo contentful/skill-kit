@@ -7,12 +7,16 @@ import type {
   ModuleDefinition,
   ActionDefinition,
   InferActionOutput,
+  SubskillRegistration,
+  TopicConfig,
 } from './types.js';
 import { step as createStep } from './step.js';
 
 export class SkillBuilder<TContext, TStash> {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
+  private readonly subskills: Record<string, SubskillRegistration> = {};
+  private readonly topics: Record<string, TopicConfig> = {};
 
   constructor(config: SkillBuilderConfig) {
     this.config = config;
@@ -62,6 +66,26 @@ export class SkillBuilder<TContext, TStash> {
     return this as unknown as SkillBuilder<TContext, TStash & z.infer<TModuleStash>>;
   }
 
+  subskill(
+    name: string,
+    definition: SkillDefinition,
+    opts?: { context?: (stepOutput: unknown, stash: unknown) => unknown },
+  ): SkillBuilder<TContext, TStash> {
+    if (definition.subskills && Object.keys(definition.subskills).length > 0) {
+      throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);
+    }
+    this.subskills[name] = Object.freeze({
+      definition,
+      contextMap: opts?.context,
+    });
+    return this;
+  }
+
+  topic(name: string, config: TopicConfig): SkillBuilder<TContext, TStash> {
+    this.topics[name] = config;
+    return this;
+  }
+
   build(): SkillDefinition {
     const { name, entry } = this.config;
 
@@ -77,6 +101,9 @@ export class SkillBuilder<TContext, TStash> {
       description = description ? `${description}${separator}${triggerLine}` : triggerLine;
     }
 
+    const hasSubskills = Object.keys(this.subskills).length > 0;
+    const hasTopics = Object.keys(this.topics).length > 0;
+
     const definition: SkillDefinition = {
       kind: 'skill',
       name,
@@ -89,6 +116,8 @@ export class SkillBuilder<TContext, TStash> {
       observers: this.config.observers,
       finalOutput: this.config.finalOutput,
       skillMd: this.config.skillMd,
+      ...(hasSubskills ? { subskills: Object.freeze({ ...this.subskills }) } : {}),
+      ...(hasTopics ? { topics: Object.freeze({ ...this.topics }) } : {}),
     };
 
     return Object.freeze(definition);

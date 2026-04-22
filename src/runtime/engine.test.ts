@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
 import { WorkflowEngine } from './engine.js';
-import type { Handshake, PromptResult, DoneResult, ValidationErrorResult } from '../types.js';
+import type { Handshake, PromptResult, DoneResult, ValidationErrorResult, RedirectResult } from '../types.js';
 
 const genericHost: Handshake = { host: 'generic', toolsAvailable: [] };
 
@@ -440,4 +440,54 @@ test('getStep returns undefined for missing step', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   assert.equal(result, undefined);
+});
+
+test('engine returns RedirectResult when next target is not a local step', async () => {
+  const s = skill({ name: 'redirect-test', entry: 'classify', stash: z.object({ intent: z.string() }) })
+    .step('classify', {
+      prompt: 'Classify',
+      output: z.object({ intent: z.string() }),
+      stash: ({ output }) => ({ intent: output.intent }),
+      next: ({ output }) => `subskill:${output.intent}`,
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('classify', { intent: 'doctor' });
+
+  const redirect = result as RedirectResult;
+  assert.equal(redirect.redirect, 'subskill:doctor');
+  assert.deepEqual(redirect.completed, { step: 'classify', output: { intent: 'doctor' }, action: undefined });
+  assert.deepEqual(redirect.stash, { intent: 'doctor' });
+});
+
+test('engine returns RedirectResult for topic targets', async () => {
+  const s = skill({ name: 'topic-redirect', entry: 'ask' })
+    .step('ask', {
+      prompt: 'What topic?',
+      output: z.object({ topic: z.string() }),
+      next: ({ output }) => `topic:${output.topic}`,
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('ask', { topic: 'rate-limits' });
+
+  const redirect = result as RedirectResult;
+  assert.equal(redirect.redirect, 'topic:rate-limits');
+});
+
+test('engine still routes normally when next target is a local step', async () => {
+  const s = skill({ name: 'normal-routing', entry: 'a' })
+    .step('a', { prompt: 'A', output: z.object({}), next: 'b' })
+    .step('b', { prompt: 'B', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('a', {});
+
+  assert.equal((result as PromptResult).step, 'b');
 });
