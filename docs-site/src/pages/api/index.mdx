@@ -303,7 +303,6 @@ import { subtask } from '@contentful/skill-kit';
 subtask: subtask({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
-  contextBudget: 'narrow', // optional: 'narrow' | 'normal' | 'wide'
 });
 ```
 

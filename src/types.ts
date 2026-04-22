@@ -84,7 +84,6 @@ export interface SubtaskConfig {
   readonly kind: 'subtask';
   prompt: string;
   output: z.ZodType;
-  contextBudget?: 'narrow' | 'normal' | 'wide';
 }
 
 export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | TasksConfig | SubtaskConfig;

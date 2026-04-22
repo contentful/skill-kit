@@ -1167,7 +1167,6 @@ step({
   subtask: {
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
-    contextBudget: 'narrow',
   },
   next: 'incorporate-findings',
 });
