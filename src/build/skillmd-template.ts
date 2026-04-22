@@ -90,13 +90,12 @@ Read the \`prompt\` field from the session file line. It contains instructions â
 The prompt may ask you to use specific tools, write files, analyze code, or interact with the user.
 Produce a JSON object matching the \`schema\`.
 
-### Step 3: Write output and advance
+### Step 3: Advance
 
-Append your output to the session file, then call advance:
+Pass your output back with the step name:
 
 \`\`\`bash
-echo '{"type":"output","step":"<step-name>","output":<your-json>}' >> /tmp/skill-kit-abc123.jsonl
-<skill>/scripts/run advance --session abc123
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123
 \`\`\`
 
 This returns a line number (e.g., \`4\`). Read that line from the session file for the next prompt.
