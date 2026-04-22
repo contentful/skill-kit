@@ -38,6 +38,61 @@ export function checkSkill(skill: SkillDefinition, rootDir: string): LintDiagnos
   diagnostics.push(...primitiveSchemaMatch(skill));
   diagnostics.push(...orphanReferences(skill, rootDir));
   diagnostics.push(...unknownToolNames(skill));
+  diagnostics.push(...compositeRules(skill));
+
+  if (skill.subskills) {
+    for (const [name, reg] of Object.entries(skill.subskills)) {
+      const subDiags = checkSkill(reg.definition, rootDir);
+      for (const d of subDiags) {
+        diagnostics.push({ ...d, message: `[subskill:${name}] ${d.message}` });
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function compositeRules(skill: SkillDefinition): LintDiagnostic[] {
+  const diagnostics: LintDiagnostic[] = [];
+
+  for (const stepName of Object.keys(skill.steps)) {
+    if (stepName.includes('/')) {
+      diagnostics.push({
+        rule: 'composite-step-name',
+        severity: 'error',
+        step: stepName,
+        message: `Step name "${stepName}" contains "/" which conflicts with sub-skill step namespacing.`,
+      });
+    }
+  }
+
+  if (skill.subskills) {
+    const subNames = new Set<string>();
+    for (const name of Object.keys(skill.subskills)) {
+      if (subNames.has(name)) {
+        diagnostics.push({
+          rule: 'composite-duplicate-subskill',
+          severity: 'error',
+          message: `Duplicate sub-skill name "${name}".`,
+        });
+      }
+      subNames.add(name);
+    }
+  }
+
+  if (skill.topics) {
+    const topicNames = new Set<string>();
+    for (const name of Object.keys(skill.topics)) {
+      if (topicNames.has(name)) {
+        diagnostics.push({
+          rule: 'composite-duplicate-topic',
+          severity: 'error',
+          message: `Duplicate topic name "${name}".`,
+        });
+      }
+      topicNames.add(name);
+    }
+  }
 
   return diagnostics;
 }
