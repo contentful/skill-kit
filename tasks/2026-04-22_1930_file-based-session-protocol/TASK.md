@@ -76,19 +76,25 @@ export interface SessionPointer {
 
 ## Steps
 
-- [ ] Create `src/protocol/session.ts` — SessionManager, SessionFile classes
-- [ ] Create `src/protocol/session.test.ts` — unit tests
-- [ ] Add `SessionPointer` to `src/types.ts`, export from `src/index.ts`
-- [ ] Modify `src/protocol/single-invocation.ts` — session support in start/advance/parseArgs
-- [ ] Modify `src/protocol/cli-entry.ts` — wire session flags
-- [ ] Modify `src/protocol/composite-entry.ts` — session support in composite handlers
-- [ ] Update `src/build/skillmd-template.ts` — session-mode instructions in generated SKILL.md
-- [ ] Update SPEC.md — session protocol specification
-- [ ] Update docs/architecture.md — expand protocol section
-- [ ] Update docs/api.md — SessionPointer type, new flags
-- [ ] Update docs-site pages — architecture, workflow-skills, composite-skills, api, building
-- [ ] Verify: typecheck + tests + format + docs consistency
+- [x] Create `src/protocol/session.ts` — SessionManager, SessionFile classes
+- [x] Create `src/protocol/session.test.ts` — unit tests (16 tests)
+- [x] Add `SessionPointer` to `src/types.ts`, export from `src/index.ts`
+- [x] Modify `src/protocol/single-invocation.ts` — session support in start/advance/parseArgs
+- [x] Modify `src/protocol/cli-entry.ts` — wire session flags (5 new tests)
+- [x] Modify `src/protocol/composite-entry.ts` — session support in composite handlers (6 new tests)
+- [x] Update `src/build/skillmd-template.ts` — session-mode instructions in generated SKILL.md
+- [x] Update SPEC.md — session protocol specification
+- [x] Update docs/architecture.md — expand protocol section
+- [x] Update docs/api.md — SessionPointer type, new flags
+- [x] Update docs-site pages — architecture, composite-skills, building, api
+- [x] Verify: typecheck + tests + format + docs consistency (194 tests, all passing)
 
 ## Notes
+
+- History reconstruction reads `completed` fields from prompt/done lines, not output lines. This avoids needing to break append-only semantics when actions produce results.
+- Extracted `resolveSessionForCommand` and `resolveAdvanceInput` helpers in composite-entry to share session logic across dispatcher/subskill handler paths.
+- Added multi-step-skill.ts fixture for testing full session lifecycle across step boundaries.
+- Session file cleanup is not automatic — relies on OS temp cleanup. Explicit cleanup available via `SessionFile.cleanup()` and `SessionManager.cleanup()`.
+- `workflow-skills.mdx` had no protocol invocation examples, so no changes needed there.
 
 (Running log — decisions made during implementation)
