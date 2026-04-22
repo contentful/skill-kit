@@ -580,10 +580,6 @@ mockModel({
 - **Array:** cycles through entries on repeated visits. Throws if exhausted.
 - **Function:** called with the step's prompt string. Can return conditional responses.
 
-### `liveModel()`
-
-**Not yet implemented.** Exported for forward-compatibility but currently throws at runtime. Use `mockModel()` for all testing.
-
 ---
 
 ## CLI Commands

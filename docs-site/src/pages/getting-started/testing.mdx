@@ -25,11 +25,11 @@ const result = await runSkill(mySkill, {
 
 ### Options
 
-| Option    | Type           | Required | Description                                                       |
-| --------- | -------------- | -------- | ----------------------------------------------------------------- |
-| `model`   | `ModelAdapter` | yes      | Provides responses for each step (use `mockModel` or `liveModel`) |
-| `context` | `object`       | no       | Skill-wide context, validated against the skill's context schema  |
-| `host`    | `Handshake`    | no       | Host identity and available tools. Defaults to generic host       |
+| Option    | Type           | Required | Description                                                      |
+| --------- | -------------- | -------- | ---------------------------------------------------------------- |
+| `model`   | `ModelAdapter` | yes      | Provides responses for each step (use `mockModel`)               |
+| `context` | `object`       | no       | Skill-wide context, validated against the skill's context schema |
+| `host`    | `Handshake`    | no       | Host identity and available tools. Defaults to generic host      |
 
 ### Return value
 
@@ -143,7 +143,3 @@ const result = await runSkill(mySkill, {
 ```
 
 See the [Handling validation errors](/guides/workflow-skills/#handling-validation-errors) section in the workflow skills guide for more detail.
-
-## `liveModel()`
-
-**Not yet implemented.** Exported for forward-compatibility but currently throws at runtime. Use `mockModel()` for all testing.
