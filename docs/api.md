@@ -582,7 +582,7 @@ mockModel({
 
 ### `liveModel()`
 
-Interactive testing adapter for manual evaluation — you provide responses in real time instead of using canned values. **Planned for a future release; currently throws at runtime.** Use `mockModel()` for all testing.
+**Not yet implemented.** Exported for forward-compatibility but currently throws at runtime. Use `mockModel()` for all testing.
 
 ---
 

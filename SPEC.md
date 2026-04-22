@@ -711,7 +711,7 @@ test('routes to remediate when checks fail', async () => {
 });
 ```
 
-`mockModel` takes either a map of step → canned output or a function. `liveModel` is planned for a future release (currently throws at runtime) — it will allow real-time interactive evaluation.
+`mockModel` takes either a map of step → canned output or a function. `liveModel` is exported for forward-compatibility but not yet implemented (throws at runtime).
 
 ---
 
