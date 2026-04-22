@@ -16,10 +16,6 @@ export class History {
     return this.results[this.results.length - 1];
   }
 
-  find(stepName: string): StepResult | undefined {
-    return this.results.find((r) => r.step === stepName);
-  }
-
   get<TOutput = unknown, TAction = unknown>(stepName: string): { output: TOutput; action: TAction } | undefined {
     const result = this.results.find((r) => r.step === stepName);
     if (!result) return undefined;
