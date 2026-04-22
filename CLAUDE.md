@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `node --test --import tsx/esm 'src/**/*.test.ts'` — run all SDK tests
 - `node --test --import tsx/esm examples/get-to-know-you/src/skill.test.ts` — run workflow example tests
 - `node --test --import tsx/esm examples/ts-patterns/src/skill.test.ts` — run reference example tests
-- `node --test --import tsx/esm examples/composite-help/src/skill.test.ts` — run composite example tests
+- `node --test --import tsx/esm examples/contentful-help/src/skill.test.ts` — run composite example tests
 - `pnpm exec prettier --check .` — check formatting
 - `pnpm exec prettier --write .` — fix formatting
 - `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill executable (dev, current platform)
