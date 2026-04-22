@@ -125,6 +125,25 @@ const result = await runSkill(mySkill, {
 
 The `host` value controls which verb mappings are active (e.g., `ASK_STRUCTURED` maps to `AskUserQuestion` on Claude Code, prose with option list on generic hosts). Test with different hosts to verify your skill works across environments.
 
+## Testing validation errors
+
+Use a function response in `mockModel` to simulate the agent returning invalid output. The engine will fire `onStepValidationFailed` and retry, passing the validation error back in the prompt:
+
+```typescript
+const result = await runSkill(mySkill, {
+  model: mockModel({
+    'my-step': (prompt) => {
+      if (prompt.includes('validation')) {
+        return { valid: 'output' };
+      }
+      return { bad: 'shape' }; // triggers retry
+    },
+  }),
+});
+```
+
+See the [Handling validation errors](/guides/workflow-skills/#handling-validation-errors) section in the workflow skills guide for more detail.
+
 ## `liveModel()`
 
 Interactive testing adapter for manual evaluation — you provide responses in real time instead of using canned values. **Planned for a future release; currently throws at runtime.** Use `mockModel()` for all testing.

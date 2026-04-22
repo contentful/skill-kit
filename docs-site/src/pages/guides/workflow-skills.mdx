@@ -236,6 +236,47 @@ Calling `.build()` freezes the skill definition and validates:
 
 Triggers, if present, are appended to the description string for agent discoverability.
 
+## Handling validation errors
+
+When the agent's output doesn't match a step's Zod schema, the engine:
+
+1. Fires `onStepValidationFailed` with the raw output, error message, and attempt number
+2. Returns a `ValidationErrorResult` to the agent with `retry: true`
+3. The agent sees the error message and tries again
+
+The skill author doesn't need to handle this — the engine manages the retry loop automatically. But the `onStepValidationFailed` observer is invaluable during development:
+
+```typescript
+skill({
+  // ...
+  observers: {
+    onStepValidationFailed: ({ step, raw, error, attempt }) => {
+      console.error(`Step "${step}" attempt ${attempt} failed validation: ${error}`);
+      console.error('Raw output:', JSON.stringify(raw, null, 2));
+    },
+  },
+});
+```
+
+### Testing validation paths
+
+Use a function response in `mockModel` to return invalid output on the first attempt, then valid output on the retry:
+
+```typescript
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+
+const result = await runSkill(mySkill.build(), {
+  model: mockModel({
+    'my-step': (prompt) => {
+      if (prompt.includes('validation')) {
+        return { valid: 'output' };
+      }
+      return { bad: 'shape' }; // first call — triggers validation error + retry
+    },
+  }),
+});
+```
+
 ## Standalone `step()` function
 
 For shared, reusable steps defined outside a skill. These steps have no typed context or stash — they default to `unknown`. Use `__parent__` as the next transition, then override it with `.extend()`.
