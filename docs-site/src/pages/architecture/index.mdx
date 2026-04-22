@@ -195,15 +195,15 @@ The `--mode` flag selects the bundling strategy:
 
 ```
 <dir>/
-  SKILL.md               <- Agent reads this first
+  SKILL.md               ← Agent reads this first
   package.json
   scripts/
-    run                  <- Detects OS/arch, delegates to binary
+    run                  ← Detects OS/arch, delegates to binary
   bin/
-    <name>-darwin-arm64  <- macOS Apple Silicon
-    <name>-linux-x64     <- Linux x86_64
+    <name>-darwin-arm64  ← macOS Apple Silicon
+    <name>-linux-x64     ← Linux x86_64
   references/
-    *.md                 <- Bundled content files
+    *.md                 ← Bundled content files
 ```
 
 Default targets: `darwin-arm64` and `linux-x64`. Override with `--targets`. Use `--single` for current-platform-only dev builds.
@@ -212,14 +212,14 @@ Default targets: `darwin-arm64` and `linux-x64`. Override with `--targets`. Use 
 
 ```
 <dir>/
-  SKILL.md               <- Agent reads this first
+  SKILL.md               ← Agent reads this first
   package.json
   scripts/
-    run                  <- Checks Node >= 24, runs bundle
+    run                  ← Checks Node ≥ 24, runs bundle
   bin/
-    <name>.mjs           <- Single ESM bundle
+    <name>.mjs           ← Single ESM bundle
   references/
-    *.md                 <- Bundled content files
+    *.md                 ← Bundled content files
 ```
 
 ### The scripts/run wrapper
@@ -342,7 +342,7 @@ interface LintDiagnostic {
 
 ## Design Decisions
 
-These are non-negotiable choices with specific rationale. For the full list, see the specification.
+These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §14](https://github.com/contentful/skill-kit/blob/main/SPEC.md#14-opinionated-decisions).
 
 **State is append-only.** Prior step outputs are never mutated. The stash accumulates via shallow merge; history is a linear append. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
 
