@@ -16,6 +16,7 @@ import { resolveTargets, type BuildTarget } from './targets.js';
 const exec = promisify(execFile);
 
 export type BuildMode = 'bun' | 'node';
+export type BuildProtocol = 'session' | 'stateless';
 
 export interface BuildOptions {
   entry: string;
@@ -23,6 +24,7 @@ export interface BuildOptions {
   targets?: string[];
   single?: boolean;
   mode?: BuildMode;
+  protocol?: BuildProtocol;
 }
 
 export interface BuildResult {
@@ -66,7 +68,8 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
   writeFileSync(runPath, runScript);
   chmodSync(runPath, 0o755);
 
-  const skillMdContent = def.kind === 'reference' ? generateReferenceMd(def) : generateSkillMd(def);
+  const protocol = opts.protocol ?? 'session';
+  const skillMdContent = def.kind === 'reference' ? generateReferenceMd(def) : generateSkillMd(def, protocol);
   const skillMdPath = join(outDir, 'SKILL.md');
   writeFileSync(skillMdPath, skillMdContent);
 

@@ -1,6 +1,7 @@
 import type { SkillDefinition } from '../types.js';
+import type { BuildProtocol } from './index.js';
 
-export function generateSkillMd(skill: SkillDefinition): string {
+export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol = 'session'): string {
   const frontmatter = [
     '---',
     `name: ${skill.name}`,
@@ -22,6 +23,8 @@ export function generateSkillMd(skill: SkillDefinition): string {
     })
     .join('\n');
 
+  const protocolInstructions = protocol === 'session' ? generateSessionInstructions() : generateStatelessInstructions();
+
   const body = `
 # ${skill.name}
 
@@ -39,11 +42,24 @@ Determine which agent host you are running in, and pass it as \`--host\`:
 - OpenCode: \`--host opencode\`
 - Unknown/other: omit the flag (defaults to generic)
 
-### Session mode (recommended)
+${protocolInstructions}
+### Important
 
-Session mode reduces output noise and manages conversation history automatically via a temp file.
+- **Never show raw JSON output or Bash commands to the user.** The user sees your natural
+  language responses, not the protocol.
+- **If you get a validation error** (the response has \`"error": "validation"\` or \`"type":"error"\`),
+  read the \`message\` field, fix your output, and retry the same step.
 
-#### Step 1: Start with a session
+## Steps in this skill
+
+${stepDescriptions}
+${generateSubskillSection(skill, protocol)}${generateTopicSection(skill)}`.trim();
+
+  return frontmatter.join('\n') + '\n\n' + body + '\n';
+}
+
+function generateSessionInstructions(): string {
+  return `### Step 1: Start with a session
 
 \`\`\`bash
 scripts/run --context '{}' --host claude-code --session new
@@ -60,13 +76,13 @@ The line contains the step prompt, schema, and preamble.
 **Read the \`preamble\` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
 that prompts use throughout the skill. Follow these mappings for every step.
 
-#### Step 2: Follow the prompt
+### Step 2: Follow the prompt
 
 Read the \`prompt\` field from the session file line. It contains instructions — follow them.
 The prompt may ask you to use specific tools, write files, analyze code, or interact with the user.
 Produce a JSON object matching the \`schema\`.
 
-#### Step 3: Write output and advance
+### Step 3: Write output and advance
 
 Append your output to the session file, then call advance:
 
@@ -77,16 +93,15 @@ scripts/run advance --session abc123
 
 This returns a line number (e.g., \`4\`). Read that line from the session file for the next prompt.
 
-#### Step 4: Repeat until done
+### Step 4: Repeat until done
 
 Keep advancing until the line you read contains \`"type":"done"\`. The \`finalOutput\` field
 contains the skill's result. Present it to the user.
+`;
+}
 
-### Stateless mode (fallback)
-
-If session mode is unavailable, use stateless invocation:
-
-#### Step 1: Start
+function generateStatelessInstructions(): string {
+  return `### Step 1: Start
 
 \`\`\`bash
 scripts/run --context '{}' --host claude-code
@@ -94,11 +109,14 @@ scripts/run --context '{}' --host claude-code
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
 
-#### Step 2: Follow the prompt
+**Read the \`preamble\` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
+that prompts use throughout the skill. Follow these mappings for every step.
+
+### Step 2: Follow the prompt
 
 Read the \`prompt\` field. Do what it says, then produce a JSON object matching \`schema\`.
 
-#### Step 3: Advance
+### Step 3: Advance
 
 \`\`\`bash
 scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
@@ -109,26 +127,14 @@ scripts/run advance --step <step-name> --output '<your-json>' --history '<histor
 - \`--history\`: a JSON array tracking the conversation. Start with \`[]\`. After each advance,
   the response includes a \`completed\` field — append it to the array for the next call.
 
-#### Step 4: Repeat until done
+### Step 4: Repeat until done
 
-Keep advancing until the response contains \`"done": true\`.
-
-### Important
-
-- **Never show raw JSON output or Bash commands to the user.** The user sees your natural
-  language responses, not the protocol.
-- **If you get a validation error** (the response has \`"error": "validation"\` or \`"type":"error"\`),
-  read the \`message\` field, fix your output, and retry the same step.
-
-## Steps in this skill
-
-${stepDescriptions}
-${generateSubskillSection(skill)}${generateTopicSection(skill)}`.trim();
-
-  return frontmatter.join('\n') + '\n\n' + body + '\n';
+Keep advancing until the response contains \`"done": true\`. The \`finalOutput\` field
+contains the skill's result. Present it to the user.
+`;
 }
 
-function generateSubskillSection(skill: SkillDefinition): string {
+function generateSubskillSection(skill: SkillDefinition, protocol: BuildProtocol): string {
   if (!skill.subskills || Object.keys(skill.subskills).length === 0) return '';
 
   const hasDispatcher = Object.keys(skill.steps).length > 0;
@@ -151,16 +157,14 @@ function generateSubskillSection(skill: SkillDefinition): string {
   lines.push('', 'Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`).', '');
 
   lines.push('### Direct sub-skill access', '');
-  lines.push('Session mode:');
   lines.push('```bash');
-  lines.push("scripts/run <subskill> --context '{}' --session new");
-  lines.push('scripts/run <subskill> advance --session <id>');
-  lines.push('```');
-  lines.push('');
-  lines.push('Stateless mode:');
-  lines.push('```bash');
-  lines.push("scripts/run <subskill> --context '{}'");
-  lines.push("scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
+  if (protocol === 'session') {
+    lines.push("scripts/run <subskill> --context '{}' --session new");
+    lines.push('scripts/run <subskill> advance --session <id>');
+  } else {
+    lines.push("scripts/run <subskill> --context '{}'");
+    lines.push("scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
+  }
   lines.push('```');
   lines.push('', '### Available sub-skills', '');
 

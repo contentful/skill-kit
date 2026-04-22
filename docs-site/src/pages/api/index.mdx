@@ -596,18 +596,20 @@ mockModel({
 Compiles a skill into a distributable [agentskills.io](https://agentskills.io/specification)-compliant directory:
 
 ```bash
-skill-kit build <entry.ts> -o <dir>                        # default (bun mode)
+skill-kit build <entry.ts> -o <dir>                        # default (bun mode, session protocol)
 skill-kit build <entry.ts> -o <dir> --mode node             # Node.js bundle
+skill-kit build <entry.ts> -o <dir> --protocol stateless    # stateless invocation instructions
 skill-kit build <entry.ts> -o <dir> --targets darwin-arm64,linux-x64,linux-arm64
 skill-kit build <entry.ts> -o <dir> --single                # current platform only (fast dev builds)
 ```
 
-| Flag        | Required | Description                                                                     |
-| ----------- | -------- | ------------------------------------------------------------------------------- |
-| `-o, --out` | yes      | Output directory                                                                |
-| `--mode`    | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
-| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only. |
-| `--single`  | no       | Build only for current platform. Bun mode only.                                 |
+| Flag         | Required | Description                                                                     |
+| ------------ | -------- | ------------------------------------------------------------------------------- |
+| `-o, --out`  | yes      | Output directory                                                                |
+| `--mode`     | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
+| `--protocol` | no       | `session` (default) or `stateless`. Controls SKILL.md invocation instructions   |
+| `--targets`  | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only. |
+| `--single`   | no       | Build only for current platform. Bun mode only.                                 |
 
 Output (bun mode):
 

@@ -994,6 +994,19 @@ The `--mode` flag selects the bundling strategy:
 
 Node mode is the right choice for skills that live inside a Node.js codebase where Node is already available. Bun mode produces standalone executables that work without any runtime dependency.
 
+### Protocol mode
+
+The `--protocol` flag controls which invocation instructions the generated SKILL.md contains:
+
+| Protocol              | Flag                   | SKILL.md instructions                                                              |
+| --------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| **session** (default) | `--protocol session`   | File-based session protocol (see [Session protocol](#session-protocol-file-based)) |
+| **stateless**         | `--protocol stateless` | Traditional `--history`-passing protocol                                           |
+
+Session mode is the default and recommended choice — it produces cleaner agent UX and shorter Bash output. Use `--protocol stateless` only for hosts that cannot write to the filesystem (e.g., sandboxed environments where the agent has no Write/echo capability).
+
+The flag only affects the generated SKILL.md. The binary itself always supports both protocols — an agent can use `--session` or `--history` regardless of what the SKILL.md says.
+
 ### Output structure
 
 **Bun mode** (default):
