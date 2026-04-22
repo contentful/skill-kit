@@ -1,8 +1,5 @@
 import type { Handshake, AskUserConfig, ConfirmConfig, PlanConfig, TasksConfig, SubtaskConfig } from '../../types.js';
-import * as claudeCode from './claude-code.js';
-import * as codex from './codex.js';
-import * as opencode from './opencode.js';
-import * as generic from './generic.js';
+import * as defaults from './default.js';
 
 export interface ProseGenerator {
   askUser(config: AskUserConfig): string;
@@ -12,21 +9,21 @@ export interface ProseGenerator {
   subtask(config: SubtaskConfig): string;
 }
 
-function wrap(mod: typeof claudeCode): ProseGenerator {
-  return {
-    askUser: mod.askUserProse,
-    confirm: mod.confirmProse,
-    plan: mod.planProse,
-    tasks: mod.tasksProse,
-    subtask: mod.subtaskProse,
-  };
-}
+const defaultGenerator: ProseGenerator = {
+  askUser: defaults.askUserProse,
+  confirm: defaults.confirmProse,
+  plan: defaults.planProse,
+  tasks: defaults.tasksProse,
+  subtask: defaults.subtaskProse,
+};
 
+// Per-host overrides — spread defaultGenerator and replace only what differs.
+// Example: 'claude-code': { ...defaultGenerator, askUser: claudeCodeAskUser }
 const generators: Record<string, ProseGenerator> = {
-  'claude-code': wrap(claudeCode),
-  codex: wrap(codex),
-  opencode: wrap(opencode),
-  generic: wrap(generic),
+  'claude-code': defaultGenerator,
+  codex: defaultGenerator,
+  opencode: defaultGenerator,
+  generic: defaultGenerator,
 };
 
 export function resolveProseGenerator(handshake: Handshake): ProseGenerator {
