@@ -70,7 +70,7 @@ function generateSessionInstructions(): string {
   return `### Step 1: Start with a session
 
 \`\`\`bash
-<skill>/scripts/run --context '{}' --host claude-code --session new
+<skill>/scripts/run --context '{}' --host claude-code --session new 2>/dev/null
 \`\`\`
 
 This returns a small JSON pointer:
@@ -95,7 +95,7 @@ Produce a JSON object matching the \`schema\`.
 Pass your output back with the step name:
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
 \`\`\`
 
 This returns a line number (e.g., \`4\`). Read that line from the session file for the next prompt.
@@ -111,7 +111,7 @@ function generateStatelessInstructions(): string {
   return `### Step 1: Start
 
 \`\`\`bash
-<skill>/scripts/run --context '{}' --host claude-code
+<skill>/scripts/run --context '{}' --host claude-code 2>/dev/null
 \`\`\`
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
@@ -126,7 +126,7 @@ Read the \`prompt\` field. Do what it says, then produce a JSON object matching 
 ### Step 3: Advance
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code 2>/dev/null
 \`\`\`
 
 - \`--step\`: the step name from the previous response

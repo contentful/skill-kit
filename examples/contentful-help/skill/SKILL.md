@@ -31,7 +31,7 @@ Determine which agent host you are running in, and pass it as `--host`:
 ### Step 1: Start with a session
 
 ```bash
-<skill>/scripts/run --context '{}' --host claude-code --session new
+<skill>/scripts/run --context '{}' --host claude-code --session new 2>/dev/null
 ```
 
 This returns a small JSON pointer:
@@ -57,7 +57,7 @@ Produce a JSON object matching the `schema`.
 Pass your output back with the step name:
 
 ```bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
 ```
 
 This returns a line number (e.g., `4`). Read that line from the session file for the next prompt.
