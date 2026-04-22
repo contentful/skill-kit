@@ -37,13 +37,10 @@ Determine which agent host you are running in, and pass it as `--host`:
 <skill>/scripts/run --context '{}' --host claude-code --session new 2>/dev/null
 ```
 
-This returns a small JSON pointer:
+This returns a JSON pointer with `sessionId`, `file`, and `line`. The `line` field tells you
+which line to read — it will be `2`, not `1` (line 1 is an internal header, never read it).
 
-```json
-{ "sessionId": "abc123", "file": "/tmp/skill-kit-abc123.jsonl", "line": 2 }
-```
-
-Read **exactly and only** the line indicated by `line` from the session file. It contains the step prompt, schema, and preamble. Do not read any other lines.
+Read **only** line `line` from `file`. It contains the step prompt, schema, and preamble.
 
 **Read the `preamble` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
 that prompts use throughout the skill. Follow these mappings for every step.
