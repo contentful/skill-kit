@@ -29,7 +29,6 @@ export type {
   PromptContext,
   PromptFn,
   TransitionFn,
-  CapabilityManifest,
   ObserverMap,
   StepResult,
   SkillRunResult,

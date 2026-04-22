@@ -12,7 +12,7 @@ Full reference for `@contentful/skill-kit`. Start with the [Getting Started](/ge
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput?, skillMd? })
+skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -21,18 +21,18 @@ skill({ name, entry, context?, stash?, observers?, capabilities?, finalOutput?, 
 
 ### `skill()` config
 
-| Field          | Type                                           | Required | Description                                                       |
-| -------------- | ---------------------------------------------- | -------- | ----------------------------------------------------------------- |
-| `name`         | `string`                                       | yes      | Skill identifier                                                  |
-| `entry`        | `string`                                       | yes      | Name of the first step                                            |
-| `version`      | `string`                                       | no       | Defaults to `'0.0.0'`                                             |
-| `description`  | `string`                                       | no       | Used in generated SKILL.md                                        |
-| `context`      | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                       |
-| `stash`        | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                           |
-| `finalOutput`  | `z.ZodType`                                    | no       | Schema for the terminal step's output                             |
-| `capabilities` | `CapabilityManifest`                           | no       | Declares host tools, filesystem, subprocess, env var requirements |
-| `observers`    | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                     |
-| `skillMd`      | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                 |
+| Field         | Type                                           | Required | Description                                                |
+| ------------- | ---------------------------------------------- | -------- | ---------------------------------------------------------- |
+| `name`        | `string`                                       | yes      | Skill identifier                                           |
+| `entry`       | `string`                                       | yes      | Name of the first step                                     |
+| `version`     | `string`                                       | no       | Defaults to `'0.0.0'`                                      |
+| `description` | `string`                                       | no       | Used in generated SKILL.md                                 |
+| `triggers`    | `string[]`                                     | no       | Keywords appended to description for agent discoverability |
+| `context`     | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                |
+| `stash`       | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                    |
+| `finalOutput` | `z.ZodType`                                    | no       | Schema for the terminal step's output                      |
+| `observers`   | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))              |
+| `skillMd`     | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                          |
 
 Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
@@ -303,7 +303,6 @@ import { subtask } from '@contentful/skill-kit';
 subtask: subtask({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
-  contextBudget: 'narrow', // optional: 'narrow' | 'normal' | 'wide'
 });
 ```
 
@@ -518,25 +517,25 @@ skill({
   // ...
   observers: {
     onStepStart: ({ step, context }) => {
-      /* ... */
+      console.error(`→ entering "${step}"`);
     },
     onStepComplete: ({ step, output, durationMs }) => {
-      /* ... */
+      console.error(`✓ "${step}" completed in ${durationMs}ms`);
     },
     onStepValidationFailed: ({ step, raw, error, attempt }) => {
-      /* ... */
+      console.error(`✗ "${step}" attempt ${attempt}: ${error}\n  raw: ${JSON.stringify(raw)}`);
     },
     onTransition: ({ from, to, reason }) => {
-      /* ... */
+      console.error(`  ${from} → ${to} (${reason})`);
     },
     onSkillComplete: ({ path, finalOutput, durationMs }) => {
-      /* ... */
+      console.error(`done in ${durationMs}ms, path: ${path.join(' → ')}`);
     },
   },
 });
 ```
 
-Observers are fire-and-forget — they don't affect workflow execution. All are optional.
+Observers are fire-and-forget — they don't affect workflow execution. All are optional. They write to `stderr` by convention so they don't interfere with the JSON protocol on `stdout`.
 
 ---
 
@@ -588,10 +587,6 @@ mockModel({
 - **Array:** cycles through entries on repeated visits. Throws if exhausted.
 - **Function:** called with the step's prompt string. Can return conditional responses.
 
-### `liveModel()`
-
-Interactive testing adapter for manual evaluation. Not yet implemented in v0.1.
-
 ---
 
 ## CLI Commands
@@ -618,22 +613,22 @@ Output (bun mode):
 
 ```
 <dir>/
-  SKILL.md               <- Generated agent-facing docs
-  package.json           <- Name and version
-  scripts/run            <- Shell wrapper (platform dispatcher)
-  bin/<name>-<platform>  <- Compiled Bun executables
-  references/            <- Copied from source
+  SKILL.md               ← Generated agent-facing docs
+  package.json           ← Name and version
+  scripts/run            ← Shell wrapper (platform dispatcher)
+  bin/<name>-<platform>  ← Compiled Bun executables
+  references/            ← Copied from source
 ```
 
 Output (node mode):
 
 ```
 <dir>/
-  SKILL.md               <- Generated agent-facing docs
-  package.json           <- Name and version
-  scripts/run            <- Shell wrapper (Node version check)
-  bin/<name>.mjs         <- Single ESM bundle
-  references/            <- Copied from source
+  SKILL.md               ← Generated agent-facing docs
+  package.json           ← Name and version
+  scripts/run            ← Shell wrapper (Node version check)
+  bin/<name>.mjs         ← Single ESM bundle
+  references/            ← Copied from source
 ```
 
 ### `skill-kit run`
@@ -655,14 +650,46 @@ skill-kit check <entry.ts>
 
 Rules:
 
-| Rule                        | Severity | What it catches                                                                |
-| --------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `cycle-guard`               | error    | Circular step transitions without `maxVisits` + `onMaxVisits`                  |
-| `no-host-tool-names`        | error    | Direct host tool name references without `host.toolsAvailable` guard           |
-| `primitive-schema-mismatch` | error    | `askUser` option values missing from output enum (or vice versa)               |
-| `orphan-references`         | warning  | Files in `references/` not mentioned in any step prompt                        |
-| `unknown-tool-names`        | warning  | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
-| `host-branching-density`    | warning  | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
+| Rule                        | Severity      | What it catches                                                                                                                                                      |
+| --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cycle-guard`               | warning/error | Warning when cycles lack `maxVisits` (implicit limit applies at runtime); error when cycle-guard config is invalid (e.g., `onMaxVisits` targets a non-existent step) |
+| `no-host-tool-names`        | error         | Direct host tool name references without `host.toolsAvailable` guard                                                                                                 |
+| `primitive-schema-mismatch` | error         | `askUser` option values missing from output enum (or vice versa)                                                                                                     |
+| `orphan-references`         | warning       | Files in `references/` not mentioned in any step prompt                                                                                                              |
+| `unknown-tool-names`        | warning       | `host.toolsAvailable.includes()` checks referencing unrecognized tools                                                                                               |
+| `host-branching-density`    | warning       | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive)                                                                                       |
+
+---
+
+## Linting (`checkSkill`)
+
+The `checkSkill` function validates a skill definition programmatically. It is the same check `skill-kit check` runs under the hood.
+
+```typescript
+import { checkSkill } from '@contentful/skill-kit';
+import type { LintDiagnostic } from '@contentful/skill-kit';
+
+const diagnostics: LintDiagnostic[] = checkSkill(skill.build(), '.');
+
+for (const d of diagnostics) {
+  console.error(`[${d.severity}] ${d.rule}: ${d.message}`);
+}
+```
+
+**Parameters:**
+
+| Parameter | Type              | Description                                                        |
+| --------- | ----------------- | ------------------------------------------------------------------ |
+| `skill`   | `SkillDefinition` | A built skill definition (the return value of `.build()`)          |
+| `rootDir` | `string`          | Root directory of the skill project (for `orphan-references` rule) |
+
+**Returns:** `LintDiagnostic[]` — an array of diagnostics, each with:
+
+- `rule` — which lint rule fired
+- `severity` — `'error'` or `'warning'`
+- `message` — human-readable explanation
+- `step?` — the step name involved (when applicable)
+- `file?` — the file path involved (when applicable)
 
 ---
 

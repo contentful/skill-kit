@@ -165,20 +165,18 @@ const ResearchSummary = z.object({
   subtask: subtask({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
-    contextBudget: 'narrow',
   }),
   output: ResearchSummary,
   next: 'incorporate-findings',
 })
 ```
 
-| Field           | Type                             | Required | Description                                                 |
-| --------------- | -------------------------------- | -------- | ----------------------------------------------------------- |
-| `prompt`        | `string`                         | Yes      | Instructions for the sub-agent.                             |
-| `output`        | `z.ZodType`                      | Yes      | Zod schema the sub-agent's result must match.               |
-| `contextBudget` | `'narrow' \| 'normal' \| 'wide'` | No       | Hint for context window allocation. Defaults to `'normal'`. |
+| Field    | Type        | Required | Description                                   |
+| -------- | ----------- | -------- | --------------------------------------------- |
+| `prompt` | `string`    | Yes      | Instructions for the sub-agent.               |
+| `output` | `z.ZodType` | Yes      | Zod schema the sub-agent's result must match. |
 
-On hosts without real agent isolation (no `Agent` tool), the prose fallback still produces correct output but doesn't get the context-window benefit.
+On hosts without real agent isolation (no `Agent` tool), the prose fallback still produces correct output but doesn't get the isolated context-window benefit.
 
 ## Host-aware verb mapping
 

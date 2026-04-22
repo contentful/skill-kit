@@ -83,13 +83,13 @@ skill-kit check <entry.ts>
 
 ### Lint rules
 
-| Rule                        | Severity | What it catches                                                                |
-| --------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `cycle-guard`               | error    | Circular step transitions without `maxVisits` + `onMaxVisits`                  |
-| `no-host-tool-names`        | error    | Direct host tool name references without `host.toolsAvailable` guard           |
-| `primitive-schema-mismatch` | error    | `askUser` option values missing from output enum (or vice versa)               |
-| `orphan-references`         | warning  | Files in `references/` not mentioned in any step prompt                        |
-| `unknown-tool-names`        | warning  | `host.toolsAvailable.includes()` checks referencing unrecognized tools         |
-| `host-branching-density`    | warning  | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive) |
+| Rule                        | Severity      | What it catches                                                                             |
+| --------------------------- | ------------- | ------------------------------------------------------------------------------------------- |
+| `cycle-guard`               | warning/error | Warning when cycles lack `maxVisits` (implicit limit applies); error when config is invalid |
+| `no-host-tool-names`        | error         | Direct host tool name references without `host.toolsAvailable` guard                        |
+| `primitive-schema-mismatch` | error         | `askUser` option values missing from output enum (or vice versa)                            |
+| `orphan-references`         | warning       | Files in `references/` not mentioned in any step prompt                                     |
+| `unknown-tool-names`        | warning       | `host.toolsAvailable.includes()` checks referencing unrecognized tools                      |
+| `host-branching-density`    | warning       | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive)              |
 
 Run `check` before building to catch issues early. The `cycle-guard` and `primitive-schema-mismatch` rules in particular will save you from runtime errors that are hard to debug through an agent.

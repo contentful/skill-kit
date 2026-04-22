@@ -82,9 +82,9 @@ export default skill({
 
 ### Where to read next
 
-The sections below go in order: primitives (§1), prompts and fragments (§2), transitions (§3), rendering (§4), references (§5), modularization (§6), context and state including terminal-output for programmatic consumers (§7), side effects and observers (§8), capability manifest (§9), testing (§10), the CLI invocation protocol (§11), build and distribution (§12), repo layout for skill authors (§13), opinionated decisions (§14), cross-host behavior (§15), and what's out of scope for v0.1 (§16).
+The sections below go in order: primitives (§1), prompts and fragments (§2), transitions (§3), rendering (§4), references (§5), modularization (§6), context and state including terminal-output for programmatic consumers (§7), side effects and observers (§8), testing (§9), the CLI invocation protocol (§10), build and distribution (§11), repo layout for skill authors (§12), opinionated decisions (§13), cross-host behavior (§14), and what's out of scope for v0.1 (§15).
 
-If you just want to see the whole shape at once, read §1 and §4, then skim §12–§15.
+If you just want to see the whole shape at once, read §1 and §4, then skim §11–§14.
 
 ---
 
@@ -359,20 +359,20 @@ Custom renderers are just `(args) => string`. No registration; anything returnin
 
 ### Host-aware rendering
 
-For cases where a host can render something richer than markdown (e.g., an interactive table on Claude Code vs. a plain markdown table elsewhere), the `render` function can inspect what the current host offers:
+For cases where a host can render something richer than markdown, the `render` function can inspect what the current host offers:
 
 ```typescript
 step({
   render: ({ host, history }) => {
-    if (host.toolsAvailable.includes('InteractiveTable')) {
-      return render.interactiveTable(rows); // host-specific prose
+    if (host.toolsAvailable.includes('TodoWrite')) {
+      return render.checklist(items); // host supports task tracking
     }
     return render.table(rows); // markdown fallback
   },
 });
 ```
 
-The runtime resolves host info from the handshake (see §13). Authors don't detect models — they check what the host advertises. Most skills will never need this — the built-in renderers cover the common cases and the SDK's primitives handle host-aware prose for workflow steps. This is an escape hatch for rendered output where native hooks exist.
+The runtime resolves host info from the handshake (see §14). Authors don't detect models — they check what the host advertises. Most skills will never need this — the built-in renderers cover the common cases and the SDK's primitives handle host-aware prose for workflow steps. This is an escape hatch for rendered output where native hooks exist.
 
 ---
 
@@ -557,7 +557,7 @@ The last step before termination must produce output matching the `finalOutput` 
 
 **Why this matters for interop.** Skills aren't always invoked from a chat surface. A programmatic consumer — for example, a larger agent built with the Claude Agent SDK — might invoke a skill and want its result as structured data. The Agent SDK's `query()` has an `outputFormat: { type: 'json_schema', schema }` option that serves the same purpose at the agent level; our skills expose the equivalent at the skill level, using Zod schemas that compile to JSON Schema.
 
-A consumer calling our skill programmatically via `runSkill()` (see §10) gets the validated final output typed as `z.infer<typeof finalOutput>`. A consumer invoking the skill from within an Agent SDK session gets the same data serialized into the agent's transcript.
+A consumer calling our skill programmatically via `runSkill()` (see §9) gets the validated final output typed as `z.infer<typeof finalOutput>`. A consumer invoking the skill from within an Agent SDK session gets the same data serialized into the agent's transcript.
 
 If `finalOutput` is omitted, the skill's terminal output defaults to the last step's output — useful for quick prototypes, but programmatic consumers will want the explicit schema for stable integration.
 
@@ -579,6 +579,7 @@ An action is **node-side plumbing**, not a tool. The distinction matters.
 Actions are how skills do things; tools are how agents do things. They don't share a surface.
 
 ```typescript
+import { writeFile } from 'node:fs/promises';
 import { action } from '@contentful/skill-kit';
 
 const writeReport = action({
@@ -586,7 +587,7 @@ const writeReport = action({
   input: z.object({ path: z.string(), content: z.string() }),
   output: z.object({ bytesWritten: z.number() }),
   run: async ({ input, signal }) => {
-    await Bun.write(input.path, input.content);
+    await writeFile(input.path, input.content);
     return { bytesWritten: input.content.length };
   },
 });
@@ -619,7 +620,7 @@ Actions accept an `AbortSignal` so long-running operations can be cancelled clea
 
 **Why not let the model call tools instead?** Because when the effect is deterministic and workflow-mandated, running it CLI-side gives replayability, auditability, and no reliance on the model executing reliably. The model still has access to all of the host's tools for exploration during a step — that hasn't changed. Actions are for things the workflow says must happen, not things the model might choose to do.
 
-Actions are declared in the capability manifest (§9) so the harness can approve or deny them at install time.
+Actions are declared alongside their step and have typed input/output schemas, making them auditable and diffable.
 
 ### Observers
 
@@ -668,29 +669,7 @@ The word choice is deliberate: "observers," not "hooks." Hooks imply leverage; o
 
 ---
 
-## 9. Capability manifest
-
-Declared once, enforced everywhere.
-
-```typescript
-skill({
-  capabilities: {
-    fs: { read: ['./**'], write: ['./report.md', './.repo-doctor/**'] },
-    net: ['api.github.com'],
-    subprocess: ['git', 'npm'],
-    env: ['GITHUB_TOKEN'],
-  },
-  // ...
-});
-```
-
-The harness reads this at install time and grants or denies. At runtime the CLI enforces it — actions exceeding declared capabilities error before executing.
-
-Enterprise review becomes tractable: one block, machine-readable, diff-able between versions.
-
----
-
-## 10. Testing
+## 9. Testing
 
 ```typescript
 // skill.test.ts
@@ -710,11 +689,11 @@ test('routes to remediate when checks fail', async () => {
 });
 ```
 
-`mockModel` takes either a map of step → canned output or a function. For real-model eval, swap `mockModel` for `liveModel` and run against recorded fixtures.
+`mockModel` takes either a map of step → canned output or a function.
 
 ---
 
-## 11. Runtime / CLI invocation protocol
+## 10. Runtime / CLI invocation protocol
 
 The compiled skill binary is invoked by agents via Bash — one call per step. Each call is stateless; the agent passes the full conversation history on every invocation. JSON output goes to stdout, diagnostics and errors to stderr.
 
@@ -785,7 +764,7 @@ The binary follows the [agentskills.io script design conventions](https://agents
 
 ---
 
-## 12. Build and distribution
+## 11. Build and distribution
 
 ### `skill-kit build`
 
@@ -916,7 +895,7 @@ main(skill);
 
 ---
 
-## 13. Repo layout for skill authors
+## 12. Repo layout for skill authors
 
 Source and built skills live in separate directories. `src/skills/` is where authors write TypeScript. `skills/` is the distribution output — every subdirectory is a valid, self-contained skill per the agentskills.io spec.
 
@@ -976,7 +955,7 @@ my-repo/
 
 ---
 
-## 14. What the SDK is opinionated about
+## 13. What the SDK is opinionated about
 
 Non-negotiable, for good reasons:
 
@@ -997,7 +976,7 @@ Author choices:
 
 ---
 
-## 15. Cross-host capability model
+## 14. Cross-host capability model
 
 ### The architectural constraint (read this first)
 
@@ -1188,7 +1167,6 @@ step({
   subtask: {
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
-    contextBudget: 'narrow',
   },
   next: 'incorporate-findings',
 });
@@ -1332,9 +1310,9 @@ The CLI can only emit prose. The SDK's value is that it emits _calibrated_ prose
 
 ---
 
-## 16. Deliberately not in v0.1
+## 15. Deliberately not in v0.1
 
-- **Persistent stdio protocol.** The original spec described a stdin/stdout JSON protocol with a long-running skill process. No agent host today natively supports managing a skill as a persistent subprocess. Single-invocation mode (§11) works with every host via plain Bash calls. Stdio can be added later if a harness ever supports it — the engine interface (`start()`/`advance()`) accommodates both equally.
+- **Persistent stdio protocol.** The original spec described a stdin/stdout JSON protocol with a long-running skill process. No agent host today natively supports managing a skill as a persistent subprocess. Single-invocation mode (§10) works with every host via plain Bash calls. Stdio can be added later if a harness ever supports it — the engine interface (`start()`/`advance()`) accommodates both equally.
 - **Streaming.** One prompt/response per turn. Streaming is a harness concern.
 - **Parallel steps / fan-out.** Sequential only. Lands in v0.2 if a real use case emerges.
 - **Human-in-the-loop primitive.** Harness-provided for now; SDK may add a typed primitive once patterns stabilize.

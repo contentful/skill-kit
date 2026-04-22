@@ -20,10 +20,6 @@ export default skill({
   context: z.object({ env: z.string().default('staging') }),
   stash: z.object({ checksPassed: z.number() }),
   finalOutput: z.object({ ready: z.boolean(), report: z.string() }),
-  capabilities: {
-    fs: { read: ['./**'] },
-    subprocess: ['git', 'npm'],
-  },
   observers: {
     onStepComplete: ({ step, durationMs }) => {
       process.stderr.write(`[deploy-check] ${step} completed in ${durationMs}ms\n`);
@@ -37,19 +33,18 @@ export default skill({
   .build();
 ```
 
-| Field          | Type                            | Required | Description                                                                    |
-| -------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `name`         | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
-| `entry`        | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
-| `version`      | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
-| `description`  | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
-| `triggers`     | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
-| `context`      | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
-| `stash`        | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
-| `finalOutput`  | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
-| `capabilities` | `CapabilityManifest`            | No       | Declares filesystem, network, subprocess, and env var access.                  |
-| `observers`    | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
-| `skillMd`      | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
+| Field         | Type                            | Required | Description                                                                    |
+| ------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`        | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
+| `entry`       | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
+| `version`     | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
+| `description` | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
+| `triggers`    | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
+| `context`     | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
+| `stash`       | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
+| `finalOutput` | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
+| `observers`   | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
+| `skillMd`     | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
 
 ## `.step(name, config)`
 
@@ -236,6 +231,47 @@ Calling `.build()` freezes the skill definition and validates:
 
 Triggers, if present, are appended to the description string for agent discoverability.
 
+## Handling validation errors
+
+When the agent's output doesn't match a step's Zod schema, the engine:
+
+1. Fires `onStepValidationFailed` with the raw output, error message, and attempt number
+2. Returns a `ValidationErrorResult` to the agent with `retry: true`
+3. The agent sees the error message and tries again
+
+The skill author doesn't need to handle this — the engine manages the retry loop automatically. But the `onStepValidationFailed` observer is invaluable during development:
+
+```typescript
+skill({
+  // ...
+  observers: {
+    onStepValidationFailed: ({ step, raw, error, attempt }) => {
+      console.error(`Step "${step}" attempt ${attempt} failed validation: ${error}`);
+      console.error('Raw output:', JSON.stringify(raw, null, 2));
+    },
+  },
+});
+```
+
+### Testing validation paths
+
+Use a function response in `mockModel` to return invalid output on the first attempt, then valid output on the retry:
+
+```typescript
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+
+const result = await runSkill(mySkill.build(), {
+  model: mockModel({
+    'my-step': (prompt) => {
+      if (prompt.includes('validation')) {
+        return { valid: 'output' };
+      }
+      return { bad: 'shape' }; // first call — triggers validation error + retry
+    },
+  }),
+});
+```
+
 ## Standalone `step()` function
 
 For shared, reusable steps defined outside a skill. These steps have no typed context or stash — they default to `unknown`. Use `__parent__` as the next transition, then override it with `.extend()`.
@@ -258,10 +294,10 @@ The standalone `step()` validates that `output` and `next` are provided. The ret
 
 ## Complete worked example
 
-A deploy-check skill that gathers environment info, asks the user which checks to run, validates results, and produces a report.
+A deploy-check skill that gathers environment info, presents a plan, asks the user which checks to run, tracks remediation tasks, and produces a report. Demonstrates `askUser`, `plan`, `tasks`, `confirm`, fragments, stash, branching, and loop guards.
 
 ```typescript
-import { skill, step, z, prompt, fragment, render, askUser, confirm } from '@contentful/skill-kit';
+import { skill, step, z, prompt, fragment, render, askUser, confirm, plan, tasks } from '@contentful/skill-kit';
 
 // --- Fragments ---
 
@@ -314,10 +350,25 @@ export default skill({
     }),
     output: z.object({ env: z.enum(['staging', 'production', 'local']) }),
     stash: ({ output }) => ({ env: output.env }),
-    next: 'run-checks',
+    next: 'plan-checks',
   })
 
-  // Step 2: Run the checks
+  // Step 2: Present the check plan for approval
+  .step('plan-checks', {
+    plan: plan({
+      summary: 'Deployment readiness checks',
+      steps: [
+        'Verify the build completes without errors',
+        'Run the full test suite',
+        'Confirm environment variables are set',
+        'Validate database migrations are current',
+      ],
+    }),
+    output: z.object({ approved: z.boolean() }),
+    next: ({ output }) => (output.approved ? 'run-checks' : 'force-report'),
+  })
+
+  // Step 3: Run the checks
   .step('run-checks', {
     prompt: ({ stash }) => prompt`
       ${strictTone}
@@ -337,8 +388,14 @@ export default skill({
     next: ({ output }) => (output.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
   })
 
-  // Step 3a: Remediation (if checks failed)
+  // Step 4a: Remediation (if checks failed) — uses tasks() to track fixes
   .step('remediate', {
+    tasks: tasks({
+      create: [
+        { title: 'Fix failing deployment checks', status: 'in_progress' },
+        { title: 'Re-run validation suite', status: 'pending' },
+      ],
+    }),
     prompt: ({ prev, stash }) => prompt`
       ${strictTone}
 
@@ -360,7 +417,7 @@ export default skill({
     onMaxVisits: 'force-report',
   })
 
-  // Step 3b: Approval (if all checks passed)
+  // Step 4b: Approval (if all checks passed)
   .step('approve', {
     confirm: {
       kind: 'confirm',
@@ -372,7 +429,7 @@ export default skill({
     next: ({ output }) => (output.approved ? 'report' : 'run-checks'),
   })
 
-  // Step 4a: Final report (happy path)
+  // Step 5a: Final report (happy path)
   .step('report', {
     prompt: ({ rendered }) => prompt`
       Output the following deployment report exactly as shown:
@@ -390,7 +447,7 @@ export default skill({
     next: { terminal: true },
   })
 
-  // Step 4b: Force report (after max remediation attempts)
+  // Step 5b: Force report (after max remediation attempts)
   .step('force-report', {
     prompt: ({ stash }) => prompt`
       Remediation attempts exhausted for **${stash.env}**.
@@ -416,6 +473,7 @@ test('happy path: all checks pass', async () => {
     context: { defaultEnv: 'staging' },
     model: mockModel({
       'choose-env': { env: 'staging' },
+      'plan-checks': { approved: true },
       'run-checks': {
         checks: [
           { name: 'build', passed: true, detail: 'Build succeeded' },
@@ -427,7 +485,7 @@ test('happy path: all checks pass', async () => {
     }),
   });
 
-  assert.deepEqual(result.path, ['choose-env', 'run-checks', 'approve', 'report']);
+  assert.deepEqual(result.path, ['choose-env', 'plan-checks', 'run-checks', 'approve', 'report']);
   assert.equal((result.output as { ready: boolean }).ready, true);
 });
 
@@ -435,6 +493,7 @@ test('remediation path: failed checks trigger fixes', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'choose-env': { env: 'production' },
+      'plan-checks': { approved: true },
       'run-checks': {
         checks: [
           { name: 'build', passed: true, detail: 'OK' },

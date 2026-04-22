@@ -115,7 +115,14 @@ interface ProseGenerator {
 }
 ```
 
-Implementations exist for `claude-code`, `codex`, `opencode`, and `generic`.
+A shared default implementation (`prose/default.ts`) covers all five methods. The registry maps host names to generators — currently all point to the default. To add host-specific prose, spread the default and override individual methods:
+
+```typescript
+const generators = {
+  'claude-code': { ...defaultGenerator, askUser: claudeCodeAskUser },
+  // others fall through to defaultGenerator
+};
+```
 
 ### Why primitives matter
 
@@ -314,7 +321,7 @@ interface LintDiagnostic {
 
 ### Rules
 
-**`cycle-guard`** (error) — Detects circular step transitions (self-loops and multi-step cycles) that lack `maxVisits` + `onMaxVisits`. Enforced at validation time, before the engine runs.
+**`cycle-guard`** (warning/error) — Warns when circular step transitions (self-loops and multi-step cycles) lack `maxVisits` + `onMaxVisits`; an implicit runtime limit of 10 visits applies. Errors when the cycle-guard configuration itself is invalid (e.g., `onMaxVisits` targets a non-existent step). Enforced at validation time, before the engine runs.
 
 **`no-host-tool-names`** (error) — Steps must not reference host tool names directly (e.g., `AskUserQuestion`, `apply_patch`, `TodoWrite`) in prompts without guarding behind `host.toolsAvailable.includes('ToolName')`. Scans both string prompts and function `.toString()` output. The guard pattern exempts the reference.
 
@@ -330,13 +337,11 @@ interface LintDiagnostic {
 
 ## Design Decisions
 
-These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §14](../SPEC.md).
+These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §13](../SPEC.md).
 
 **State is append-only.** Prior step outputs are never mutated. The stash accumulates via shallow merge; history is a linear append. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
 
 **Cycles have implicit bounds.** The cycle guard validator detects potential cycles and applies a default runtime limit (10 visits). Explicit `maxVisits` + `onMaxVisits` provides control over the fallback behavior. Unguarded cycles are a lint warning, not a load-time error — the runtime safety net prevents infinite loops.
-
-**Capabilities are declared, not discovered.** Skills declare what host capabilities they need upfront via the `capabilities` manifest. The harness reads this at install time. No runtime probing.
 
 **Actions are declared, not inferred.** Any CLI-side side effect must exist as a named `action()` with typed input/output schemas. No implicit I/O in step callbacks.
 
