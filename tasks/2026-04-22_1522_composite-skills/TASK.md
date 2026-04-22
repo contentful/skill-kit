@@ -195,14 +195,14 @@ When engine `advance` returns `RedirectResult`:
 
 ## Steps
 
-- [ ] Phase 1: Types & Engine (`src/types.ts`, `src/runtime/engine.ts`)
-- [ ] Phase 2: Builder Extensions (`src/skill-builder.ts`, `src/index.ts`)
-- [ ] Phase 3: Composite Entry Point (`src/protocol/composite-entry.ts`, `src/cli.ts`)
-- [ ] Phase 4: Build Pipeline (`src/build/`)
-- [ ] Phase 5: Test Utilities (`src/test.ts`)
-- [ ] Phase 6: Lint (`src/lint/index.ts`)
-- [ ] Phase 7: Example composite skill (`examples/`)
-- [ ] Phase 8: SPEC.md and docs updates
+- [x] Phase 1: Types & Engine (`src/types.ts`, `src/runtime/engine.ts`)
+- [x] Phase 2: Builder Extensions (`src/skill-builder.ts`, `src/index.ts`)
+- [x] Phase 3: Composite Entry Point (`src/protocol/composite-entry.ts`, `src/cli.ts`)
+- [x] Phase 4: Build Pipeline (`src/build/`)
+- [x] Phase 5: Test Utilities (`src/test.ts`)
+- [x] Phase 6: Lint (`src/lint/index.ts`)
+- [x] Phase 7: Example composite skill (`examples/`)
+- [x] Phase 8: SPEC.md and docs updates
 
 ## Notes
 
