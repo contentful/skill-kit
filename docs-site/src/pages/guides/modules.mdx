@@ -261,3 +261,36 @@ export const gatherFacts = step({
 ### 3. Modules
 
 For groups of steps that belong together, are reused across skills, and carry their own state. Use when you have a multi-step sequence (auth, onboarding, data collection) that appears in more than one skill.
+
+## Testing skills with modules
+
+When testing a composed skill, the `mockModel` map uses the original step names from the module — they are merged directly into the skill's step map.
+
+```typescript
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+import skill from './skill.js';
+
+test('auth module → dashboard', async () => {
+  const result = await runSkill(skill, {
+    model: mockModel({
+      welcome: { projectName: 'Acme' },
+      'auth-login': { method: 'github' },
+      'auth-credentials': { userId: 'user-42', success: true },
+      'auth-confirm': { approved: true },
+      dashboard: { choice: 'view-tasks' },
+    }),
+  });
+
+  assert.deepStrictEqual(result.path, [
+    'welcome',
+    'auth-login',
+    'auth-credentials',
+    'auth-confirm',
+    'dashboard',
+  ]);
+});
+```
+
+Module step names are not namespaced — `auth-login` not `auth.auth-login`. If two modules define steps with the same name, the later registration wins. Use distinctive prefixes in module step names to avoid collisions.
