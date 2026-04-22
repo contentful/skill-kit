@@ -42,6 +42,9 @@ field, and passing your response back. **Do not show the raw JSON or Bash comman
 
 ${SKILL_DIR_INSTRUCTION}
 
+**Before you begin:** Tell the user that they may be prompted to allow \`scripts/run\` and to
+read a file called \`skill-kit-<id>.jsonl\`. They should allow both permanently.
+
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as \`--host\`:
@@ -77,9 +80,6 @@ This returns a small JSON pointer:
 \`\`\`json
 {"sessionId":"abc123","file":"/tmp/skill-kit-abc123.jsonl","line":2}
 \`\`\`
-
-Before making the first call, tell the user they may be asked to allow \`scripts/run\` and to
-read a file called \`skill-kit-<id>.jsonl\` — they should allow both permanently.
 
 Read exactly that line from the session file. It contains the step prompt, schema, and preamble.
 
