@@ -50,10 +50,12 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
   mkdirSync(join(outDir, 'scripts'), { recursive: true });
   mkdirSync(join(outDir, 'bin'), { recursive: true });
 
+  const hasSubskills = def.kind === 'skill' && !!def.subskills && Object.keys(def.subskills).length > 0;
+
   const binaries =
     mode === 'node'
-      ? await compileNodeBundle(entryPath, def, outDir)
-      : await compileBunBinaries(entryPath, def, outDir, opts);
+      ? await compileNodeBundle(entryPath, def, outDir, hasSubskills)
+      : await compileBunBinaries(entryPath, def, outDir, opts, hasSubskills);
 
   if (binaries.length === 0) {
     throw new Error('No binaries were built successfully');
@@ -87,6 +89,7 @@ async function compileBunBinaries(
   def: Buildable,
   outDir: string,
   opts: BuildOptions,
+  hasSubskills: boolean,
 ): Promise<string[]> {
   try {
     await exec('bun', ['--version']);
@@ -94,7 +97,7 @@ async function compileBunBinaries(
     throw new Error('bun is not installed. Install it from https://bun.sh to build skill executables.');
   }
 
-  const wrapperContent = generateBunWrapper(entryPath, def.kind);
+  const wrapperContent = generateBunWrapper(entryPath, def.kind, hasSubskills);
   const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
   const wrapperPath = join(sdkRoot, `.skill-kit-build-${def.name}.ts`);
   writeFileSync(wrapperPath, wrapperContent);
@@ -123,10 +126,15 @@ async function compileBunBinaries(
   return binaries;
 }
 
-async function compileNodeBundle(entryPath: string, def: Buildable, outDir: string): Promise<string[]> {
+async function compileNodeBundle(
+  entryPath: string,
+  def: Buildable,
+  outDir: string,
+  hasSubskills: boolean,
+): Promise<string[]> {
   const esbuild = await import('esbuild');
 
-  const wrapperContent = generateNodeWrapper(entryPath, def.kind);
+  const wrapperContent = generateNodeWrapper(entryPath, def.kind, hasSubskills);
   const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
   const wrapperPath = join(sdkRoot, `.skill-kit-build-${def.name}.ts`);
   writeFileSync(wrapperPath, wrapperContent);

@@ -107,6 +107,38 @@ test('generateNodeWrapper produces valid import for reference with SKILL_DIR', (
   assert.ok(result.includes('process.env.SKILL_DIR'));
 });
 
+test('generateBunWrapper produces compositeMain for skill with subskills', () => {
+  const result = generateBunWrapper('/abs/path/skill.ts', 'skill', true);
+  assert.ok(result.includes('import { compositeMain }'));
+  assert.ok(result.includes('compositeMain(def)'));
+});
+
+test('generateNodeWrapper produces compositeMain for skill with subskills', () => {
+  const result = generateNodeWrapper('/abs/path/skill.ts', 'skill', true);
+  assert.ok(result.includes('import { compositeMain }'));
+  assert.ok(result.includes('compositeMain(def, process.env.SKILL_DIR)'));
+});
+
+test('generateSkillMd includes sub-skills and topics sections', () => {
+  const child = skill({ name: 'doctor', description: 'Diagnose issues.', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const s = skill({ name: 'composite', entry: 'start' })
+    .step('start', { prompt: 'Classify.', output: z.object({}), next: 'subskill:doctor' })
+    .subskill('doctor', child)
+    .topic('faq', { label: 'Frequently asked questions', content: () => 'FAQ content' })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('## Sub-skills'));
+  assert.ok(result.includes('**doctor**: Diagnose issues.'));
+  assert.ok(result.includes('## Reference topics'));
+  assert.ok(result.includes('**faq**: Frequently asked questions'));
+  assert.ok(result.includes('scripts/run topics'));
+  assert.ok(result.includes('scripts/run topic <name>'));
+});
+
 test('generateNodeScriptsRun produces valid bash delegator with Node version check', () => {
   const result = generateNodeScriptsRun('repo-doctor');
   assert.ok(result.startsWith('#!/usr/bin/env bash'));

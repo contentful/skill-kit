@@ -87,7 +87,61 @@ contains the skill's result. Present it to the user.
 ## Steps in this skill
 
 ${stepDescriptions}
-`.trim();
+${generateSubskillSection(skill)}${generateTopicSection(skill)}`.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';
+}
+
+function generateSubskillSection(skill: SkillDefinition): string {
+  if (!skill.subskills || Object.keys(skill.subskills).length === 0) return '';
+
+  const lines = [
+    '',
+    '',
+    '## Sub-skills',
+    '',
+    'This skill contains sub-skills that can be accessed directly or via the dispatcher.',
+    'Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`).',
+    '',
+    '### Direct sub-skill access',
+    '',
+    '```bash',
+    "${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'",
+    "${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'",
+    '```',
+    '',
+    '### Available sub-skills',
+    '',
+  ];
+
+  for (const [name, reg] of Object.entries(skill.subskills)) {
+    const desc = reg.definition.description || '(no description)';
+    lines.push(`- **${name}**: ${desc}`);
+  }
+
+  return lines.join('\n');
+}
+
+function generateTopicSection(skill: SkillDefinition): string {
+  if (!skill.topics || Object.keys(skill.topics).length === 0) return '';
+
+  const lines = [
+    '',
+    '',
+    '## Reference topics',
+    '',
+    'Quick-reference topics accessible without running the full workflow:',
+    '',
+    '```bash',
+    '${CLAUDE_SKILL_DIR}/scripts/run topics              # list all topics',
+    '${CLAUDE_SKILL_DIR}/scripts/run topic <name>         # load a specific topic',
+    '```',
+    '',
+  ];
+
+  for (const [name, topic] of Object.entries(skill.topics)) {
+    lines.push(`- **${name}**: ${topic.label}`);
+  }
+
+  return lines.join('\n');
 }
