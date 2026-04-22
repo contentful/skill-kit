@@ -87,7 +87,68 @@ contains the skill's result. Present it to the user.
 ## Steps in this skill
 
 ${stepDescriptions}
-`.trim();
+${generateSubskillSection(skill)}${generateTopicSection(skill)}`.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';
+}
+
+function generateSubskillSection(skill: SkillDefinition): string {
+  if (!skill.subskills || Object.keys(skill.subskills).length === 0) return '';
+
+  const hasDispatcher = Object.keys(skill.steps).length > 0;
+
+  const lines = ['', '', '## Sub-skills', ''];
+
+  if (hasDispatcher) {
+    lines.push(
+      'This skill contains sub-skills that the workflow routes to automatically.',
+      'Start the skill normally — the dispatcher will determine which sub-skill to use.',
+      'Only use direct sub-skill access if the user explicitly requests a specific sub-skill by name.',
+    );
+  } else {
+    lines.push(
+      'This skill contains independent sub-skills. Choose the one that best matches',
+      "the user's intent, or ask the user which one they need.",
+    );
+  }
+
+  lines.push('', 'Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`).', '');
+
+  lines.push('### Direct sub-skill access', '');
+  lines.push('```bash');
+  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'");
+  lines.push("${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
+  lines.push('```');
+  lines.push('', '### Available sub-skills', '');
+
+  for (const [name, reg] of Object.entries(skill.subskills)) {
+    const desc = reg.definition.description || '(no description)';
+    lines.push(`- **${name}**: ${desc}`);
+  }
+
+  return lines.join('\n');
+}
+
+function generateTopicSection(skill: SkillDefinition): string {
+  if (!skill.topics || Object.keys(skill.topics).length === 0) return '';
+
+  const lines = [
+    '',
+    '',
+    '## Reference topics',
+    '',
+    'Quick-reference topics accessible without running the full workflow:',
+    '',
+    '```bash',
+    '${CLAUDE_SKILL_DIR}/scripts/run topics              # list all topics',
+    '${CLAUDE_SKILL_DIR}/scripts/run topic <name>         # load a specific topic',
+    '```',
+    '',
+  ];
+
+  for (const [name, topic] of Object.entries(skill.topics)) {
+    lines.push(`- **${name}**: ${topic.label}`);
+  }
+
+  return lines.join('\n');
 }

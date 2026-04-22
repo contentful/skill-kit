@@ -205,6 +205,8 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly observers: ObserverMap | undefined;
   readonly finalOutput: z.ZodType | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
+  readonly subskills?: Readonly<Record<string, SubskillRegistration>>;
+  readonly topics?: Readonly<Record<string, TopicConfig>>;
 }
 
 // --- Module Definition (output of module().build()) ---
@@ -238,6 +240,13 @@ export interface ReferenceDefinition {
   readonly topics: Readonly<Record<string, TopicConfig>>;
 }
 
+// --- Sub-skills ---
+
+export interface SubskillRegistration {
+  readonly definition: SkillDefinition;
+  readonly contextMap?: (stepOutput: unknown, stash: unknown) => unknown;
+}
+
 export type Buildable = SkillDefinition | ReferenceDefinition;
 
 // --- Protocol (CLI output) ---
@@ -263,7 +272,13 @@ export interface ValidationErrorResult {
   retry: boolean;
 }
 
-export type CliResult = PromptResult | DoneResult | ValidationErrorResult;
+export interface RedirectResult {
+  redirect: string;
+  completed: StepResult;
+  stash: unknown;
+}
+
+export type CliResult = PromptResult | DoneResult | ValidationErrorResult | RedirectResult;
 
 // --- Testing ---
 

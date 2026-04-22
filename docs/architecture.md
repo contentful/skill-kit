@@ -303,6 +303,17 @@ Merge-only accumulator. Each `stash()` callback returns a partial stash object t
 
 Observers fire sequentially and are awaited (they can be async), but failures are caught and logged — they never block workflow execution. Observers receive read-only snapshots of engine state.
 
+### Composite skill routing
+
+When a composite skill's step returns a `next` target that doesn't exist in the local step map (e.g., `'subskill:doctor'`), the engine returns a `RedirectResult` instead of throwing. The composite entry point (`compositeMain`) intercepts this:
+
+1. **`subskill:X`** — looks up the sub-skill registration, calls `contextMap(output, stash)` to produce context, creates a new `WorkflowEngine` for the sub-skill, and returns its first `PromptResult` with the step name prefixed (`doctor/diagnose`).
+2. **`topic:X`** — loads the topic content via `ReferenceLoader` and returns a `DoneResult`.
+
+On subsequent `advance` calls, the composite entry checks whether the step name contains `/`. If it does, it routes to the corresponding sub-skill engine (with history filtered and unprefixed). The engines themselves are unaware of the composite layer — each operates on its own `SkillDefinition` with unprefixed step names.
+
+Direct sub-skill access (`scripts/run doctor --context '{}'`) bypasses the dispatcher entirely and creates the sub-skill engine directly.
+
 ---
 
 ## Lint System

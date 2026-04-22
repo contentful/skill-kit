@@ -181,3 +181,74 @@ test('stash type flows into step prompt callbacks', () => {
 
   assert.equal(s.kind, 'skill');
 });
+
+test('.subskill() registers a sub-skill on the definition', () => {
+  const child = skill({ name: 'child', entry: 'a' })
+    .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const parent = skill({ name: 'parent', entry: 'start' })
+    .step('start', { prompt: 'go', output: z.object({ target: z.string() }), next: 'subskill:child' })
+    .subskill('child', child, { context: (output) => ({ from: output }) })
+    .build();
+
+  assert.ok(parent.subskills);
+  assert.ok(parent.subskills['child']);
+  assert.equal(parent.subskills['child'].definition.name, 'child');
+  assert.equal(typeof parent.subskills['child'].contextMap, 'function');
+  assert.ok(Object.isFrozen(parent.subskills));
+});
+
+test('.subskill() without context mapping', () => {
+  const child = skill({ name: 'child', entry: 'a' })
+    .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const parent = skill({ name: 'parent', entry: 'start' })
+    .step('start', { prompt: 'go', output: z.object({}), next: 'subskill:child' })
+    .subskill('child', child)
+    .build();
+
+  assert.equal(parent.subskills!['child']!.contextMap, undefined);
+});
+
+test('.subskill() throws on nested sub-skills', () => {
+  const grandchild = skill({ name: 'grandchild', entry: 'a' })
+    .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const child = skill({ name: 'child', entry: 'a' })
+    .step('a', { prompt: 'hi', output: z.object({}), next: 'subskill:grandchild' })
+    .subskill('grandchild', grandchild)
+    .build();
+
+  assert.throws(
+    () =>
+      skill({ name: 'parent', entry: 'start' })
+        .step('start', { prompt: 'go', output: z.object({}), next: 'subskill:child' })
+        .subskill('child', child),
+    /cannot be nested/,
+  );
+});
+
+test('.topic() registers topics on the definition', () => {
+  const s = skill({ name: 'with-topics', entry: 'start' })
+    .step('start', { prompt: 'go', output: z.object({}), next: { terminal: true } })
+    .topic('faq', { label: 'FAQ', content: () => 'Answer' })
+    .build();
+
+  assert.ok(s.topics);
+  assert.ok(s.topics['faq']);
+  assert.equal(s.topics['faq'].label, 'FAQ');
+  assert.equal(s.topics['faq'].content({ refs: { load: () => '', asset: (p: string) => p } }), 'Answer');
+  assert.ok(Object.isFrozen(s.topics));
+});
+
+test('skill without subskills or topics omits those fields', () => {
+  const s = skill({ name: 'plain', entry: 'start' })
+    .step('start', { prompt: 'go', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  assert.equal(s.subskills, undefined);
+  assert.equal(s.topics, undefined);
+});

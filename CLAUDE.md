@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `node --test --import tsx/esm 'src/**/*.test.ts'` — run all SDK tests
 - `node --test --import tsx/esm examples/get-to-know-you/src/skill.test.ts` — run workflow example tests
 - `node --test --import tsx/esm examples/ts-patterns/src/skill.test.ts` — run reference example tests
+- `node --test --import tsx/esm examples/contentful-help/src/skill.test.ts` — run composite example tests
 - `pnpm exec prettier --check .` — check formatting
 - `pnpm exec prettier --write .` — fix formatting
 - `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill executable (dev, current platform)
@@ -47,6 +48,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Task directories** for non-trivial work: `tasks/YYYY-MM-DD_hhmm_descriptive-kebab-case/TASK.md`. Get the timestamp from `date +%Y-%m-%d_%H%M` — do not guess. A task is a concrete, completable unit, not an epic.
 - Every TASK.md has: **Scope** (what's in / explicitly out), **Context** (the _why_ — problem, constraint, user input that triggered it), **Plan** (approach + alternatives rejected + trade-offs), **Steps** (checkbox list), **Notes** (running log of decisions made _during_ implementation, written as you go).
 - Task documents are the project's decision log. When someone later asks "why did we do X?", the answer should be findable in Context / Plan / Notes — not locked in a chat transcript.
+- **The TASK.md is the only durable record.** Claude Code plan files (`~/.claude/plans/`) are ephemeral — they vanish when the session ends. Everything that matters for picking up an interrupted implementation must live in TASK.md: the agreed API/SDK design, type signatures, protocol changes, user feedback and design choices, rejected alternatives and why. Don't reference plan files from TASK.md — inline the substance.
+- **Design specs belong in TASK.md.** When the work involves API or SDK design (new types, builder methods, protocol changes, CLI behavior), the Plan section must include the concrete design: type definitions, builder API examples, protocol invocation patterns. This is not excessive detail — it's the specification that the implementation follows. A future session picking up the task must be able to read the Plan and implement without re-deriving the design.
 - Because plan mode often precedes a context clear, the Plan section must capture user inputs, feedback, and explicit design choices verbatim — anything the implementation phase will need after context is gone.
 
 ## Build checkpoints

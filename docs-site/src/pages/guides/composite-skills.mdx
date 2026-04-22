@@ -1,0 +1,140 @@
+---
+layout: ../../layouts/DocsLayout.astro
+title: 'Composite Skills'
+---
+
+Composite skills combine related skills into a single artifact with shared references. A composite is a regular `skill()` that has sub-skills and/or topics registered on it. The dispatcher state machine classifies intent and routes to the appropriate sub-skill or resolves a reference topic directly.
+
+Use composites when you have multiple skills that overlap in references, context, or user-facing scope — for example, a `contentful-doctor`, `contentful-setup`, and `contentful-faq` that all reference the same Contentful documentation.
+
+## Registering sub-skills
+
+Sub-skills are standalone `SkillDefinition`s registered with `.subskill()`:
+
+```typescript
+import { skill, z } from '@contentful/skill-kit';
+import doctorSkill from './subskills/doctor.js';
+import setupSkill from './subskills/setup.js';
+
+export default skill({
+  name: 'contentful-help',
+  entry: 'classify',
+  context: z.object({ query: z.string() }),
+  stash: z.object({ intent: z.string(), spaceId: z.string() }),
+})
+  .step('classify', {
+    prompt: ({ context }) => `Classify intent: "${context.query}"`,
+    output: z.object({ intent: z.string(), confidence: z.number() }),
+    stash: ({ output }) => ({ intent: output.intent, spaceId: '' }),
+    next: ({ output }) => {
+      if (output.confidence < 0.7) return 'clarify';
+      if (output.intent === 'doctor') return 'get-space';
+      return `subskill:${output.intent}`;
+    },
+  })
+  .step('get-space', {
+    prompt: 'Ask the user for their Contentful space ID.',
+    output: z.object({ spaceId: z.string() }),
+    stash: ({ output }) => ({ intent: 'doctor', spaceId: output.spaceId }),
+    next: 'subskill:doctor',
+  })
+  .subskill('doctor', doctorSkill, {
+    context: (_output, stash) => ({ spaceId: stash.spaceId }),
+  })
+  .subskill('setup', setupSkill)
+  .build();
+```
+
+Each `.subskill()` registration accepts an optional `context` function that maps the dispatcher's state (step output + stash) to the sub-skill's context.
+
+## Registering topics
+
+Topics are reference entries — the same as on `reference()` skills:
+
+```typescript
+.topic('rate-limits', {
+  label: 'API rate limits',
+  content: ({ refs }) => refs.load('rate-limits.md'),
+})
+```
+
+Topics can be resolved as dispatch targets (`next: 'topic:rate-limits'`) or looked up directly via CLI (`scripts/run topic rate-limits`).
+
+## Routing
+
+The dispatcher is a full state machine. Any step's `next` can return:
+
+- A regular step name — routes within the dispatcher
+- `'subskill:<name>'` — exits the dispatcher and starts the named sub-skill
+- `'topic:<name>'` — resolves the topic and returns its content
+
+The dispatcher can have as many steps as needed before routing — classify, triage, gather context, ask clarifications. It's not limited to a single classification step.
+
+## Step name namespacing
+
+Sub-skill steps are prefixed at the protocol layer:
+
+- Dispatcher steps: `classify`, `get-space` (no prefix)
+- Sub-skill steps: `doctor/diagnose`, `setup/configure`
+
+The engines never see prefixes — the composite entry handles this automatically.
+
+## CLI protocol
+
+All commands go through `scripts/run`:
+
+```bash
+# Dispatcher flow
+scripts/run --context '{"query":"my types are broken"}'
+scripts/run advance --step classify --output '{"intent":"doctor","confidence":0.9}' --history '[...]'
+
+# Direct sub-skill access (bypasses dispatcher)
+scripts/run doctor --context '{"spaceId":"abc123"}'
+
+# Reference topics
+scripts/run topics
+scripts/run topic rate-limits
+```
+
+## Testing composites
+
+Use `runComposite` from `@contentful/skill-kit/test`:
+
+```typescript
+import { runComposite, mockModel } from '@contentful/skill-kit/test';
+import skill from './skill.js';
+
+const result = await runComposite(skill, {
+  context: { query: 'my entries are broken' },
+  refs,
+  model: mockModel({
+    classify: { intent: 'doctor', confidence: 0.9 },
+    'get-space': { spaceId: 'abc123' },
+    'doctor/diagnose': { issues: ['broken refs'], healthy: false },
+    'doctor/report-issues': { summary: 'Found 1 issue.' },
+  }),
+});
+
+assert.equal(result.redirectedTo?.name, 'doctor');
+assert.deepEqual(result.path, ['classify', 'get-space', 'doctor/diagnose', 'doctor/report-issues']);
+```
+
+Use `directSubskill: 'doctor'` to test a sub-skill in isolation, bypassing the dispatcher.
+
+## Difference from modules
+
+|             | Modules                   | Sub-skills                   |
+| ----------- | ------------------------- | ---------------------------- |
+| Namespace   | Flattened into parent     | Prefixed: `doctor/diagnose`  |
+| Stash       | Merged with parent        | Isolated per sub-skill       |
+| Context     | Cannot access parent      | Receives mapped context      |
+| Entry point | No independent invocation | CLI subcommand               |
+| Testing     | Within host skill         | Standalone with `runSkill()` |
+
+Modules are for reusable step groups within a single skill. Sub-skills are for independent workflows bundled into one artifact.
+
+## Constraints
+
+- **No nesting:** Sub-skills cannot themselves have sub-skills.
+- **No `/` in dispatcher step names:** The slash is reserved for namespacing.
+- **Shared references:** All sub-skills and topics share one `references/` directory.

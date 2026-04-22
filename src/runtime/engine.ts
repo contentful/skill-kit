@@ -5,6 +5,7 @@ import type {
   StepResult,
   PromptResult,
   DoneResult,
+  RedirectResult,
   CliResult,
   PromptContext,
   ReferenceLoader,
@@ -135,6 +136,12 @@ export class WorkflowEngine {
       });
       await this.observers.flush();
       return { ...this.buildDone(), completed };
+    }
+
+    if (!this.skill.steps[nextStep]) {
+      this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'redirect' });
+      await this.observers.flush();
+      return { redirect: nextStep, completed, stash: this.stash.all() } satisfies RedirectResult;
     }
 
     this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'next' });
