@@ -3,7 +3,7 @@ layout: ../../layouts/DocsLayout.astro
 title: 'Getting Started'
 ---
 
-`@contentful/skill-kit` is a TypeScript SDK for building agent skills. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions where the agent sees one step at a time. **Reference skills** are on-demand topic loaders for progressive disclosure of large docs. Both compile into self-contained packages that agents invoke via Bash.
+`@contentful/skill-kit` is a TypeScript SDK for building agent skills. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions where the agent sees one step at a time. **Reference skills** are on-demand topic loaders for progressive disclosure of large docs. **Composite skills** combine multiple sub-skills and reference topics under a single dispatcher. All compile into self-contained packages that agents invoke via Bash.
 
 ## Installation
 
@@ -72,3 +72,4 @@ const result = await runSkill(greet, {
 - [Building & Distribution](../getting-started/building/) — compile to executables or Node.js bundles, lint with `skill-kit check`
 - [Workflow Skills guide](../guides/workflow-skills/) — branching, stash, context, actions, modules
 - [Reference Skills guide](../guides/reference-skills/) — progressive disclosure with topics
+- [Composite Skills guide](../guides/composite-skills/) — sub-skills, topics, and dispatcher routing

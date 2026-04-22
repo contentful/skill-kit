@@ -92,4 +92,16 @@ skill-kit check <entry.ts>
 | `unknown-tool-names`        | warning       | `host.toolsAvailable.includes()` checks referencing unrecognized tools                      |
 | `host-branching-density`    | warning       | Multiple steps branching on `host.toolsAvailable` (suggests missing primitive)              |
 
+For composite skills, additional rules apply:
+
+| Rule                           | Severity | What it catches                                              |
+| ------------------------------ | -------- | ------------------------------------------------------------ |
+| `composite-step-name`          | error    | Dispatcher step name contains `/` (reserved for namespacing) |
+| `composite-duplicate-subskill` | error    | Duplicate sub-skill name                                     |
+| `composite-duplicate-topic`    | error    | Duplicate topic name                                         |
+
 Run `check` before building to catch issues early. The `cycle-guard` and `primitive-schema-mismatch` rules in particular will save you from runtime errors that are hard to debug through an agent.
+
+## Building composite skills
+
+Composite skills build with the same `skill-kit build` command — no special flags needed. The pipeline detects registered sub-skills and generates the appropriate entry point. The output SKILL.md includes sections for sub-skills and reference topics.

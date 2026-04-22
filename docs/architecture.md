@@ -174,7 +174,7 @@ The `--mode` flag selects the bundling strategy:
 
 1. **Load** — Import the entry file, extract the default export (must be a `SkillDefinition` or `ReferenceDefinition`).
 2. **Validate** — Run lint checks (cycle guards, schema consistency).
-3. **Generate wrapper** — Create a temporary entry point that imports the skill and calls `main()` from `@contentful/skill-kit/cli`.
+3. **Generate wrapper** — Create a temporary entry point that imports the skill and calls `main()` (or `compositeMain()` if the skill has subskills) from `@contentful/skill-kit/cli`.
 4. **Bundle** — Mode-dependent:
    - **Bun mode:** For each target platform, run `bun build --compile --target bun-<platform>`. Individual target failures don't halt the pipeline; zero successful targets does.
    - **Node mode:** Run esbuild to produce a single `.mjs` bundle with all dependencies inlined.
@@ -343,6 +343,12 @@ interface LintDiagnostic {
 **`unknown-tool-names`** (warning) — `host.toolsAvailable.includes()` calls that reference tool names not in the known registry (40+ tools across Claude Code, Codex, and OpenCode).
 
 **`host-branching-density`** (warning) — Multiple steps branching on `host.toolsAvailable.includes()`. Suggests a missing SDK primitive — if several steps need host-specific logic, the pattern should probably be elevated to a primitive.
+
+**`composite-step-name`** (error) — Dispatcher step names containing `/`, which conflicts with sub-skill step namespacing.
+
+**`composite-duplicate-subskill`** / **`composite-duplicate-topic`** (error) — Duplicate names in sub-skill or topic registrations.
+
+For composite skills, `checkSkill` recursively lints each registered sub-skill. Diagnostics from sub-skills are prefixed with `[subskill:<name>]` for clarity.
 
 ---
 

@@ -155,6 +155,28 @@ scripts/run topic auth              # load a specific topic → plain text to st
 
 No JSON, no history, no state machine. Just `topic <name>` → text.
 
+### Composite skills
+
+When related skills share references and overlap in scope, combine them into a single composite. A composite is a regular `skill()` with sub-skills and topics registered on it — a dispatcher state machine that routes to independent sub-skill workflows or resolves reference topics directly.
+
+```typescript
+import doctorSkill from './subskills/doctor.js';
+import setupSkill from './subskills/setup.js';
+
+skill({ name: 'contentful-help', entry: 'choose', ... })
+  .step('choose', {
+    ask: askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
+    output: z.object({ choice: z.string() }),
+    next: ({ output }) => `subskill:${output.choice}`,
+  })
+  .topic('rate-limits', { label: 'API rate limits', content: ({ refs }) => refs.load('rate-limits.md') })
+  .subskill('doctor', doctorSkill, { context: (_out, stash) => ({ spaceId: stash.spaceId }) })
+  .subskill('setup', setupSkill)
+  .build();
+```
+
+Sub-skills are standalone `skill().build()` definitions — testable independently. `next` returns `'subskill:<name>'` or `'topic:<name>'` to route. See the [Composite Skills guide](./docs-site/src/pages/guides/composite-skills.mdx).
+
 ---
 
 ## How It Works
@@ -237,6 +259,12 @@ TypeScript patterns reference with on-demand topic loading. Shows `render.table`
 
 [Full source](./examples/ts-patterns/src/skill.ts)
 
+### contentful-help (composite)
+
+A composite skill that dispatches to doctor and setup sub-skills, or resolves FAQ topics directly. Shows `.subskill()`, `.topic()`, `subskill:` / `topic:` routing, actions for deterministic env checks, and `runComposite` for testing.
+
+[Full source](./examples/contentful-help/src/skill.ts)
+
 ---
 
 ## API
@@ -248,6 +276,8 @@ skill({ name, entry, description?, triggers?, context?, stash?, observers?, fina
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type
+  .subskill(name, skillDef, opts?) // register a sub-skill with context mapping
+  .topic(name, { label, content }) // register a reference topic
   .build()                         // → SkillDefinition
 ```
 
@@ -278,6 +308,7 @@ import { runSkill, mockModel } from '@contentful/skill-kit/test';
 | Export                                        | What it does                                                   |
 | --------------------------------------------- | -------------------------------------------------------------- |
 | `runSkill(skill, { model, context?, host? })` | Drive a skill to completion                                    |
+| `runComposite(skill, { model, refs?, ... })`  | Drive a composite skill (handles sub-skill routing)            |
 | `mockModel({ stepName: output })`             | Canned outputs — static values, arrays for loops, or functions |
 
 ### CLI
@@ -338,7 +369,7 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 - **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
 - **Abstract verb system.** Step prose uses verbs (`ASK_STRUCTURED`, `ASK_FREEFORM`). The preamble maps them to host-specific tools.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.
-- **Two skill types, one build pipeline.** Workflow skills (`skill()`) for multi-step state machines. Reference skills (`reference()`) for progressive disclosure. Both build to the same agentskills.io directory structure.
+- **Three skill patterns, one build pipeline.** Workflow skills for state machines, reference skills for progressive disclosure, and composite skills that combine sub-skills and topics under a single dispatcher. All build to the same agentskills.io directory structure.
 
 ---
 
