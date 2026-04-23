@@ -40,13 +40,22 @@ if (command === 'build') {
         process.exit(1);
       }
       flags.mode = mode;
+    } else if (arg === '--protocol') {
+      const protocol = args[++i];
+      if (protocol !== 'session' && protocol !== 'stateless') {
+        process.stderr.write(`error: --protocol must be "session" or "stateless", got "${protocol}"\n`);
+        process.exit(1);
+      }
+      flags.protocol = protocol;
     } else if (!arg.startsWith('-')) {
       entry = arg;
     }
   }
 
   if (!entry) {
-    process.stderr.write('Usage: skill-kit build <entry.ts> -o <outdir> [--mode bun|node]\n');
+    process.stderr.write(
+      'Usage: skill-kit build <entry.ts> -o <outdir> [--mode bun|node] [--protocol session|stateless]\n',
+    );
     process.exit(1);
   }
 
@@ -56,7 +65,14 @@ if (command === 'build') {
   }
 
   try {
-    await buildSkill({ entry, outDir: flags.outDir, targets: flags.targets, single: flags.single, mode: flags.mode });
+    await buildSkill({
+      entry,
+      outDir: flags.outDir,
+      targets: flags.targets,
+      single: flags.single,
+      mode: flags.mode,
+      protocol: flags.protocol,
+    });
   } catch (err) {
     process.stderr.write(`error: ${err.message}\n`);
     process.exit(1);

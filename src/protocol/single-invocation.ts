@@ -1,12 +1,24 @@
 import type { SkillDefinition } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { resolveHost } from './host.js';
+import type { SessionFile } from './session.js';
 
-export async function handleStart(skill: SkillDefinition, context: unknown, hostName?: string): Promise<void> {
+export async function handleStart(
+  skill: SkillDefinition,
+  context: unknown,
+  hostName?: string,
+  session?: SessionFile,
+): Promise<void> {
   const handshake = resolveHost(hostName);
   const engine = new WorkflowEngine(skill, handshake, context);
   const result = engine.start();
-  process.stdout.write(JSON.stringify(result) + '\n');
+
+  if (session) {
+    const line = session.appendResult(result);
+    session.writeStartPointer(line);
+  } else {
+    process.stdout.write(JSON.stringify(result) + '\n');
+  }
 }
 
 export async function handleAdvance(
@@ -15,6 +27,7 @@ export async function handleAdvance(
   output: unknown,
   history: Array<{ step: string; output: unknown; action?: unknown }>,
   hostName?: string,
+  session?: SessionFile,
 ): Promise<void> {
   const handshake = resolveHost(hostName);
   const engine = new WorkflowEngine(skill, handshake, {});
@@ -25,7 +38,13 @@ export async function handleAdvance(
 
   engine.start();
   const result = await engine.advance(stepName, output);
-  process.stdout.write(JSON.stringify(result) + '\n');
+
+  if (session) {
+    const line = session.appendResult(result);
+    session.writePointer(line);
+  } else {
+    process.stdout.write(JSON.stringify(result) + '\n');
+  }
 }
 
 function printHelp(skillName: string): void {
@@ -33,7 +52,8 @@ function printHelp(skillName: string): void {
     `${skillName} — skill-kit CLI`,
     '',
     'Usage:',
-    `  ${skillName} --context '{"key":"value"}' [--host claude-code]`,
+    `  ${skillName} --context '{"key":"value"}' [--host claude-code] [--session new]`,
+    `  ${skillName} advance --session <id>`,
     `  ${skillName} advance --step <name> --output '{"key":"value"}' --history '[...]' [--host claude-code]`,
     '',
     'Subcommands:',
@@ -42,12 +62,15 @@ function printHelp(skillName: string): void {
     '  advance     Submit step output. Returns next prompt or done signal.',
     '',
     'Flags:',
-    '  --context   JSON string. Validated against skill context schema. (start only)',
-    '  --step      Name of the step whose output is being submitted. (advance only)',
-    '  --output    JSON string. The agent response for the step. (advance only)',
-    '  --history   JSON array of {step, output, action?} objects. (advance only)',
-    '  --host      Host identifier for prose generation. Default: generic.',
-    '  --help      Print this message.',
+    '  --context      JSON string. Validated against skill context schema. (start only)',
+    '  --step         Name of the step whose output is being submitted. (advance only)',
+    '  --output       JSON string. The agent response for the step. (advance only)',
+    '  --history      JSON array of {step, output, action?} objects. (advance only)',
+    '  --host         Host identifier for prose generation. Default: generic.',
+    '  --session      "new" to create a session (start), or session ID (advance).',
+    '  --session-dir  Directory for session files. Default: OS temp directory.',
+    '  --output-mode  "file" (default) or "flag". How the agent passes step output.',
+    '  --help         Print this message.',
   ];
   process.stderr.write(help.join('\n') + '\n');
 }

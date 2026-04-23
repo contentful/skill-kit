@@ -55,7 +55,7 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
   assert.ok(result.includes('version: "1.0.0"'));
   assert.ok(result.includes('scripts/run --context'));
   assert.ok(result.includes('scripts/run advance'));
-  assert.ok(result.includes('"done": true'));
+  assert.ok(result.includes('"type":"done"'));
   assert.ok(result.includes('**start**: Begin the process.'));
 });
 
@@ -66,6 +66,36 @@ test('generateSkillMd uses default description when none provided', () => {
 
   const result = generateSkillMd(s);
   assert.ok(result.includes('minimal skill powered by @contentful/skill-kit'));
+});
+
+test('generateSkillMd with protocol=session omits stateless instructions', () => {
+  const s = skill({ name: 'test', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s, 'session');
+  assert.ok(result.includes('--session new'));
+  assert.ok(!result.includes('--history'));
+});
+
+test('generateSkillMd with protocol=stateless omits session instructions', () => {
+  const s = skill({ name: 'test', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s, 'stateless');
+  assert.ok(result.includes('--history'));
+  assert.ok(!result.includes('--session new'));
+});
+
+test('generateSkillMd default protocol is session', () => {
+  const s = skill({ name: 'test', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('--session new'));
+  assert.ok(!result.includes('--history'));
 });
 
 test('generatePackageJson produces valid JSON with name and version', () => {

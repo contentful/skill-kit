@@ -293,15 +293,39 @@ The composite entry point handles this — the host never sees `RedirectResult` 
 
 ### CLI protocol for composites
 
+Session mode (recommended):
+
 ```bash
-scripts/run --context '{...}'                        # dispatcher start
-scripts/run advance --step doctor/diagnose --output ..  # sub-skill advance
-scripts/run doctor --context '{...}'                 # direct sub-skill start
-scripts/run topics                                   # list topics
-scripts/run topic rate-limits                        # load a topic
+scripts/run --context '{...}' --session new           # dispatcher start → SessionPointer
+scripts/run advance --session <id>                     # advance (agent wrote output to file)
+scripts/run doctor --context '{...}' --session new     # direct sub-skill start
+```
+
+Stateless mode (fallback):
+
+```bash
+scripts/run --context '{...}'                          # dispatcher start
+scripts/run advance --step doctor/diagnose --output .. # sub-skill advance
+scripts/run doctor --context '{...}'                   # direct sub-skill start
+scripts/run topics                                     # list topics
+scripts/run topic rate-limits                          # load a topic
 ```
 
 Sub-skill step names are prefixed `<subskill>/<step>` at the protocol layer.
+
+### `SessionPointer`
+
+Returned by `--session new` on start:
+
+```typescript
+interface SessionPointer {
+  sessionId: string; // 8-char hex ID
+  file: string; // path to the JSONL session file
+  line: number; // line number to read for the first prompt
+}
+```
+
+See [Architecture — Session mode](./architecture.md#session-mode-recommended) for the full session lifecycle.
 
 ### Testing composites
 
@@ -695,18 +719,20 @@ mockModel({
 Compiles a skill into a distributable [agentskills.io](https://agentskills.io/specification)-compliant directory:
 
 ```bash
-skill-kit build <entry.ts> -o <dir>                        # default (bun mode)
+skill-kit build <entry.ts> -o <dir>                        # default (bun mode, session protocol)
 skill-kit build <entry.ts> -o <dir> --mode node             # Node.js bundle
+skill-kit build <entry.ts> -o <dir> --protocol stateless    # stateless invocation instructions
 skill-kit build <entry.ts> -o <dir> --targets darwin-arm64,linux-x64,linux-arm64
 skill-kit build <entry.ts> -o <dir> --single                # current platform only (fast dev builds)
 ```
 
-| Flag        | Required | Description                                                                     |
-| ----------- | -------- | ------------------------------------------------------------------------------- |
-| `-o, --out` | yes      | Output directory                                                                |
-| `--mode`    | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
-| `--targets` | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only. |
-| `--single`  | no       | Build only for current platform. Bun mode only.                                 |
+| Flag         | Required | Description                                                                     |
+| ------------ | -------- | ------------------------------------------------------------------------------- |
+| `-o, --out`  | yes      | Output directory                                                                |
+| `--mode`     | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
+| `--protocol` | no       | `session` (default) or `stateless`. Controls SKILL.md invocation instructions   |
+| `--targets`  | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only. |
+| `--single`   | no       | Build only for current platform. Bun mode only.                                 |
 
 Output (bun mode):
 

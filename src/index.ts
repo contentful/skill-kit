@@ -54,4 +54,9 @@ export type {
   SubskillRegistration,
   RedirectResult,
   Buildable,
+  SessionPointer,
+  SessionHeader,
+  SessionOutputLine,
+  SessionOutputMode,
+  SessionLine,
 } from './types.js';

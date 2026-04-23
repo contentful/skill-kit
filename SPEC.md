@@ -831,14 +831,17 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 
 ### Flags
 
-| Flag        | Required     | Description                                                                                                               |
-| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `--context` | On `start`   | JSON string. Validated against the skill's context schema.                                                                |
-| `--step`    | On `advance` | Name of the step whose output is being submitted.                                                                         |
-| `--output`  | On `advance` | JSON string. The agent's response for the step.                                                                           |
-| `--history` | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history.                                   |
-| `--host`    | Optional     | Host identifier for host-aware prose generation. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`. |
-| `--help`    | —            | Print usage to stderr, exit 0.                                                                                            |
+| Flag            | Required     | Description                                                                                                               |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string. Validated against the skill's context schema.                                                                |
+| `--step`        | On `advance` | Name of the step whose output is being submitted. Not needed with `--session` in file mode.                               |
+| `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                 |
+| `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.      |
+| `--host`        | Optional     | Host identifier for host-aware prose generation. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`. |
+| `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).         |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                  |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How the agent passes step output. Only on start with `--session new`.                         |
+| `--help`        | —            | Print usage to stderr, exit 0.                                                                                            |
 
 ### Statelessness
 
@@ -878,6 +881,87 @@ The binary follows the [agentskills.io script design conventions](https://agents
 - `--long-name` flags only
 - Non-zero exit on failure with descriptive error messages
 
+### Session protocol (file-based)
+
+The stateless protocol works but produces noisy UX — every invocation dumps verbose JSON to stdout (visible in the agent's Bash tool output), and the `--history` flag grows with every step. The session protocol is an opt-in alternative that moves protocol data to a temp file.
+
+**Creating a session:**
+
+```bash
+./scripts/run --context '{"repoPath":"."}' --host claude-code --session new
+```
+
+Returns a `SessionPointer` to stdout:
+
+```json
+{ "sessionId": "abc123", "file": "/tmp/skill-kit-abc123.jsonl", "line": 2 }
+```
+
+The session file is JSONL. Line 1 is the header; line 2 is the first prompt.
+
+**Session JSONL format:**
+
+| Line type | `type` field | Description                                                                          |
+| --------- | ------------ | ------------------------------------------------------------------------------------ |
+| Header    | `header`     | Session metadata: `sessionId`, `skill`, `host`, `context`, `createdAt`, `outputMode` |
+| Prompt    | `prompt`     | Step prompt with `step`, `prompt`, `schema`, optional `preamble` and `completed`     |
+| Output    | `output`     | Agent's step response: `step`, `output`                                              |
+| Done      | `done`       | Terminal: `done: true`, `finalOutput`, `completed`                                   |
+| Error     | `error`      | Validation error: `error`, `step`, `message`, `retry`                                |
+
+Example session file:
+
+```jsonl
+{"type":"header","sessionId":"abc123","skill":"doctor","host":"claude-code","context":{},"createdAt":"2026-04-22T10:00:00Z","outputMode":"file"}
+{"type":"prompt","step":"diagnose","prompt":"Inspect the repo...","schema":{...},"preamble":"..."}
+{"type":"output","step":"diagnose","output":{"checks":[...]}}
+{"type":"prompt","step":"remediate","prompt":"Fix these...","schema":{...},"completed":{"step":"diagnose","output":{...}}}
+{"type":"output","step":"remediate","output":{"fixed":true}}
+{"type":"done","finalOutput":{"fixed":true},"completed":{"step":"remediate","output":{...}}}
+```
+
+**Output modes** — how the agent passes its step output back:
+
+- **`file` (default):** The agent appends a `{"type":"output","step":"<name>","output":{...}}` line to the JSONL file, then calls `advance --session <id>` with no `--step` or `--output` flags. The CLI reads the last output line from the file.
+- **`flag`:** The agent passes `--step <name> --output '{...}'` on the advance call. The CLI writes the output line to the file itself. Set via `--output-mode flag` at session creation.
+
+**Advancing with a session:**
+
+```bash
+# file mode (default) — agent already appended output line
+./scripts/run advance --session abc123
+# → stdout: 4    (line number of the next prompt/done)
+
+# flag mode — agent passes output as CLI args
+./scripts/run advance --step diagnose --output '{...}' --session abc123
+# → stdout: 4
+```
+
+The line number tells the agent which line to read from the session file.
+
+**History reconstruction:** The CLI reads `completed` fields from `prompt` and `done` lines to rebuild the history array. This matches the existing `--history` format exactly. No `--history` flag is needed with `--session`.
+
+**Session flags:**
+
+| Flag                       | Description                                                         |
+| -------------------------- | ------------------------------------------------------------------- |
+| `--session new`            | Create a new session (on `start`). Returns `SessionPointer`.        |
+| `--session <id>`           | Use existing session (on `advance`). Returns line number.           |
+| `--session-dir <path>`     | Override temp directory. Default: `os.tmpdir()`.                    |
+| `--output-mode file\|flag` | Set output mode (on `start` with `--session new`). Default: `file`. |
+
+**Composite skills and sessions:** One session spans the entire composite workflow. Subskill step names are prefixed in the session file (e.g., `doctor/diagnose`), same as in the stateless protocol. Direct subskill access (`./scripts/run doctor --session new`) creates a separate session for that subskill.
+
+**The `SessionPointer` type:**
+
+```typescript
+interface SessionPointer {
+  sessionId: string;
+  file: string;
+  line: number;
+}
+```
+
 ---
 
 ## 11. Build and distribution
@@ -909,6 +993,19 @@ The `--mode` flag selects the bundling strategy:
 | **node**          | `--mode node` | Single `.mjs` bundle                   | ~100-500KB           | Node.js ≥ 24 at runtime |
 
 Node mode is the right choice for skills that live inside a Node.js codebase where Node is already available. Bun mode produces standalone executables that work without any runtime dependency.
+
+### Protocol mode
+
+The `--protocol` flag controls which invocation instructions the generated SKILL.md contains:
+
+| Protocol              | Flag                   | SKILL.md instructions                                                              |
+| --------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| **session** (default) | `--protocol session`   | File-based session protocol (see [Session protocol](#session-protocol-file-based)) |
+| **stateless**         | `--protocol stateless` | Traditional `--history`-passing protocol                                           |
+
+Session mode is the default and recommended choice — it produces cleaner agent UX and shorter Bash output. Use `--protocol stateless` only for hosts that cannot write to the filesystem (e.g., sandboxed environments where the agent has no Write/echo capability).
+
+The flag only affects the generated SKILL.md. The binary itself always supports both protocols — an agent can use `--session` or `--history` regardless of what the SKILL.md says.
 
 ### Output structure
 

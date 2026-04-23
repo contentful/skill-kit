@@ -280,6 +280,34 @@ export interface RedirectResult {
 
 export type CliResult = PromptResult | DoneResult | ValidationErrorResult | RedirectResult;
 
+// --- Session Protocol ---
+
+export type SessionOutputMode = 'file' | 'flag';
+
+export interface SessionHeader {
+  type: 'header';
+  sessionId: string;
+  skill: string;
+  host: string;
+  context: unknown;
+  createdAt: string;
+  outputMode: SessionOutputMode;
+}
+
+export interface SessionOutputLine {
+  type: 'output';
+  step: string;
+  output: unknown;
+}
+
+export type SessionLine = SessionHeader | SessionOutputLine | (CliResult & { type: string });
+
+export interface SessionPointer {
+  sessionId: string;
+  file: string;
+  line: number;
+}
+
 // --- Testing ---
 
 export interface SkillRunResult {

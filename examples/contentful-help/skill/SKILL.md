@@ -13,6 +13,15 @@ field, and passing your response back. **Do not show the raw JSON or Bash comman
 
 ## How to run this skill
 
+This SKILL.md file is inside the skill directory. Resolve the **absolute path** to `scripts/run`
+from this file's location (e.g., `/path/to/skill/scripts/run`). Use the absolute path in all
+Bash commands — do not `cd` into the skill directory.
+
+In the examples below, `<skill>/scripts/run` is a placeholder for this absolute path.
+
+**Before you begin:** Tell the user that they may be prompted to allow `scripts/run` and to
+read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
+
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
@@ -22,51 +31,47 @@ Determine which agent host you are running in, and pass it as `--host`:
 - OpenCode: `--host opencode`
 - Unknown/other: omit the flag (defaults to generic)
 
-### Step 1: Start
+### Step 1: Start with a session
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run --context '{}' --host claude-code
+<skill>/scripts/run --context '{}' --host claude-code --session new 2>/dev/null
 ```
 
-The output is JSON with these fields:
+This returns a JSON pointer with `sessionId`, `file`, and `line`. The `line` field tells you
+which line to read — it will be `2`, not `1` (line 1 is an internal header, never read it).
 
-- `preamble` — **Read this first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM) that prompts use throughout the skill. Follow these mappings for every step.
-- `step` — the current step name
-- `prompt` — instructions for you to follow (read these carefully, using the verb mappings from the preamble)
-- `schema` — JSON Schema describing the output you must produce
+Read **only** line `line` from `file`. It contains the step prompt, schema, and preamble.
+
+**Read the `preamble` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
+that prompts use throughout the skill. Follow these mappings for every step.
 
 ### Step 2: Follow the prompt
 
-Read the `prompt` field. It contains instructions — follow them. The prompt may ask you to
-use specific tools (like AskUserQuestion), write files, analyze code, or interact with the user.
-Do what the prompt says, then produce a JSON object matching the `schema`.
+Read the `prompt` field from the session file line. It contains instructions — follow them.
+The prompt may ask you to use specific tools, write files, analyze code, or interact with the user.
+Produce a JSON object matching the `schema`.
 
 ### Step 3: Advance
 
-Pass your JSON output back, along with the conversation history:
+Pass your output back with the step name:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
 ```
 
-- `--step`: the step name from the previous response
-- `--output`: your JSON response matching the schema
-- `--history`: a JSON array tracking the conversation. Start with `[]`. After each advance,
-  the response includes a `completed` field — append it to the array for the next call.
+This returns a single line number (e.g., `4`). Read **exactly and only that line** from the session file — it contains the next prompt. Do not read any other lines.
 
 ### Step 4: Repeat until done
 
-Keep advancing until the response contains `"done": true`. The `finalOutput` field
+Keep advancing until the line you read contains `"type":"done"`. The `finalOutput` field
 contains the skill's result. Present it to the user.
 
 ### Important
 
 - **Never show raw JSON output or Bash commands to the user.** The user sees your natural
   language responses, not the protocol.
-- **Always pass `--history`** with the accumulated array. The binary is stateless — it
-  reconstructs context from the history on each call.
-- **If you get a validation error** (the response has `"error": "validation"`), read the
-  `message` field, fix your output, and retry the same step.
+- **If you get a validation error** (the response has `"error": "validation"` or `"type":"error"`),
+  read the `message` field, fix your output, and retry the same step.
 
 ## Steps in this skill
 
@@ -85,8 +90,8 @@ Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`)
 ### Direct sub-skill access
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run <subskill> --context '{}'
-${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'
+<skill>/scripts/run <subskill> --context '{}' --session new
+<skill>/scripts/run <subskill> advance --session <id>
 ```
 
 ### Available sub-skills
@@ -99,8 +104,8 @@ ${CLAUDE_SKILL_DIR}/scripts/run <subskill> advance --step <step> --output '...' 
 Quick-reference topics accessible without running the full workflow:
 
 ```bash
-${CLAUDE_SKILL_DIR}/scripts/run topics              # list all topics
-${CLAUDE_SKILL_DIR}/scripts/run topic <name>         # load a specific topic
+<skill>/scripts/run topics              # list all topics
+<skill>/scripts/run topic <name>         # load a specific topic
 ```
 
 - **rate-limits**: API rate limits and throttling
