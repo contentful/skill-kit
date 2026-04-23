@@ -286,9 +286,9 @@ When the engine's `next` resolves to a target not in the local step map, it retu
 
 ```typescript
 interface RedirectResult {
-  redirect: string;        // e.g. 'subskill:doctor'
-  completed: StepResult;   // the step that triggered the redirect
-  stash: unknown;          // dispatcher's accumulated stash
+  redirect: string; // e.g. 'subskill:doctor'
+  completed: StepResult; // the step that triggered the redirect
+  stash: unknown; // dispatcher's accumulated stash
 }
 ```
 
@@ -322,9 +322,9 @@ Returned by `--session new` on start:
 
 ```typescript
 interface SessionPointer {
-  sessionId: string;       // 8-char hex ID
-  file: string;            // path to the JSONL session file
-  line: number;            // line number to read for the first prompt
+  sessionId: string; // 8-char hex ID
+  file: string; // path to the JSONL session file
+  line: number; // line number to read for the first prompt
 }
 ```
 
@@ -337,7 +337,7 @@ import { runComposite, mockModel } from '@contentful/skill-kit/test';
 
 const result = await runComposite(skill, {
   context: { query: 'help' },
-  refs,  // optional ReferenceLoader for topic content
+  refs, // optional ReferenceLoader for topic content
   model: mockModel({
     choose: { choice: 'doctor' },
     'get-space': { spaceId: 'abc' },
