@@ -230,6 +230,137 @@ The `__parent__` sentinel in `next` is rewritten to the `{ next }` value passed 
 
 ---
 
+## Composite Skills
+
+Combine related skills into a single artifact with shared references. A composite is a regular `skill()` with sub-skills and topics registered on it.
+
+### `.subskill(name, definition, opts?)`
+
+Register a standalone `SkillDefinition` as a sub-skill:
+
+```typescript
+import doctorSkill from './subskills/doctor.js';
+
+skill({ name: 'helper', entry: 'classify', ... })
+  .step('classify', {
+    output: z.object({ intent: z.string() }),
+    next: ({ output }) => `subskill:${output.intent}`,
+  })
+  .subskill('doctor', doctorSkill, {
+    context: (_output, stash) => ({ spaceId: stash.spaceId }),
+  })
+  .build();
+```
+
+| Option    | Type                             | Required | Description                                |
+| --------- | -------------------------------- | -------- | ------------------------------------------ |
+| `context` | `(stepOutput, stash) => unknown` | no       | Maps dispatcher state to sub-skill context |
+
+### `.topic(name, config)`
+
+Register a reference topic (same as on `reference()`):
+
+```typescript
+.topic('rate-limits', {
+  label: 'API rate limits',
+  content: ({ refs }) => refs.load('rate-limits.md'),
+})
+```
+
+| Field     | Type                                         | Required | Description       |
+| --------- | -------------------------------------------- | -------- | ----------------- |
+| `label`   | `string`                                     | yes      | Short description |
+| `content` | `(ctx: { refs: ReferenceLoader }) => string` | yes      | Content generator |
+
+### Routing from `next`
+
+Any step's `next` can return prefixed targets:
+
+- `'subskill:<name>'` — redirect to a registered sub-skill
+- `'topic:<name>'` — resolve a topic and return as `DoneResult`
+- Regular step names route within the dispatcher
+
+### `RedirectResult`
+
+When the engine's `next` resolves to a target not in the local step map, it returns:
+
+```typescript
+interface RedirectResult {
+  redirect: string;        // e.g. 'subskill:doctor'
+  completed: StepResult;   // the step that triggered the redirect
+  stash: unknown;          // dispatcher's accumulated stash
+}
+```
+
+The composite entry point handles this — the host never sees `RedirectResult` directly.
+
+### CLI protocol for composites
+
+Session mode (recommended):
+
+```bash
+scripts/run --context '{...}' --session new           # dispatcher start → SessionPointer
+scripts/run advance --session <id>                     # advance (agent wrote output to file)
+scripts/run doctor --context '{...}' --session new     # direct sub-skill start
+```
+
+Stateless mode (fallback):
+
+```bash
+scripts/run --context '{...}'                          # dispatcher start
+scripts/run advance --step doctor/diagnose --output .. # sub-skill advance
+scripts/run doctor --context '{...}'                   # direct sub-skill start
+scripts/run topics                                     # list topics
+scripts/run topic rate-limits                          # load a topic
+```
+
+Sub-skill step names are prefixed `<subskill>/<step>` at the protocol layer.
+
+### `SessionPointer`
+
+Returned by `--session new` on start:
+
+```typescript
+interface SessionPointer {
+  sessionId: string;       // 8-char hex ID
+  file: string;            // path to the JSONL session file
+  line: number;            // line number to read for the first prompt
+}
+```
+
+See [Architecture — Session mode](/architecture/#session-mode-recommended) for the full session lifecycle.
+
+### Testing composites
+
+```typescript
+import { runComposite, mockModel } from '@contentful/skill-kit/test';
+
+const result = await runComposite(skill, {
+  context: { query: 'help' },
+  refs,  // optional ReferenceLoader for topic content
+  model: mockModel({
+    choose: { choice: 'doctor' },
+    'get-space': { spaceId: 'abc' },
+    'doctor/diagnose': { issues: [], healthy: true },
+    'doctor/report-clean': { summary: 'All good!' },
+  }),
+});
+
+assert.equal(result.redirectedTo?.name, 'doctor');
+```
+
+| Option           | Type              | Required | Description                                           |
+| ---------------- | ----------------- | -------- | ----------------------------------------------------- |
+| `model`          | `ModelAdapter`    | yes      | Provides responses for dispatcher and sub-skill steps |
+| `context`        | `object`          | no       | Dispatcher context                                    |
+| `refs`           | `ReferenceLoader` | no       | For topic content resolution (defaults to no-op)      |
+| `host`           | `Handshake`       | no       | Host identity. Defaults to generic                    |
+| `directSubskill` | `string`          | no       | Skip dispatcher, start a sub-skill directly           |
+
+The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string }` alongside the standard `path`, `outputs`, `output`, and `history` fields.
+
+---
+
 ## Primitives
 
 Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions.
