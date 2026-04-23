@@ -33,9 +33,9 @@ const base = import.meta.env.BASE_URL;
           <code>runSkill()</code> drives your skill through its steps with <code>mockModel()</code> responses. Full
           path, output, and history assertions — no agent required.
         </FeatureCard>
-        <FeatureCard title="Composable Modules" icon="▷">
-          Extract shared step sequences into modules. <code>.register(module)</code> merges steps and widens the stash
-          type. Extend shared steps with <code>.extend()</code>.
+        <FeatureCard title="Compose & Combine" icon="▷">
+          Extract shared steps into modules with <code>.register()</code>. Combine related skills into composites with
+          <code>.subskill()</code> and <code>.topic()</code> — one dispatcher, shared references, independent sub-skills.
         </FeatureCard>
       </div>
     </div>
@@ -57,9 +57,10 @@ const base = import.meta.env.BASE_URL;
 └─────────┘                      └─────────────┘</code></pre>
       </div>
       <p class="how-text">
-        Each invocation is <strong>stateless</strong>. The agent passes full conversation history via
-        <code>--history</code> on every <code>advance</code> call. The skill reconstructs state, validates against the
-        Zod schema, and returns the next prompt. No persistent processes — just Bash calls.
+        Two invocation modes. <strong>Session mode</strong> (recommended) writes protocol data to a temp file — no
+        verbose JSON in stdout. <strong>Stateless mode</strong> passes full conversation history via
+        <code>--history</code> on every call. Both reconstruct state, validate against Zod schemas, and return the next
+        prompt. No persistent processes — just Bash calls.
       </p>
       <div class="how-actions">
         <a href={`${base}architecture/`} class="how-link">
@@ -88,6 +89,14 @@ const base = import.meta.env.BASE_URL;
           <p class="example-desc">
             TypeScript patterns reference with on-demand topic loading. Uses render.table, render.code, and refs.load()
             for external markdown.
+          </p>
+        </a>
+        <a href={`${base}examples/contentful-help/`} class="example-card">
+          <span class="example-type">composite</span>
+          <h3 class="example-name">contentful-help</h3>
+          <p class="example-desc">
+            Composite dispatcher that routes to doctor and setup sub-skills or resolves FAQ topics directly. Uses
+            .subskill(), .topic(), context mapping, and runComposite for testing.
           </p>
         </a>
       </div>
@@ -189,13 +198,13 @@ const base = import.meta.env.BASE_URL;
   }
 
   .examples-inner {
-    max-width: 48rem;
+    max-width: 72rem;
     margin: 0 auto;
   }
 
   .example-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-4);
   }
 
@@ -250,6 +259,10 @@ const base = import.meta.env.BASE_URL;
 
   @media (max-width: 1024px) and (min-width: 769px) {
     .feature-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .example-grid {
       grid-template-columns: repeat(2, 1fr);
     }
   }
