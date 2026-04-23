@@ -15,25 +15,30 @@ User requested a full docs review. Audit found 7 issues, all fixable in 5 files.
 ## Plan
 
 ### 1. Sidebar.astro — Add missing nav entries
+
 - Add "Composite Skills" to Guides section (after Reference Skills, before Modules)
 - Add "contentful-help" to Examples section (after ts-patterns)
 
 ### 2. Hero.astro — Fix "Both" claim
+
 - Update subtitle to mention all three patterns (workflow, reference, composite)
 - "Both compile to..." → "All three compile to..."
 
 ### 3. index.astro (homepage) — Multiple fixes
+
 - Update "Composable Modules" feature card → "Compose & Combine" covering modules + composites
 - Update "How it works" text to describe session mode (recommended) + stateless mode
 - Add contentful-help example card
 - Update CSS: 3-column example grid, wider container, tablet breakpoint
 
 ### 4. api/index.mdx — Sync Composite Skills section
+
 - Insert `## Composite Skills` between Modules and Primitives
 - Content adapted from `docs/api.md` lines 230-359
 - Covers: `.subskill()`, `.topic()`, routing, RedirectResult, CLI protocol, testing with `runComposite`
 
 ### 5. README.md — Fix broken link
+
 - Line 178: `./docs-site/src/pages/guides/composite-skills.mdx` → `./docs/api.md#composite-skills`
 
 ## Steps
