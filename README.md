@@ -175,7 +175,7 @@ skill({ name: 'contentful-help', entry: 'choose', ... })
   .build();
 ```
 
-Sub-skills are standalone `skill().build()` definitions — testable independently. `next` returns `'subskill:<name>'` or `'topic:<name>'` to route. See the [Composite Skills guide](./docs-site/src/pages/guides/composite-skills.mdx).
+Sub-skills are standalone `skill().build()` definitions — testable independently. `next` returns `'subskill:<name>'` or `'topic:<name>'` to route. See the [Composite Skills guide](./docs/api.md#composite-skills).
 
 ---
 
