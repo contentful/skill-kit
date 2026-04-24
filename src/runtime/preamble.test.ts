@@ -15,9 +15,9 @@ test('preamble for Claude Code maps ASK_STRUCTURED to AskUserQuestion', () => {
   assert.ok(result.includes('ASK_FREEFORM'));
   assert.ok(result.includes('PRESENT_PLAN'));
   assert.ok(result.includes('EnterPlanMode'));
-  assert.ok(result.includes('CREATE_TASKS'));
+  assert.ok(result.includes('CREATE_CHECKLIST'));
   assert.ok(result.includes('TaskCreate'));
-  assert.ok(result.includes('SPAWN_SUBTASK'));
+  assert.ok(result.includes('SPAWN_SUBAGENT'));
   assert.ok(result.includes('Agent tool'));
 });
 

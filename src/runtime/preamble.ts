@@ -30,15 +30,15 @@ export function generatePreamble(handshake: Handshake): string {
   }
 
   if (handshake.toolsAvailable.includes('TaskCreate')) {
-    lines.push('- "CREATE_TASKS" → Use TaskCreate to register tasks and TaskUpdate to update them.');
+    lines.push('- "CREATE_CHECKLIST" → Use TaskCreate to register tasks and TaskUpdate to update them.');
   } else {
-    lines.push('- "CREATE_TASKS" → Maintain a visible checklist and update status as items complete.');
+    lines.push('- "CREATE_CHECKLIST" → Maintain a visible checklist and update status as items complete.');
   }
 
   if (handshake.toolsAvailable.includes('Agent')) {
-    lines.push('- "SPAWN_SUBTASK" → Use the Agent tool to run the subtask in isolated context.');
+    lines.push('- "SPAWN_SUBAGENT" → Use the Agent tool to run the subagent in isolated context.');
   } else {
-    lines.push('- "SPAWN_SUBTASK" → Focus on the subtask, then return to the main workflow.');
+    lines.push('- "SPAWN_SUBAGENT" → Focus on the subagent task, then return to the main workflow.');
   }
 
   lines.push('');

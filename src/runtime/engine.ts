@@ -277,12 +277,12 @@ export class WorkflowEngine {
   }
 
   private buildPrimitiveProse(stepDef: StepDefinition): string | null {
-    const { ask, confirm, plan: planConfig, tasks: tasksConfig, subtask: subtaskConfig } = stepDef.config;
+    const { ask, confirm, plan: planConfig, checklist: checklistConfig, subagent: subagentConfig } = stepDef.config;
     if (ask) return this.prose.askUser(ask);
     if (confirm) return this.prose.confirm(confirm);
     if (planConfig) return this.prose.plan(planConfig);
-    if (tasksConfig) return this.prose.tasks(tasksConfig);
-    if (subtaskConfig) return this.prose.subtask(subtaskConfig);
+    if (checklistConfig) return this.prose.checklist(checklistConfig);
+    if (subagentConfig) return this.prose.subagent(subagentConfig);
     return null;
   }
 

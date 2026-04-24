@@ -1,20 +1,27 @@
-import type { Handshake, AskUserConfig, ConfirmConfig, PlanConfig, TasksConfig, SubtaskConfig } from '../../types.js';
+import type {
+  Handshake,
+  AskUserConfig,
+  ConfirmConfig,
+  PlanConfig,
+  ChecklistConfig,
+  SubagentConfig,
+} from '../../types.js';
 import * as defaults from './default.js';
 
 export interface ProseGenerator {
   askUser(config: AskUserConfig): string;
   confirm(config: ConfirmConfig): string;
   plan(config: PlanConfig): string;
-  tasks(config: TasksConfig): string;
-  subtask(config: SubtaskConfig): string;
+  checklist(config: ChecklistConfig): string;
+  subagent(config: SubagentConfig): string;
 }
 
 const defaultGenerator: ProseGenerator = {
   askUser: defaults.askUserProse,
   confirm: defaults.confirmProse,
   plan: defaults.planProse,
-  tasks: defaults.tasksProse,
-  subtask: defaults.subtaskProse,
+  checklist: defaults.checklistProse,
+  subagent: defaults.subagentProse,
 };
 
 // Per-host overrides — spread defaultGenerator and replace only what differs.

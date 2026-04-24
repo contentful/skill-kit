@@ -75,18 +75,18 @@ export interface PlanConfig {
   steps: string[];
 }
 
-export interface TasksConfig {
-  readonly kind: 'tasks';
+export interface ChecklistConfig {
+  readonly kind: 'checklist';
   create: Array<{ title: string; status: string }>;
 }
 
-export interface SubtaskConfig {
-  readonly kind: 'subtask';
+export interface SubagentConfig {
+  readonly kind: 'subagent';
   prompt: string;
   output: z.ZodType;
 }
 
-export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | TasksConfig | SubtaskConfig;
+export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | ChecklistConfig | SubagentConfig;
 
 // --- Type helpers ---
 
@@ -143,8 +143,8 @@ export interface StepConfig<
   ask?: AskUserConfig;
   confirm?: ConfirmConfig;
   plan?: PlanConfig;
-  tasks?: TasksConfig;
-  subtask?: SubtaskConfig;
+  checklist?: ChecklistConfig;
+  subagent?: SubagentConfig;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

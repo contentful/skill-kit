@@ -7,8 +7,8 @@ export { render } from './render/index.js';
 export { askUser } from './primitives/ask-user.js';
 export { confirm } from './primitives/confirm.js';
 export { plan } from './primitives/plan.js';
-export { tasks } from './primitives/tasks.js';
-export { subtask } from './primitives/subtask.js';
+export { checklist } from './primitives/checklist.js';
+export { subagent } from './primitives/subagent.js';
 export { module } from './module.js';
 export { reference } from './reference.js';
 export { SkillBuilder } from './skill-builder.js';
@@ -40,8 +40,8 @@ export type {
   AskUserOption,
   ConfirmConfig,
   PlanConfig,
-  TasksConfig,
-  SubtaskConfig,
+  ChecklistConfig,
+  SubagentConfig,
   PrimitiveConfig,
   CliResult,
   PromptResult,

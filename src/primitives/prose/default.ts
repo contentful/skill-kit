@@ -1,4 +1,4 @@
-import type { AskUserConfig, ConfirmConfig, PlanConfig, TasksConfig, SubtaskConfig } from '../../types.js';
+import type { AskUserConfig, ConfirmConfig, PlanConfig, ChecklistConfig, SubagentConfig } from '../../types.js';
 
 export function askUserProse(config: AskUserConfig): string {
   if (config.type === 'open') {
@@ -32,11 +32,11 @@ export function planProse(config: PlanConfig): string {
   return [`PRESENT_PLAN:`, '', `Summary: ${config.summary}`, '', stepsList].join('\n');
 }
 
-export function tasksProse(config: TasksConfig): string {
+export function checklistProse(config: ChecklistConfig): string {
   const taskList = config.create.map((t) => `- "${t.title}" (${t.status})`).join('\n');
-  return ['CREATE_TASKS:', '', taskList].join('\n');
+  return ['CREATE_CHECKLIST:', '', taskList].join('\n');
 }
 
-export function subtaskProse(config: SubtaskConfig): string {
-  return ['SPAWN_SUBTASK:', '', config.prompt].join('\n');
+export function subagentProse(config: SubagentConfig): string {
+  return ['SPAWN_SUBAGENT:', '', config.prompt].join('\n');
 }
