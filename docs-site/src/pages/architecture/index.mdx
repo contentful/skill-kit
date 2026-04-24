@@ -181,9 +181,9 @@ The `render` method accepts an optional `RenderContext`. The engine passes `{ sk
 The registry (`src/primitives/registry.ts`) manages all five primitives and exposes two functions:
 
 - **`renderPrimitive(config, ctx?)`** — dispatches to the correct primitive's `render()` method by `config.kind`, forwarding an optional `RenderContext` (e.g., `{ skillName }`). Returns the XML string.
-- **`resolveTools(handshake)`** — for each primitive, finds the first tool from its `tools` list that appears in `handshake.toolsAvailable` (explicit), falling back to the host registry. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
+- **`resolveTools(handshake)`** — either/or resolution at the whole-handshake level: if the agent reports any explicit tools (via `--tools`), those are authoritative for all primitives (no registry merge); if no tools are reported, the host registry provides the tool list. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
-Tool resolution uses a two-pass strategy: first check the handshake's explicit `toolsAvailable` list, then fall back to the `HOST_REGISTRY` for the given host name. This means a host can advertise tools the SDK doesn't know about, and the SDK will still match them if a primitive lists that tool name.
+Tool resolution is either/or at the whole-handshake level: if the agent reports any explicit tools (via `--tools`), those are the authoritative tool list for all primitives — no registry fallback. If no explicit tools are reported, the `HOST_REGISTRY` for the given host name provides the tool list. This prevents subagents (which report a subset of tools but still identify as a known host) from being told to use tools they don't actually have.
 
 To add a new primitive, define it with `definePrimitive()` and add it to the `ALL_PRIMITIVES` array in the registry.
 

@@ -1308,7 +1308,7 @@ Step prompts use XML tags. Follow sections in the order they appear.
 | `<rendered>` | — | Pre-rendered output from the skill. Emit verbatim. |
 ```
 
-The table is generated per host via `preambleRows()` in the registry. Each primitive's `preambleRow(tool)` method receives the resolved tool name (or `undefined` for hosts without a matching tool) and returns tag, tool, and instruction. The `resolveTools(handshake)` function checks explicit `--tools` first, then falls back to the host registry per primitive.
+The table is generated per host via `preambleRows()` in the registry. Each primitive's `preambleRow(tool)` method receives the resolved tool name (or `undefined` for hosts without a matching tool) and returns tag, tool, and instruction. The `resolveTools(handshake)` function uses an either/or strategy at the whole-handshake level: if any explicit tools are reported (via `--tools`), those are authoritative for all primitives; if none are reported, the host registry is used.
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), the XML tags in per-step prose are self-describing enough that the model can act on them even without the preamble. Preambles optimize the common case; per-step XML guards correctness.
 
@@ -1330,7 +1330,7 @@ Same XML. Same skill. The preamble table handles the host-specific translation. 
 
 ### What the major hosts expose (the preamble has to map these)
 
-The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use (across all hosts) in its `tools` array. `resolveTools(handshake)` matches each primitive to the best available tool for the current host — explicit `--tools` first, then registry fallback per primitive. The resolved tool name (or `undefined`) is passed to each primitive's `preambleRow()` to generate the instruction.
+The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use (across all hosts) in its `tools` array. `resolveTools(handshake)` uses an either/or strategy: if the agent reports any tools via `--tools`, those are the authoritative tool list for all primitives (no registry fallback — if a tool isn't in the explicit list, the primitive gets `undefined`); if the agent reports no tools, the host registry is used for all primitives. The resolved tool name (or `undefined`) is passed to each primitive's `preambleRow()` to generate the instruction.
 
 **Claude Code.** `AskUserQuestion`, `EnterPlanMode`/`ExitPlanMode`, `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`, `Agent`, `Skill`, `TodoWrite`, standard file/shell/search tools (`Read`, `Edit`, `Write`, `Bash`, `Glob`, `Grep`), `WebFetch`/`WebSearch`, plus `SendMessage`, `Monitor`, `LSP`, `NotebookEdit`, `EnterWorktree`/`ExitWorktree`.
 
@@ -1543,23 +1543,21 @@ The `--host` CLI flag identifies which agent host is invoking the skill. The `--
 
 The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use in its `tools` array — for example, the ask-user primitive lists `['AskUserQuestion', 'ToolRequestUserInput', 'ask_followup_question', 'ask-user', 'question']`.
 
-`resolveTools(handshake)` performs per-primitive hybrid resolution:
+`resolveTools(handshake)` uses either/or resolution at the whole-handshake level:
 
 ```typescript
 function resolveTools(handshake: Handshake): ToolResolver {
-  const explicit = handshake.toolsAvailable; // from --tools
-  const registry = HOST_REGISTRY[handshake.host] ?? [];
+  const tools = handshake.toolsAvailable.length > 0 ? handshake.toolsAvailable : (HOST_REGISTRY[handshake.host] ?? []);
 
   const resolved: ToolResolver = {};
   for (const p of ALL_PRIMITIVES) {
-    const match = p.tools.find((t) => explicit.includes(t)) ?? p.tools.find((t) => registry.includes(t));
-    resolved[p.tag] = match; // string | undefined
+    resolved[p.tag] = p.tools.find((t) => tools.includes(t));
   }
   return resolved;
 }
 ```
 
-Explicit tools (from `--tools`) take priority. If no explicit match, the registry for the host is checked. If neither has a matching tool, the primitive gets `undefined` and its preamble row omits the tool name, falling back to generic instructions.
+If the agent reports any tools via `--tools`, those are authoritative for all primitives — no registry fallback. Subagents report a subset of tools (e.g., `Bash,Read,Write,Edit`) but still identify as a known host; per-primitive merge would incorrectly tell them to use tools from the host registry that they don't actually have. Explicit tools are the ground truth. If no tools are reported, the host registry provides the tool list. If a primitive's tool names don't appear in the resolved list, it gets `undefined` and its preamble row falls back to generic instructions.
 
 The resolved tool names are passed to `preambleRows()`, which calls each primitive's `preambleRow(tool)` method to build the markdown table. No hidden magic — tool present means the preamble names it; absent means generic instructions.
 
