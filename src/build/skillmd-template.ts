@@ -81,6 +81,18 @@ Determine which agent host you are running in, and pass it as \`--host\`:
 - Amp: \`--host amp\`
 - Unknown/other: omit the flag (defaults to generic)
 
+### Report your tools (optional)
+
+If you know which tools you have available, pass them as a comma-separated list:
+
+\`\`\`bash
+<skill>/scripts/run --host claude-code --tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent --context '{}' 2>/dev/null
+\`\`\`
+
+This produces the most accurate tool mappings. If omitted, the skill infers your
+tools from the \`--host\` value. If both are omitted, all interactions use generic
+fallbacks (numbered lists, prose checklists, etc.).
+
 ${protocolInstructions}
 ### Important
 

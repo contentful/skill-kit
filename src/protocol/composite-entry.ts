@@ -260,13 +260,23 @@ function resolveAdvanceInput(
   return { stepName, output, history };
 }
 
+function parseTools(flags: Record<string, string>): string[] | undefined {
+  const raw = flags['tools'];
+  return raw
+    ? raw
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : undefined;
+}
+
 async function handleDispatcher(
   def: SkillDefinition,
   parsed: { command: 'start' | 'advance'; flags: Record<string, string> },
   refs: ReferenceLoader,
 ): Promise<void> {
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host']);
+  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], parseTools(parsed.flags));
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
@@ -314,7 +324,7 @@ async function handleSubskill(
   }
 
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host']);
+  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], parseTools(parsed.flags));
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};

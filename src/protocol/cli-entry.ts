@@ -3,8 +3,17 @@ import type { SessionOutputMode } from '../types.js';
 import { parseArgs, handleStart, handleAdvance, printHelp } from './single-invocation.js';
 import { SessionManager } from './session.js';
 
+function parseToolsFlag(raw?: string): string[] | undefined {
+  if (!raw) return undefined;
+  return raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 export async function main(skill: SkillDefinition): Promise<void> {
   const { command, flags } = parseArgs(process.argv);
+  const tools = parseToolsFlag(flags['tools']);
 
   try {
     switch (command) {
@@ -25,9 +34,9 @@ export async function main(skill: SkillDefinition): Promise<void> {
             context,
             outputMode,
           });
-          await handleStart(skill, context, flags['host'], session);
+          await handleStart(skill, context, flags['host'], session, tools);
         } else {
-          await handleStart(skill, context, flags['host']);
+          await handleStart(skill, context, flags['host'], undefined, tools);
         }
         break;
       }
@@ -69,7 +78,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             session.append({ type: 'output', step: stepName, output });
           }
 
-          await handleAdvance(skill, stepName, output, history, session.header.host, session);
+          await handleAdvance(skill, stepName, output, history, session.header.host, session, tools);
         } else {
           const step = flags['step'];
           const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
@@ -86,7 +95,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             process.exit(1);
           }
 
-          await handleAdvance(skill, step, output, history, flags['host']);
+          await handleAdvance(skill, step, output, history, flags['host'], undefined, tools);
         }
         break;
       }

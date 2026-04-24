@@ -154,11 +154,11 @@ const HOST_REGISTRY: Record<string, string[]> = {
   amp: ['shell', 'read', 'write', 'edit'],
 };
 
-export function resolveHost(hostName?: string): Handshake {
+export function resolveHost(hostName?: string, explicitTools?: string[]): Handshake {
   const name = hostName ?? 'generic';
   return {
     host: name,
-    toolsAvailable: HOST_REGISTRY[name] ?? [],
+    toolsAvailable: explicitTools ?? [],
   };
 }
 
