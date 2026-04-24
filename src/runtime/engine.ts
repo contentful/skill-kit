@@ -9,13 +9,10 @@ import type {
   CliResult,
   PromptContext,
   ReferenceLoader,
-  PrimitiveConfig,
-  AskUserConfig,
-  PlanConfig,
-  ChecklistConfig,
   PromptPiece,
   PromptReturn,
 } from '../types.js';
+import { renderPrimitive } from '../primitives/registry.js';
 import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
@@ -297,51 +294,11 @@ export class WorkflowEngine {
       .map((piece) => {
         if (typeof piece === 'string') return `<prompt>\n${piece}\n</prompt>`;
         if (piece.kind === 'system') return `<system>${piece.text}</system>`;
-        if (piece.kind === 'act') return this.renderPrimitive(piece.primitive);
+        if (piece.kind === 'act') return renderPrimitive(piece.primitive);
         return '';
       })
       .filter(Boolean)
       .join('\n\n');
-  }
-
-  private renderPrimitive(config: PrimitiveConfig): string {
-    switch (config.kind) {
-      case 'askUser':
-        return this.renderAskUser(config);
-      case 'confirm': {
-        const attrs = [`default="${config.defaultAnswer ?? 'no'}"`, config.destructive ? 'destructive="true"' : '']
-          .filter(Boolean)
-          .join(' ');
-        return `<confirm ${attrs}>${config.message}</confirm>`;
-      }
-      case 'plan':
-        return this.renderPlan(config);
-      case 'checklist':
-        return this.renderChecklist(config);
-      case 'subagent':
-        return `<subagent>${config.prompt}</subagent>`;
-    }
-  }
-
-  private renderAskUser(config: AskUserConfig): string {
-    if (config.type === 'open') {
-      return `<ask-user type="open" question="${config.question}" />`;
-    }
-    const options = config.options
-      .map((o) => `  <option value="${o.value}" label="${o.label}">${o.description ?? ''}</option>`)
-      .join('\n');
-    const multi = config.multiSelect ? ' multi-select="true"' : '';
-    return `<ask-user type="structured" question="${config.question}"${multi}>\n${options}\n</ask-user>`;
-  }
-
-  private renderPlan(config: PlanConfig): string {
-    const steps = config.steps.map((s) => `  <step>${s}</step>`).join('\n');
-    return `<plan summary="${config.summary}">\n${steps}\n</plan>`;
-  }
-
-  private renderChecklist(config: ChecklistConfig): string {
-    const items = config.create.map((t) => `  <item status="${t.status}">${t.title}</item>`).join('\n');
-    return `<checklist>\n${items}\n</checklist>`;
   }
 
   private buildDone(): DoneResult {
