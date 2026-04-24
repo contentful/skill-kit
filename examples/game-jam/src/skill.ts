@@ -109,12 +109,13 @@ export default skill({
   // --- Research renderer (subagent) ---
   .step('research-renderer', {
     prompt: ({ stash, refs }) => prompt`
-      Research best practices for building a Tetris game with ${stash.renderer} rendering.
+      We're building a Tetris game with ${stash.renderer} rendering.
       Reference material:
       ${refs.load('tetris-patterns.md')}
     `,
     act: act.subagent({
-      prompt: 'Return a concise summary of performance tips, animation patterns, and common pitfalls.',
+      prompt:
+        'Research best practices for the chosen rendering approach. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
       output: z.object({ summary: z.string() }),
     }),
     output: z.object({ summary: z.string() }),
@@ -177,8 +178,7 @@ export default skill({
   // --- Generate theme (subagent) ---
   .step('generate-theme', {
     prompt: ({ stash }) => prompt`
-      The game "${stash.name}" needs a visual identity.
-      Variant: ${stash.variant}. Renderer: ${stash.renderer}.
+      The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
     `,
     act: act.subagent({
       prompt: 'Generate a CSS theme with color scheme, fonts, and animations. Return the CSS as a string.',
