@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { z } from 'zod';
 import { generateBunWrapper } from './bun-wrapper-template.js';
 import { generateNodeWrapper } from './node-wrapper-template.js';
@@ -130,10 +133,72 @@ test('generateSkillMd default protocol is session', () => {
 });
 
 test('generatePackageJson produces valid JSON with name and version', () => {
-  const result = generatePackageJson('my-skill', '2.0.0');
+  const result = generatePackageJson('2.0.0', { name: 'my-skill' });
   const parsed = JSON.parse(result);
   assert.equal(parsed.name, 'my-skill');
   assert.equal(parsed.version, '2.0.0');
+});
+
+test('generatePackageJson writes packageConfig fields', () => {
+  const result = generatePackageJson('1.0.0', {
+    name: 'my-skill',
+    packageConfig: { description: 'A skill', license: 'Apache-2.0', files: ['bin'] },
+  });
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.description, 'A skill');
+  assert.equal(parsed.license, 'Apache-2.0');
+  assert.deepEqual(parsed.files, ['bin']);
+});
+
+test('generatePackageJson packageConfig.name overrides default name', () => {
+  const result = generatePackageJson('1.0.0', {
+    name: 'my-skill',
+    packageConfig: { name: '@org/my-skill' },
+  });
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.name, '@org/my-skill');
+});
+
+test('generatePackageJson passes through arbitrary fields from packageConfig', () => {
+  const result = generatePackageJson('1.0.0', {
+    name: 'my-skill',
+    packageConfig: { repository: { type: 'git', url: 'https://example.com' }, keywords: ['skill'] },
+  });
+  const parsed = JSON.parse(result);
+  assert.deepEqual(parsed.repository, { type: 'git', url: 'https://example.com' });
+  assert.deepEqual(parsed.keywords, ['skill']);
+});
+
+test('generatePackageJson merges with existing package.json', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pkg-merge-'));
+  try {
+    const existingPath = join(dir, 'package.json');
+    writeFileSync(existingPath, JSON.stringify({ name: 'old', version: '0.0.1', customField: true }));
+    const result = generatePackageJson('1.0.0', { name: 'new-name', existingPath });
+    const parsed = JSON.parse(result);
+    assert.equal(parsed.name, 'new-name');
+    assert.equal(parsed.version, '1.0.0');
+    assert.equal(parsed.customField, true);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('generatePackageJson merge prefers packageConfig over existing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pkg-merge-'));
+  try {
+    const existingPath = join(dir, 'package.json');
+    writeFileSync(existingPath, JSON.stringify({ name: 'old', version: '0.0.1', license: 'ISC' }));
+    const result = generatePackageJson('1.0.0', {
+      name: 'my-skill',
+      packageConfig: { license: 'MIT' },
+      existingPath,
+    });
+    const parsed = JSON.parse(result);
+    assert.equal(parsed.license, 'MIT');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
 });
 
 test('resolveTargets returns defaults when no args', () => {

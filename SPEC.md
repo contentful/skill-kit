@@ -114,6 +114,10 @@ export default skill({
   entry: 'diagnose',
   context: z.object({ repoPath: z.string().default('.') }),
   stash: z.object({ failCount: z.number() }),
+  package: {
+    name: '@contentful/skill-repo-doctor',
+    license: 'MIT',
+  },
 })
   .step('diagnose', {
     /* ... */
@@ -980,7 +984,7 @@ This:
 2. Bundles the skill code (mode-dependent — see below)
 3. Generates `scripts/run` shell wrapper (public interface)
 4. Generates `SKILL.md` with invocation instructions
-5. Generates `package.json` with name and version
+5. Generates `package.json` — name, version, and any fields from the `package` config. Merges with existing `package.json` in the output directory if present. When `resolveVersion: true` is set, reads the version from the nearest ancestor `package.json` instead of using the hardcoded `version` field.
 6. Copies `references/` from the source directory
 
 ### Build modes

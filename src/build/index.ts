@@ -11,6 +11,7 @@ import { generateNodeScriptsRun } from './node-scripts-run-template.js';
 import { generateSkillMd } from './skillmd-template.js';
 import { generateReferenceMd } from './reference-md-template.js';
 import { generatePackageJson } from './package-json-template.js';
+import { resolveVersionFromAncestor } from './resolve-version.js';
 import { resolveTargets, type BuildTarget } from './targets.js';
 
 const exec = promisify(execFile);
@@ -73,8 +74,23 @@ export async function buildSkill(opts: BuildOptions): Promise<BuildResult> {
   const skillMdPath = join(outDir, 'SKILL.md');
   writeFileSync(skillMdPath, skillMdContent);
 
-  const pkgJson = generatePackageJson(defName, def.version);
-  writeFileSync(join(outDir, 'package.json'), pkgJson);
+  let buildVersion = def.version;
+  if (def.resolveVersion) {
+    const resolved = resolveVersionFromAncestor(dirname(entryPath));
+    if (resolved) {
+      buildVersion = resolved.version;
+    } else {
+      process.stderr.write('Warning: resolveVersion is set but no ancestor package.json with a version was found.\n');
+    }
+  }
+
+  const outPkgPath = join(outDir, 'package.json');
+  const pkgJson = generatePackageJson(buildVersion, {
+    name: defName,
+    packageConfig: def.package,
+    existingPath: outPkgPath,
+  });
+  writeFileSync(outPkgPath, pkgJson);
 
   const refsDir = join(dirname(entryPath), 'references');
   if (existsSync(refsDir)) {

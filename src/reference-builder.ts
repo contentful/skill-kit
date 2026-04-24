@@ -24,7 +24,9 @@ export class ReferenceBuilder {
       kind: 'reference' as const,
       name,
       version: this.config.version ?? '0.0.0',
+      resolveVersion: this.config.resolveVersion ?? false,
       description,
+      package: this.config.package,
       topics: Object.freeze({ ...this.topics }),
     });
   }

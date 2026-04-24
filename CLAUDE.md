@@ -73,6 +73,16 @@ pnpm exec tsc --noEmit && node --test --import tsx/esm 'src/**/*.test.ts' && pnp
 
 The docs site (`docs-site/`) is an Astro static site deployed to GitHub Pages. Its content pages are adapted from `docs/api.md`, `docs/architecture.md`, and the README. These are **not** auto-synced — when you change the markdown docs, update the corresponding MDX pages in `docs-site/src/pages/` and vice versa.
 
+**Documentation is part of the feature, not a follow-up.** Every change touching public API or build behavior must update all affected docs before the branch is considered complete:
+
+1. `SPEC.md` — the source of truth for the SDK design
+2. `docs/api.md` — config tables, builder signatures, CLI reference
+3. `docs/architecture.md` — pipeline steps, output structure
+4. `docs-site/src/pages/` — the corresponding MDX pages that mirror the above
+5. `README.md` — API signatures in the overview section
+
+The five locations are not auto-synced. When you add a field to a config table in `docs/api.md`, the same field must appear in `docs-site/src/pages/api/index.mdx`. When you change a build pipeline step in `docs/architecture.md`, the same change goes in `docs-site/src/pages/architecture/index.mdx`. Grep for the old text across all five locations to make sure nothing is missed.
+
 **Known issue:** Pages is private, so GitHub assigns a random `*.pages.github.io` domain and serves at root (no base path). The `contentful.github.io/skill-kit/` URL 301-redirects there. Fix by either making Pages public (serves at `contentful.github.io/skill-kit/`, re-add `base: '/skill-kit/'` to `astro.config.mjs`) or configuring a custom domain.
 
 ## Key references
