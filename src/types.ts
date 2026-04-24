@@ -84,6 +84,7 @@ export interface SubagentConfig {
   readonly kind: 'subagent';
   prompt: string;
   output: z.ZodType;
+  allowRecursion?: boolean;
 }
 
 export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | ChecklistConfig | SubagentConfig;
@@ -110,7 +111,7 @@ export interface ActBuilder {
   confirm(input: { message: string; destructive?: boolean; defaultAnswer?: 'yes' | 'no' }): ActSegment;
   plan(input: { summary: string; steps: string[] }): ActSegment;
   checklist(input: { create: Array<{ title: string; status: string }> }): ActSegment;
-  subagent(input: { prompt: string; output: z.ZodType }): ActSegment;
+  subagent(input: { prompt: string; output: z.ZodType; allowRecursion?: boolean }): ActSegment;
 }
 
 export type SystemBuilder = {

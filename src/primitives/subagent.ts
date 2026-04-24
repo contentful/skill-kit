@@ -5,6 +5,7 @@ import { definePrimitive } from './primitive.js';
 export interface SubagentInput {
   prompt: string;
   output: z.ZodType;
+  allowRecursion?: boolean;
 }
 
 export const subagentPrimitive = definePrimitive({
@@ -17,11 +18,13 @@ export const subagentPrimitive = definePrimitive({
       kind: 'subagent' as const,
       prompt: input.prompt,
       output: input.output,
+      allowRecursion: input.allowRecursion,
     });
   },
 
   render(config) {
-    return `<subagent>${config.prompt}</subagent>`;
+    const attr = config.allowRecursion ? '' : ' no-recurse="true"';
+    return `<subagent${attr}>${config.prompt}</subagent>`;
   },
 
   preambleRow(tool) {
@@ -29,8 +32,8 @@ export const subagentPrimitive = definePrimitive({
       tag: '`<subagent>`',
       tool: tool ?? '—',
       instruction: tool
-        ? 'Spawn isolated agent for enclosed task via the tool. Return its output.'
-        : 'Focus on enclosed task, return structured result, then continue.',
+        ? 'Spawn isolated agent for enclosed task via the tool. Return its output. If `no-recurse` is set, the subagent must not invoke this skill again.'
+        : 'Focus on enclosed task, return structured result, then continue. If `no-recurse` is set, do not invoke this skill again.',
     };
   },
 });
