@@ -39,6 +39,11 @@ export function preambleRows(resolved: ToolResolver): PreambleRow[] {
     { tag: '`<system>`', tool: '—', instruction: 'Behavioral directives. Follow as persona/tone guidelines.' },
     { tag: '`<prompt>`', tool: '—', instruction: 'Task instructions. The work to perform.' },
     ...ALL_PRIMITIVES.map((p) => p.preambleRow(resolved[p.tag])),
+    {
+      tag: '`<rendered>`',
+      tool: '—',
+      instruction: 'Pre-rendered output from the skill. Emit verbatim — no edits, no commentary.',
+    },
   ];
 }
 

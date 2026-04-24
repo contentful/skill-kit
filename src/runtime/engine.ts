@@ -258,7 +258,11 @@ export class WorkflowEngine {
       pieces.unshift(stepDef.config.act);
     }
 
-    const promptText = this.assemblePieces(pieces);
+    let promptText = this.assemblePieces(pieces);
+
+    if (promptCtx.rendered) {
+      promptText += `\n\n<rendered>\n${promptCtx.rendered}\n</rendered>`;
+    }
 
     let schema: unknown = null;
     try {

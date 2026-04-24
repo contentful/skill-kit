@@ -18,7 +18,5 @@ export function generatePreamble(handshake: Handshake): string {
 
   const tableRows = rows.map((r) => `| ${r.tag} | ${r.tool} | ${r.instruction} |`);
 
-  const footer = ['', 'When a step provides a "Rendered output" block, emit it verbatim.'];
-
-  return [...header, ...tableRows, ...footer].join('\n');
+  return [...header, ...tableRows].join('\n');
 }
