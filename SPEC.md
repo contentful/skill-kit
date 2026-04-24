@@ -1516,6 +1516,8 @@ The SDK emits:
 
 The preamble maps `<subagent>` to the host's tool (e.g., `Agent` on Claude Code, `task` on OpenCode) or instructs the model to focus on the enclosed task and return a structured result. On hosts without real agent isolation, the fallback still produces correct output but doesn't get the context-window benefit.
 
+**Recursion note:** Subagents have access to the host's full tool set, including the Skill tool. This means a subagent _can_ invoke the same skill recursively — or invoke sub-skills via the dispatcher. This is powerful (a skill can compose with itself) but also a source of unintended loops. Skill authors should be explicit in the subagent prompt about whether re-invoking the skill is intended. If it is not, say so in the prompt ("Do not invoke any skills"). If it is, design the sub-skill entry point to handle the recursive case.
+
 ### What we do _not_ abstract
 
 - **File I/O.** The model picks `Read`/`read`/`cat` correctly from prose like "open `src/foo.ts`".
