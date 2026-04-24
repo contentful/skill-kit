@@ -165,7 +165,7 @@ import setupSkill from './subskills/setup.js';
 
 skill({ name: 'contentful-help', entry: 'choose', ... })
   .step('choose', {
-    ask: askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
+    primitive: askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
     output: z.object({ choice: z.string() }),
     next: ({ output }) => `subskill:${output.choice}`,
   })
@@ -218,7 +218,7 @@ A playful interview that builds a developer trading card. Shows branching, `askU
 
 ```typescript
 .step('ask-role', {
-  ask: askUser({
+  primitive: askUser({
     type: 'structured',
     question: "What's your primary role?",
     options: [
@@ -291,13 +291,25 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 ### Primitives
 
-| Export                               | What it does                 |
+Use via `primitive:` on the step config (single-primitive shorthand) or `act` methods in prompt functions (composable):
+
+| Export / Method                      | What it does                 |
 | ------------------------------------ | ---------------------------- |
 | `askUser({ type, question, ... })`   | Structured or open question  |
 | `confirm({ message, destructive? })` | Binary yes/no approval       |
 | `plan({ summary, steps })`           | Show plan, wait for approval |
 | `checklist({ create })`              | Tracked task list            |
 | `subagent({ prompt, output })`       | Spawn isolated sub-agent     |
+
+Prompt functions receive `act` and `system` via `PromptContext` for composable prompt vocabulary:
+
+```typescript
+prompt: ({ stash, act, system }) => [
+  system`You are a game dev mentor.`,
+  act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+  prompt`Build the game. Update the checklist as you go.`,
+],
+```
 
 ### Testing
 
@@ -327,7 +339,7 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 
 ```typescript
 {
-  prompt: string | (ctx: PromptContext) => string,
+  prompt: string | PromptFn,                           // PromptFn returns string | PromptPiece | PromptPiece[]
   output: z.ZodType,
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
   render?: (ctx: PromptContext) => string,
@@ -337,27 +349,25 @@ skill-kit check <skill.ts>                          # Lint for portability issue
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  ask?: AskUserConfig,
-  confirm?: ConfirmConfig,
-  plan?: PlanConfig,
-  checklist?: ChecklistConfig,
-  subagent?: SubagentConfig,
+  primitive?: PrimitiveConfig,                         // shorthand for single-primitive steps
 }
 ```
 
 `PromptContext` fields available in dynamic prompts and render functions:
 
-| Field      | Description                                                 |
-| ---------- | ----------------------------------------------------------- |
-| `prev`     | Output of the previous step                                 |
-| `history`  | All prior step results                                      |
-| `getStep`  | Typed accessor: `getStep<T>('name')?.output`                |
-| `context`  | Global skill context (typed from `skill({ context: ... })`) |
-| `rendered` | Output of this step's `render()`                            |
-| `refs`     | Lazy loader for `references/` files                         |
-| `attempts` | How many times this step has been visited                   |
-| `host`     | Current host info                                           |
-| `stash`    | Accumulated stash data (typed from `skill({ stash: ... })`) |
+| Field      | Description                                                       |
+| ---------- | ----------------------------------------------------------------- |
+| `prev`     | Output of the previous step                                       |
+| `history`  | All prior step results                                            |
+| `getStep`  | Typed accessor: `getStep<T>('name')?.output`                      |
+| `context`  | Global skill context (typed from `skill({ context: ... })`)       |
+| `rendered` | Output of this step's `render()`                                  |
+| `refs`     | Lazy loader for `references/` files                               |
+| `attempts` | How many times this step has been visited                         |
+| `host`     | Current host info                                                 |
+| `stash`    | Accumulated stash data (typed from `skill({ stash: ... })`)       |
+| `act`      | Primitive directive builders (`askUser`, `confirm`, `plan`, etc.) |
+| `system`   | System segment tag/function for persona/frame                     |
 
 </details>
 

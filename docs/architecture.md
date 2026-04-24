@@ -132,7 +132,7 @@ The preamble is generated per host — different tool names, different emphasis,
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives, per-step prose also names the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
 
-**Per-step prose generation.** For any step using a primitive (`ask`, `confirm`, `plan`, `checklist`, `subagent`), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
+**Per-step prose generation.** For any step using a primitive (via `primitive` on the step config or `act` methods in the prompt function), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
 
 > _Use the AskUserQuestion tool to ask: "Which target?" Options (pass exactly these values): "production", "staging". Do not modify option text._
 
@@ -164,6 +164,18 @@ const generators = {
   // others fall through to defaultGenerator
 };
 ```
+
+### Prompt assembly pipeline
+
+When the engine builds a step's prompt, it follows this pipeline:
+
+1. **`resolvePromptValue`** — calls the prompt function (or returns a static string) to get the raw `PromptReturn`.
+2. **`normalizePieces`** — coerces the return value to an array of `PromptPiece` objects (strings, system segments, act segments).
+3. **`assemblePieces`** — iterates pieces in author order. For `act` segments, calls `renderPrimitive` to produce host-aware prose via the `ProseGenerator`. System segments and plain strings are passed through. All pieces are concatenated in the order written.
+
+For steps using the `primitive` shorthand (no prompt function), the SDK generates the full prompt by calling `renderPrimitive` directly with the primitive config.
+
+This pipeline replaces the earlier flow where `buildPrimitiveProse` generated primitive prose and prepended it to the prompt string. The new design gives authors control over where primitive directives appear relative to their own instructions.
 
 ### Why primitives matter
 

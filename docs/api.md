@@ -53,8 +53,10 @@ const openQuestion = step({
 
 // In the builder:
 .extend('ask-stack', openQuestion, {
-  ask: askUser({ type: 'open', question: "What's your tech stack?" }),
-  prompt: ({ stash }) => `Ask ${stash.name} about their tech stack.`,
+  prompt: ({ stash, act }) => [
+    act.askUser({ type: 'open', question: "What's your tech stack?" }),
+    `Ask ${stash.name} about their tech stack.`,
+  ],
   next: 'ask-hobby',
 })
 ```
@@ -75,7 +77,7 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 ```typescript
 {
-  prompt: string | (ctx: PromptContext) => string,
+  prompt: string | PromptFn,                               // string, or function returning PromptReturn
   output: z.ZodType,                                      // required
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },  // required
   render?: (ctx: PromptContext) => string,
@@ -85,29 +87,39 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  ask?: AskUserConfig,
-  confirm?: ConfirmConfig,
-  plan?: PlanConfig,
-  checklist?: ChecklistConfig,
-  subagent?: SubagentConfig,
+  primitive?: PrimitiveConfig,                             // shorthand for single-primitive steps
 }
 ```
+
+`PromptFn` is `(ctx: PromptContext) => PromptReturn`, where `PromptReturn = string | PromptPiece | PromptPiece[]`.
+
+A `PromptPiece` is one of:
+
+- A plain `string` — instructions
+- A `system` segment — persona/frame, created via the `system` template tag or `system(text)` function from PromptContext
+- An `act` segment — primitive directive, created via `act.askUser()`, `act.confirm()`, `act.plan()`, `act.checklist()`, `act.subagent()` from PromptContext
+
+When a prompt function returns an array, pieces are assembled in **author order**.
+
+The `primitive` field provides a shorthand for steps that consist entirely of one primitive with no additional prose. When set, no `prompt` is needed — the SDK generates the full prompt from the primitive config. This replaces the old `ask`, `confirm`, `plan`, `checklist`, and `subagent` step-level fields.
 
 ### PromptContext
 
 Available in dynamic `prompt` and `render` functions:
 
-| Field      | Type                                                    | Description                                    |
-| ---------- | ------------------------------------------------------- | ---------------------------------------------- |
-| `prev`     | `unknown`                                               | Output of the previous step                    |
-| `history`  | `readonly StepResult[]`                                 | All prior step results                         |
-| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result       |
-| `context`  | `TContext`                                              | Immutable skill context (typed from builder)   |
-| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present   |
-| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                 |
-| `attempts` | `number`                                                | How many times this step has been visited      |
-| `host`     | `Handshake`                                             | Current host info and available tools          |
-| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen) |
+| Field      | Type                                                    | Description                                                      |
+| ---------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
+| `prev`     | `unknown`                                               | Output of the previous step                                      |
+| `history`  | `readonly StepResult[]`                                 | All prior step results                                           |
+| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result                         |
+| `context`  | `TContext`                                              | Immutable skill context (typed from builder)                     |
+| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present                     |
+| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                                   |
+| `attempts` | `number`                                                | How many times this step has been visited                        |
+| `host`     | `Handshake`                                             | Current host info and available tools                            |
+| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen)                   |
+| `act`      | `ActContext`                                            | Primitive directive builders: `askUser`, `confirm`, `plan`, etc. |
+| `system`   | `SystemTag`                                             | System segment tag/function for persona/frame                    |
 
 ### Transitions
 
@@ -404,29 +416,40 @@ The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string
 
 ## Primitives
 
-Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions.
+Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions. Primitives can be used two ways:
+
+1. **Step-level `primitive` field** — shorthand for steps that consist entirely of one primitive with no additional prose.
+2. **`act` methods in prompt functions** — composable directives mixed with other prompt pieces.
 
 ### `askUser` — structured or open
 
 ```typescript
 import { askUser } from '@contentful/skill-kit';
 
-// Structured — fixed options, host uses best available tool
-ask: askUser({
-  type: 'structured',
-  question: 'Which environment?',
-  options: [
-    { value: 'production', label: 'Production', description: 'Live traffic' },
-    { value: 'staging', label: 'Staging' },
-  ],
-  multiSelect: false, // optional, defaults to false
-});
+// Step-level shorthand — simple single-primitive step
+.step('choose-env', {
+  primitive: askUser({
+    type: 'structured',
+    question: 'Which environment?',
+    options: [
+      { value: 'production', label: 'Production', description: 'Live traffic' },
+      { value: 'staging', label: 'Staging' },
+    ],
+    multiSelect: false, // optional, defaults to false
+  }),
+  output: z.object({ env: z.enum(['production', 'staging']) }),
+  next: 'deploy',
+})
 
-// Open — free-text conversation, never a structured tool
-ask: askUser({
-  type: 'open',
-  question: "What's your tech stack?",
-});
+// Composed with other prompt pieces via act
+.step('ask-stack', {
+  prompt: ({ act }) => [
+    act.askUser({ type: 'open', question: "What's your tech stack?" }),
+    `Get specific — frameworks, build tools, deployment targets.`,
+  ],
+  output: z.object({ answer: z.string() }),
+  next: 'done',
+})
 ```
 
 ### `confirm` — binary approval
@@ -434,11 +457,18 @@ ask: askUser({
 ```typescript
 import { confirm } from '@contentful/skill-kit';
 
-confirm: confirm({
+// Step-level shorthand
+primitive: confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
   destructive: true, // optional — adds warning in prose
   defaultAnswer: 'no', // optional — 'yes' or 'no'
 });
+
+// Or via act in a prompt function
+prompt: ({ act }) => [
+  act.confirm({ message: 'Delete .cache/?', destructive: true }),
+  `Explain what will happen before confirming.`,
+],
 ```
 
 Step output should include `{ approved: z.boolean() }`.
@@ -448,10 +478,14 @@ Step output should include `{ approved: z.boolean() }`.
 ```typescript
 import { plan } from '@contentful/skill-kit';
 
-plan: plan({
+// Step-level shorthand
+primitive: plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
 });
+
+// Or via act in a prompt function
+prompt: ({ act }) => act.plan({ summary: '...', steps: [...] }),
 ```
 
 ### `checklist` — tracked task list
@@ -459,12 +493,19 @@ plan: plan({
 ```typescript
 import { checklist } from '@contentful/skill-kit';
 
-checklist: checklist({
+// Step-level shorthand
+primitive: checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
   ],
 });
+
+// Or via act in a prompt function
+prompt: ({ stash, act }) => [
+  act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+  `Work through each task. Update the checklist as you go.`,
+],
 ```
 
 ### `subagent` — spawn isolated sub-agent
@@ -472,15 +513,39 @@ checklist: checklist({
 ```typescript
 import { subagent } from '@contentful/skill-kit';
 
-subagent: subagent({
+// Step-level shorthand
+primitive: subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
 });
+
+// Or via act in a prompt function
+prompt: ({ act }) => act.subagent({ prompt: 'Review the PR.', output: FindingsSchema }),
 ```
+
+### Composable prompt vocabulary
+
+Prompt functions can return `string | PromptPiece | PromptPiece[]`. When returning an array, pieces are assembled in author order:
+
+```typescript
+.step('build', {
+  prompt: ({ stash, act, system }) => [
+    system`You are a game dev mentor. Be methodical.`,
+    act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+    prompt`Build the game. Update the checklist as you go.`,
+  ],
+  output: z.object({ filesCreated: z.array(z.string()) }),
+  next: 'done',
+})
+```
+
+- **`system`** (from PromptContext) — creates a system segment for persona/frame. Template tag or function call.
+- **`act`** (from PromptContext) — provides `.askUser()`, `.confirm()`, `.plan()`, `.checklist()`, `.subagent()` methods that return act segments.
+- **plain strings** — instructions, including the existing `prompt` template tag.
 
 ### Host-aware verb mapping
 
-The SDK uses an abstract verb system. Step prose contains verbs; the preamble (sent once at session start) maps them to host-specific behavior:
+The SDK uses an abstract verb system. Primitive directives contain verbs; the preamble (sent once at session start) maps them to host-specific behavior:
 
 | Verb               | Claude Code                      | Codex                   | OpenCode                | Generic                 |
 | ------------------ | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
@@ -881,7 +946,7 @@ export default skill({
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
-    ask: askUser({
+    primitive: askUser({
       type: 'structured',
       question: 'Which environment?',
       options: [
@@ -913,7 +978,7 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `askUser` structured to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `primitive: askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
 
 2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
 

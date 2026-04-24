@@ -216,7 +216,7 @@ step({
 
 ### Dynamic
 
-A function of the workflow context, returning a string.
+A function of the workflow context, returning `string | PromptPiece | PromptPiece[]`. Plain strings are instructions. `system` segments set persona/frame. `act` segments inject primitive directives (see [Composable prompt vocabulary](#composable-prompt-vocabulary) below).
 
 ```typescript
 step({
@@ -241,6 +241,8 @@ Fields available in the prompt function:
 | `rendered` | Output of this step's `render()`, if defined               |
 | `refs`     | Lazy loader for reference files (§5)                       |
 | `attempts` | How many times this step has been visited (for retries)    |
+| `act`      | Primitive directive builders (see §2.1)                    |
+| `system`   | System segment tag/function for persona/frame (see §2.1)   |
 
 ### Fragments (partials)
 
@@ -288,6 +290,54 @@ step({
 Fragments are named (first arg) so tooling can track usage, detect duplication, and lint for drift.
 
 `prompt` is the only bit of sugar. It exists because plain template literals in indented TS produce ugly whitespace; everything else is standard functions.
+
+### Composable prompt vocabulary
+
+Prompt functions can return `string | PromptPiece | PromptPiece[]`. A `PromptPiece` is either a plain string (instructions), a `system` segment (persona/frame), or an `act` segment (primitive directive). When a prompt returns an array, the SDK assembles pieces in **author order** — segments appear in the output exactly as written.
+
+The `act` and `system` helpers are injected via `PromptContext`, not imported. Authors destructure them from the prompt function argument:
+
+```typescript
+.step('build', {
+  prompt: ({ stash, act, system }) => [
+    system`You are a game dev mentor. Be methodical.`,
+    act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+    prompt`Build the game. Update the checklist as you go.`,
+  ],
+  output: z.object({ filesCreated: z.array(z.string()) }),
+  next: 'done',
+})
+```
+
+**`system`** — creates a system segment for persona or framing. Used as a template tag (`system\`...\``) or called as a function (`system('...')`).
+
+**`act`** — provides methods for each primitive:
+
+- `act.askUser(config)` — structured or open question directive
+- `act.confirm(config)` — binary approval directive
+- `act.plan(config)` — plan presentation directive
+- `act.checklist(config)` — tracked task list directive
+- `act.subagent(config)` — sub-agent spawn directive
+
+Each `act` method returns an `act` segment with the primitive's host-aware prose. The returned `PromptPiece` is opaque to authors — the SDK renders it during prompt assembly.
+
+**Assembly** — `resolvePromptValue` calls the prompt function, `normalizePieces` coerces the return to an array of `PromptPiece`, and `assemblePieces` renders each piece (calling `renderPrimitive` for `act` segments) and concatenates them in order. This replaces the old flow where `buildPrimitiveProse` prepended primitive prose to the prompt.
+
+The `PromptFn` return type is `PromptReturn` (= `string | PromptPiece | PromptPiece[]`).
+
+#### Simple single-primitive steps
+
+For steps that consist entirely of one primitive with no additional prose, the step-level `primitive` field provides a shorthand:
+
+```typescript
+.step('choose', {
+  primitive: askUser({ type: 'structured', question: '...', options: [...] }),
+  output: z.object({ choice: z.string() }),
+  next: 'next-step',
+})
+```
+
+The `primitive` field replaces the old `ask`, `confirm`, `plan`, `checklist`, and `subagent` step-level fields. When `primitive` is set, no `prompt` is needed — the SDK generates the full prompt from the primitive config.
 
 ---
 
@@ -1239,7 +1289,7 @@ The preamble is generated per host — different tool names, different emphasis,
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), step-level prose should still name the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
 
-**Per-step prose.** For any step using a primitive, the SDK generates prose calibrated for the current host. On Claude Code, an `askUser` step emits prose like:
+**Per-step prose.** For any step using a primitive (via `primitive` on the step config or `act` methods in the prompt function), the SDK generates prose calibrated for the current host. On Claude Code, an `askUser` step emits prose like:
 
 > _Use the AskUserQuestion tool to ask the user: "Which deployment target?" Options (pass exactly these values): "production", "staging", "local". Do not modify option text. Do not add options. Expect exactly one answer._
 
@@ -1280,9 +1330,9 @@ Each primitive below has a prose-generation table indicating what the SDK emits 
 A single primitive with two modes, discriminated by `type`:
 
 ```typescript
-// Structured — presents fixed options via host-specific tool
+// Structured — presents fixed options via host-specific tool (simple shorthand)
 .step("choose-target", {
-  ask: askUser({
+  primitive: askUser({
     type: "structured",
     question: "Which deployment target?",
     options: [
@@ -1294,10 +1344,12 @@ A single primitive with two modes, discriminated by `type`:
   next: ({ output }) => `deploy-${output.target}`,
 })
 
-// Open — free-text conversation, never a structured tool
+// Open — composed with additional instructions via act
 .step("ask-stack", {
-  ask: askUser({ type: "open", question: "What's your go-to tech stack?" }),
-  prompt: "Ask about their stack — get specific, not generic.",
+  prompt: ({ act }) => [
+    act.askUser({ type: "open", question: "What's your go-to tech stack?" }),
+    prompt`Ask about their stack — get specific, not generic.`,
+  ],
   output: z.object({ answer: z.string() }),
   next: "done",
 })
@@ -1316,11 +1368,11 @@ The `output` schema is the contract regardless of host or mode. Downstream steps
 
 ```typescript
 step({
-  confirm: {
+  primitive: confirm({
     message: 'This will delete 47 files in .cache/. Continue?',
     destructive: true,
     defaultAnswer: 'no',
-  },
+  }),
   output: z.object({ approved: z.boolean() }),
   next: ({ output }) => (output.approved ? 'proceed' : 'abort'),
 });
@@ -1339,7 +1391,7 @@ Distinct from `askUser` because destructive-op confirmation needs stronger defau
 
 ```typescript
 step({
-  plan: {
+  primitive: plan({
     summary: 'Migrate auth from session cookies to JWTs',
     steps: [
       'Add JWT signing and verification helpers',
@@ -1348,7 +1400,7 @@ step({
       'Update middleware to accept both',
       'Migration script for active sessions',
     ],
-  },
+  }),
   output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
   next: ({ output }) => (output.approved ? 'execute' : 'revise'),
 });
@@ -1367,9 +1419,9 @@ This is where UX degrades most visibly — Claude Code gets a first-class plan-m
 
 ```typescript
 step({
-  checklist: {
+  primitive: checklist({
     create: prev.remediations.map((r) => ({ title: r.action, status: 'pending' })),
-  },
+  }),
   next: 'execute-tasks',
 });
 ```
@@ -1389,10 +1441,10 @@ Already covered by `render` + verbatim-paste in §4. Sits in the capability syst
 
 ```typescript
 step({
-  subagent: {
+  primitive: subagent({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
-  },
+  }),
   next: 'incorporate-findings',
 });
 ```
@@ -1498,7 +1550,7 @@ Author writes:
 
 ```typescript
 step({
-  ask: askUser({
+  primitive: askUser({
     question: 'Which deployment target?',
     options: [
       { value: 'production', label: 'Production' },
