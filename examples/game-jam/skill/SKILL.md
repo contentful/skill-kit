@@ -1,8 +1,8 @@
 ---
 name: game-jam
-description: "A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial"
+description: 'A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial'
 metadata:
-  version: "1.0.0"
+  version: '1.0.0'
 ---
 
 # game-jam
@@ -51,6 +51,7 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -125,7 +126,7 @@ contains the skill's result. Present it to the user.
 - **implementation-plan**: (dynamic)
 - **revise-plan**: (dynamic)
 - **build**: (dynamic)
-- **generate-theme**: (dynamic)
+- **generate-readme**: (dynamic)
 - **final-review**: (dynamic)
 - **polish**: (dynamic)
 - **summary**: Present the rendered summary card verbatim.

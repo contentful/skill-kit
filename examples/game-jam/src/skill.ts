@@ -51,7 +51,7 @@ export default skill({
     variant: z.string(),
     renderer: z.string(),
     researchSummary: z.string(),
-    themeCss: z.string(),
+    readme: z.string(),
   }),
 })
   // --- Choose variant (askUser structured) ---
@@ -161,7 +161,7 @@ export default skill({
           { title: 'Keyboard controls', status: 'pending' },
           { title: 'Scoring and levels', status: 'pending' },
           { title: `${stash.renderer} renderer and game loop`, status: 'pending' },
-          { title: 'Theme and polish', status: 'pending' },
+          { title: 'Visual polish', status: 'pending' },
         ],
       }),
 
@@ -172,20 +172,21 @@ export default skill({
       `,
     ],
     output: z.object({ filesCreated: z.array(z.string()), summary: z.string() }),
-    next: 'generate-theme',
+    next: 'generate-readme',
   })
 
-  // --- Generate theme (subagent) ---
-  .step('generate-theme', {
+  // --- Generate README (subagent) ---
+  .step('generate-readme', {
     prompt: ({ stash }) => prompt`
       The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
     `,
     act: act.subagent({
-      prompt: 'Generate a CSS theme with color scheme, fonts, and animations. Return the CSS as a string.',
-      output: z.object({ css: z.string() }),
+      prompt:
+        'Write a README.md for the game. Include: project title, description, controls, how to run, and credits. Return the markdown as a string.',
+      output: z.object({ readme: z.string() }),
     }),
-    output: z.object({ css: z.string() }),
-    stash: ({ output }) => ({ themeCss: output.css }),
+    output: z.object({ readme: z.string() }),
+    stash: ({ output }) => ({ readme: output.readme }),
     next: 'final-review',
   })
 
@@ -225,7 +226,7 @@ export default skill({
             { text: 'Keyboard controls', done: true },
             { text: 'Scoring and levels', done: true },
             { text: 'Renderer and game loop', done: true },
-            { text: 'Theme and polish', done: true },
+            { text: 'README', done: true },
           ]),
         ].join('\n'),
       ),
