@@ -113,7 +113,6 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     prompt: ({ stash }) =>
       prompt`
         ${playfulTone}
@@ -122,11 +121,11 @@ export default skill({
         Ask what their go-to tech stack is. Languages, frameworks, the works.
         Get specific — "JavaScript" is boring, "TypeScript + Bun + Zod" is a personality.
       `,
+    act: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     next: 'ask-hobby',
   })
 
   .extend('ask-tools', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -134,11 +133,11 @@ export default skill({
         A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?
         Bonus points if you can get them to admit to a guilty-pleasure tool.
       `,
+    act: act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
     next: 'ask-hobby',
   })
 
   .extend('ask-team-size', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'Tell me about your team.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -146,11 +145,11 @@ export default skill({
         A manager! Ask about their team — how big, what they work on, and
         what's the weirdest thing that's happened in a standup.
       `,
+    act: act.askUser({ type: 'open', question: 'Tell me about your team.' }),
     next: 'ask-hobby',
   })
 
   .extend('ask-specialty', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -158,17 +157,18 @@ export default skill({
         Someone who defies categories — intriguing. Ask them to describe
         what they do in exactly one sentence. Dare them to make it interesting.
       `,
+    act: act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     next: 'ask-hobby',
   })
 
   .step('ask-hobby', {
-    act: act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     prompt: ({ attempts }) =>
       prompt`
         ${playfulTone}
 
         ${attempts === 0 ? "Now for the important stuff. Ask about hobbies, side projects, or weird talents. The stuff that doesn't go on a résumé." : "Nice! Ask if they have another hobby or interest they want on their card. (Or they can say they're done.)"}
       `,
+    act: act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     output: z.object({
       hobby: z.string(),
       wantsMore: z.boolean(),

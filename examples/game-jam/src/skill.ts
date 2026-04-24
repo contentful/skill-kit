@@ -80,8 +80,8 @@ export default skill({
 
   // --- Step 3: Name the game (askUser open) ---
   .step('name-game', {
-    act: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     prompt: prompt`The user picked the variant already. Now get a creative name for their game.`,
+    act: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
     next: 'choose-renderer',
@@ -105,24 +105,19 @@ export default skill({
 
   // --- Step 5: Design review (confirm) ---
   .step('design-review', {
+    prompt: ({ stash }) =>
+      prompt`Summarize the design: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering. Ask if they're ready to proceed.`,
     act: act.confirm({
       message: 'Design choices are locked in. Ready to start planning the build?',
       destructive: false,
       defaultAnswer: 'yes',
     }),
-    prompt: ({ stash }) =>
-      prompt`Summarize the design: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering. Ask if they're ready to proceed.`,
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'research-renderer' : 'choose-variant'),
   })
 
   // --- Step 6: Research renderer (subagent) ---
   .step('research-renderer', {
-    act: act.subagent({
-      prompt:
-        'Research best practices for the chosen rendering approach for a Tetris game. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
-      output: z.object({ summary: z.string() }),
-    }),
     prompt: ({ stash, refs }) =>
       prompt`Research best practices for building a Tetris game with ${stash.renderer} rendering.
 
@@ -130,6 +125,11 @@ Reference material:
 ${refs.load('tetris-patterns.md')}
 
 Return a focused summary of key implementation tips.`,
+    act: act.subagent({
+      prompt:
+        'Research best practices for the chosen rendering approach for a Tetris game. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
+      output: z.object({ summary: z.string() }),
+    }),
     output: z.object({ summary: z.string() }),
     stash: ({ output }) => ({ researchSummary: output.summary }),
     next: 'implementation-plan',
@@ -157,8 +157,8 @@ Return a focused summary of key implementation tips.`,
 
   // --- Step 7b: Revise plan (askUser open, loops back) ---
   .extend('revise-plan', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
     prompt: prompt`The user wants to revise the plan. Ask what they'd like to change.`,
+    act: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
     next: 'implementation-plan',
   })
 
@@ -189,13 +189,13 @@ Use the research: ${stash.researchSummary}`,
 
   // --- Step 10: Generate theme (subagent) ---
   .step('generate-theme', {
+    prompt: ({ stash }) =>
+      prompt`Generate a CSS theme for a ${stash.variant}-style Tetris game called "${stash.name}". Make it visually distinctive.`,
     act: act.subagent({
       prompt:
         'Generate a CSS theme for the game. Include color scheme, fonts, and animations. Return the CSS as a string.',
       output: z.object({ css: z.string() }),
     }),
-    prompt: ({ stash }) =>
-      prompt`Generate a CSS theme for a ${stash.variant}-style Tetris game called "${stash.name}". Make it visually distinctive.`,
     output: z.object({ css: z.string() }),
     stash: ({ output }) => ({ themeCss: output.css }),
     next: 'final-review',
@@ -214,8 +214,8 @@ Use the research: ${stash.researchSummary}`,
 
   // --- Step 11b: Polish loop (askUser open, maxVisits) ---
   .extend('polish', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
     prompt: prompt`The user wants to polish the game. Ask what they'd like to improve.`,
+    act: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
     next: 'final-review',
     maxVisits: 2,
     onMaxVisits: 'summary',
