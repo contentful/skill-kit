@@ -200,13 +200,13 @@ The SDK supports two invocation modes. **Session mode** (recommended) writes pro
 
 The SDK renders primitive directives as XML tags. The preamble (sent on first response) maps each tag to the host's tool via a markdown table:
 
-| Tag           | Description                  | Example tool (Claude Code) |
-| ------------- | ---------------------------- | -------------------------- |
-| `<ask-user>`  | Structured or open question  | `AskUserQuestion`          |
-| `<confirm>`   | Binary yes/no confirmation   | `AskUserQuestion`          |
-| `<plan>`      | Plan presentation with steps | `EnterPlanMode`            |
-| `<checklist>` | Tracked task list            | `TaskCreate`               |
-| `<subagent>`  | Sub-agent delegation         | `Agent`                    |
+| Tag           | Description                               | Example tool (Claude Code) |
+| ------------- | ----------------------------------------- | -------------------------- |
+| `<ask-user>`  | Structured or open question               | `AskUserQuestion`          |
+| `<confirm>`   | Binary yes/no confirmation                | `AskUserQuestion`          |
+| `<plan>`      | Plan presentation with steps              | `EnterPlanMode`            |
+| `<checklist>` | Tracked task list                         | `TaskCreate`               |
+| `<subagent>`  | Sub-agent delegation (`no-recurse` guard) | `Agent`                    |
 
 No tool names in the XML. The preamble handles the mapping. Same skill, same XML, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full tag table and how the preamble is generated.
 
@@ -295,13 +295,13 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 All primitive creation goes through the `act` namespace (`import { act } from '@contentful/skill-kit'`). Use via `act:` on the step config (single-primitive shorthand) or `act` methods in prompt functions (composable):
 
-| Method                                   | What it does                 |
-| ---------------------------------------- | ---------------------------- |
-| `act.askUser({ type, question, ... })`   | Structured or open question  |
-| `act.confirm({ message, destructive? })` | Binary yes/no approval       |
-| `act.plan({ summary, steps })`           | Show plan, wait for approval |
-| `act.checklist({ create })`              | Tracked task list            |
-| `act.subagent({ prompt, output })`       | Spawn isolated sub-agent     |
+| Method                                              | What it does                                          |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `act.askUser({ type, question, ... })`              | Structured or open question                           |
+| `act.confirm({ message, destructive? })`            | Binary yes/no approval                                |
+| `act.plan({ summary, steps })`                      | Show plan, wait for approval                          |
+| `act.checklist({ create })`                         | Tracked task list                                     |
+| `act.subagent({ prompt, output, allowRecursion? })` | Spawn isolated sub-agent (recursion guard by default) |
 
 Prompt functions receive `act` and `system` via `PromptContext` for composable prompt vocabulary:
 

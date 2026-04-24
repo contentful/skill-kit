@@ -502,6 +502,28 @@ act: act.subagent({
 }),
 ```
 
+#### `SubagentConfig`
+
+| Field            | Type        | Required | Description                                                                                                                                                                                     |
+| ---------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | `string`    | yes      | Task description for the sub-agent                                                                                                                                                              |
+| `output`         | `z.ZodType` | yes      | Schema the sub-agent's result must satisfy                                                                                                                                                      |
+| `allowRecursion` | `boolean`   | no       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
+
+Default (recursion blocked):
+
+```xml
+<subagent no-recurse="my-skill">Review the PR for security issues.</subagent>
+```
+
+With `allowRecursion: true`:
+
+```xml
+<subagent>Run the doctor sub-skill.</subagent>
+```
+
+The preamble instruction for `<subagent>` tells the model: if `no-recurse` is set, the subagent must not invoke the skill named in the attribute.
+
 ### Composable Prompt Vocabulary
 
 When a prompt function needs to mix primitives with other content or derive primitive config dynamically, use the `act` and `system` builders available on `PromptContext`:
@@ -535,22 +557,22 @@ The engine assembles pieces in author order: `resolvePromptValue` evaluates the 
 
 ### XML output format
 
-All prompt segments are emitted as XML tags in the output: `<system>`, `<prompt>`, `<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`, `<rendered>`. No tool names appear in the XML. The preamble (sent once at session start) maps tags to host-specific tools.
+All prompt segments are emitted as XML tags in the output: `<system>`, `<prompt>`, `<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`, `<rendered>`. No tool names appear in the XML. The `<subagent>` tag may include a `no-recurse` attribute naming the skill that the subagent must not invoke (see [`allowRecursion`](#subagentconfig) above). The preamble (sent once at session start) maps tags to host-specific tools.
 
 The preamble is a markdown table with columns: **Tag**, **Tool**, **How to use**. Each primitive's `preambleRow()` method generates its row, with the tool column populated by `resolveTools()` which matches the primitive's tool list against the host's available tools.
 
 Example preamble table (Claude Code):
 
-| Tag           | Tool            | How to use                                                                                                                     |
-| ------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `<system>`    | —               | Behavioral directives. Follow as persona/tone guidelines.                                                                      |
-| `<prompt>`    | —               | Task instructions. The work to perform.                                                                                        |
-| `<ask-user>`  | AskUserQuestion | Present `<option>` children as choices via the tool. For type="open", ask conversationally. Return selected value(s) verbatim. |
-| `<confirm>`   | AskUserQuestion | Yes/no via the tool. Respect `default` attribute. If `destructive`, emphasize consequences.                                    |
-| `<plan>`      | EnterPlanMode   | Present summary + `<step>` children via the tool. Wait for approval.                                                           |
-| `<checklist>` | TaskCreate      | Register `<item>` children via the tool. Update status as each completes.                                                      |
-| `<subagent>`  | Agent           | Spawn isolated agent for enclosed task via the tool. Return its output.                                                        |
-| `<rendered>`  | —               | Pre-rendered output from the skill. Emit verbatim — no edits, no commentary.                                                   |
+| Tag           | Tool            | How to use                                                                                                                                    |
+| ------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<system>`    | —               | Behavioral directives. Follow as persona/tone guidelines.                                                                                     |
+| `<prompt>`    | —               | Task instructions. The work to perform.                                                                                                       |
+| `<ask-user>`  | AskUserQuestion | Present `<option>` children as choices via the tool. For type="open", ask conversationally. Return selected value(s) verbatim.                |
+| `<confirm>`   | AskUserQuestion | Yes/no via the tool. Respect `default` attribute. If `destructive`, emphasize consequences.                                                   |
+| `<plan>`      | EnterPlanMode   | Present summary + `<step>` children via the tool. Wait for approval.                                                                          |
+| `<checklist>` | TaskCreate      | Register `<item>` children via the tool. Update status as each completes.                                                                     |
+| `<subagent>`  | Agent           | Spawn isolated agent for enclosed task via the tool. If `no-recurse` is set, the subagent must not invoke the named skill. Return its output. |
+| `<rendered>`  | —               | Pre-rendered output from the skill. Emit verbatim — no edits, no commentary.                                                                  |
 
 When no matching tool is available, the tool column is `—` and the instruction falls back to prose-only behavior (e.g., numbered lists for `<plan>`, markdown checklists for `<checklist>`).
 
@@ -563,18 +585,24 @@ Each primitive is defined with `definePrimitive()`:
 ```typescript
 import { definePrimitive } from './primitive.js';
 
+interface RenderContext {
+  skillName?: string;
+}
+
 definePrimitive({
   tag: string,                                    // XML tag name (e.g., 'ask-user')
   tools: readonly string[],                       // tool names to match against host inventory
   create: (input: TInput) => TConfig,             // normalize author input to frozen config
-  render: (config: TConfig) => string,            // produce XML output
-  preambleRow: (tool: string | undefined) => PreambleRow,  // generate preamble table row
+  render: (config: TConfig, ctx?: RenderContext) => string,  // produce XML output
+  preambleRow: (tool: string | undefined) => PreambleRow,    // generate preamble table row
 });
 ```
 
+The `render` method accepts an optional `RenderContext`. The engine passes `{ skillName }` when calling `renderPrimitive`, allowing primitives like `subagent` to emit the skill name in the `no-recurse` attribute.
+
 The registry (`src/primitives/registry.ts`) exposes two functions:
 
-- **`renderPrimitive(config)`** — renders any `PrimitiveConfig` to its XML tag output.
+- **`renderPrimitive(config, ctx?)`** — renders any `PrimitiveConfig` to its XML tag output, forwarding an optional `RenderContext` (e.g., `{ skillName }`).
 - **`resolveTools(handshake)`** — matches each primitive's tool list against the host's available tools. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
 ---

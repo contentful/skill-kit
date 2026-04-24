@@ -103,16 +103,17 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 ### CLI Flags
 
-| Flag            | Required     | Description                                                                  |
-| --------------- | ------------ | ---------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                     |
-| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode   |
-| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`       |
-| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic`               |
-| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                  |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                      |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode     |
+| Flag            | Required     | Description                                                                                                                                                                  |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                     |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                   |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                 |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                       |
+| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic`                                                                                                               |
+| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). Only needed on `start` — session mode stores tools in the session header and reads them back on `advance` |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                                  |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                      |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                                     |
 
 ### Why stateless is still supported
 
@@ -162,18 +163,24 @@ The preamble tells the model how to handle `<ask-user>` — on Claude Code, use 
 Each primitive is defined with `definePrimitive()` (`src/primitives/primitive.ts`):
 
 ```typescript
+interface RenderContext {
+  skillName?: string;
+}
+
 interface Primitive<TInput, TConfig, TTools> {
   readonly tag: string; // XML tag name (e.g., 'ask-user')
   readonly tools: TTools; // tool names to match against host
   create(input: TInput): TConfig;
-  render(config: TConfig): string;
+  render(config: TConfig, ctx?: RenderContext): string;
   preambleRow(tool: string | undefined): PreambleRow;
 }
 ```
 
+The `render` method accepts an optional `RenderContext`. The engine passes `{ skillName }` when calling `renderPrimitive`, allowing primitives like `subagent` to emit the skill name in the `no-recurse` attribute.
+
 The registry (`src/primitives/registry.ts`) manages all five primitives and exposes two functions:
 
-- **`renderPrimitive(config)`** — dispatches to the correct primitive's `render()` method by `config.kind`. Returns the XML string.
+- **`renderPrimitive(config, ctx?)`** — dispatches to the correct primitive's `render()` method by `config.kind`, forwarding an optional `RenderContext` (e.g., `{ skillName }`). Returns the XML string.
 - **`resolveTools(handshake)`** — for each primitive, finds the first tool from its `tools` list that appears in `handshake.toolsAvailable` (explicit), falling back to the host registry. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
 Tool resolution uses a two-pass strategy: first check the handshake's explicit `toolsAvailable` list, then fall back to the `HOST_REGISTRY` for the given host name. This means a host can advertise tools the SDK doesn't know about, and the SDK will still match them if a primitive lists that tool name.
