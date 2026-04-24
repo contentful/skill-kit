@@ -1,4 +1,4 @@
-import { skill, step, z, action, fragment, prompt, render, askUser, confirm, subagent } from '@contentful/skill-kit';
+import { skill, step, z, action, fragment, prompt, render, act } from '@contentful/skill-kit';
 
 // --- Fragments ---
 
@@ -70,7 +70,7 @@ export default skill({
 
   // --- Step 2: Choose variant (askUser structured) ---
   .step('choose-variant', {
-    primitive: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'What style of Tetris do you want to build?',
       options: [
@@ -86,7 +86,7 @@ export default skill({
 
   // --- Step 3: Name the game (askUser open) ---
   .step('name-game', {
-    primitive: askUser({ type: 'open', question: 'What should we call your game?' }),
+    act: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     prompt: prompt`${gameMasterTone} The user picked the variant already. Now get a creative name for their game.`,
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
@@ -95,7 +95,7 @@ export default skill({
 
   // --- Step 4: Choose renderer (askUser structured) ---
   .step('choose-renderer', {
-    primitive: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'Which rendering approach do you want to use?',
       options: [
@@ -111,7 +111,7 @@ export default skill({
 
   // --- Step 5: Design review (confirm) ---
   .step('design-review', {
-    primitive: confirm({
+    act: act.confirm({
       message: 'Design choices are locked in. Ready to start planning the build?',
       destructive: false,
       defaultAnswer: 'yes',
@@ -124,7 +124,7 @@ export default skill({
 
   // --- Step 6: Research renderer (subagent) ---
   .step('research-renderer', {
-    primitive: subagent({
+    act: act.subagent({
       prompt:
         'Research best practices for the chosen rendering approach for a Tetris game. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
       output: z.object({ summary: z.string() }),
@@ -163,7 +163,7 @@ Return a focused summary of key implementation tips.`,
 
   // --- Step 7b: Revise plan (askUser open, loops back) ---
   .extend('revise-plan', openQuestionStep, {
-    primitive: askUser({ type: 'open', question: 'What should we change about the plan?' }),
+    act: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
     prompt: prompt`${gameMasterTone} The user wants to revise the plan. Ask what they'd like to change.`,
     next: 'implementation-plan',
   })
@@ -195,7 +195,7 @@ Use the research: ${stash.researchSummary}`,
 
   // --- Step 10: Generate theme (subagent) ---
   .step('generate-theme', {
-    primitive: subagent({
+    act: act.subagent({
       prompt:
         'Generate a CSS theme for the game. Include color scheme, fonts, and animations. Return the CSS as a string.',
       output: z.object({ css: z.string() }),
@@ -209,7 +209,7 @@ Use the research: ${stash.researchSummary}`,
 
   // --- Step 11: Final review (confirm) ---
   .step('final-review', {
-    primitive: confirm({
+    act: act.confirm({
       message: 'The game is built! Want to add any finishing touches?',
       destructive: false,
       defaultAnswer: 'no',
@@ -220,7 +220,7 @@ Use the research: ${stash.researchSummary}`,
 
   // --- Step 11b: Polish loop (askUser open, maxVisits) ---
   .extend('polish', openQuestionStep, {
-    primitive: askUser({ type: 'open', question: 'What would you like to polish or change?' }),
+    act: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
     prompt: prompt`${gameMasterTone} The user wants to polish the game. Ask what they'd like to improve.`,
     next: 'final-review',
     maxVisits: 2,

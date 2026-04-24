@@ -256,8 +256,8 @@ export class WorkflowEngine {
     const raw = this.resolvePromptValue(stepDef, promptCtx);
     const pieces = normalizePieces(raw);
 
-    if (stepDef.config.primitive) {
-      pieces.unshift({ kind: 'act' as const, primitive: stepDef.config.primitive });
+    if (stepDef.config.act) {
+      pieces.unshift(stepDef.config.act);
     }
 
     const promptText = this.assemblePieces(pieces);

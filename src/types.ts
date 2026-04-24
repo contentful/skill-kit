@@ -172,7 +172,7 @@ export interface StepConfig<
   afterAction?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
-  primitive?: PrimitiveConfig;
+  act?: ActSegment;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

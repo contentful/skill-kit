@@ -1,4 +1,4 @@
-import { skill, z, action, askUser } from '@contentful/skill-kit';
+import { skill, z, action, act } from '@contentful/skill-kit';
 
 const checkEnv = action({
   name: 'check-env',
@@ -49,7 +49,7 @@ export default skill({
   })
 
   .step('configure', {
-    primitive: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'What would you like to configure?',
       options: [
