@@ -3,34 +3,33 @@ import assert from 'node:assert/strict';
 import { generatePreamble } from './preamble.js';
 import type { Handshake } from '../types.js';
 
-test('preamble for Claude Code maps ASK_STRUCTURED to AskUserQuestion', () => {
+test('preamble for Claude Code includes tool names in table', () => {
   const host: Handshake = {
     host: 'claude-code',
     toolsAvailable: ['AskUserQuestion', 'EnterPlanMode', 'TaskCreate', 'Agent'],
   };
   const result = generatePreamble(host);
 
-  assert.ok(result.includes('ASK_STRUCTURED'));
+  assert.ok(result.includes('| Tag |'));
   assert.ok(result.includes('AskUserQuestion'));
-  assert.ok(result.includes('ASK_FREEFORM'));
-  assert.ok(result.includes('PRESENT_PLAN'));
   assert.ok(result.includes('EnterPlanMode'));
-  assert.ok(result.includes('CREATE_CHECKLIST'));
   assert.ok(result.includes('TaskCreate'));
-  assert.ok(result.includes('SPAWN_SUBAGENT'));
-  assert.ok(result.includes('Agent tool'));
+  assert.ok(result.includes('Agent'));
+  assert.ok(result.includes('<ask-user>'));
+  assert.ok(result.includes('<confirm>'));
+  assert.ok(result.includes('<plan>'));
+  assert.ok(result.includes('<checklist>'));
+  assert.ok(result.includes('<subagent>'));
 });
 
-test('preamble for generic host uses prose fallbacks', () => {
+test('preamble for generic host shows dashes for tools', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
   const result = generatePreamble(host);
 
-  assert.ok(result.includes('ASK_STRUCTURED'));
+  assert.ok(result.includes('| Tag |'));
   assert.ok(!result.includes('AskUserQuestion'));
-  assert.ok(result.includes('numbered list'));
-  assert.ok(result.includes('ASK_FREEFORM'));
-  assert.ok(result.includes('PRESENT_PLAN'));
   assert.ok(!result.includes('EnterPlanMode'));
+  assert.ok(result.includes('numbered list'));
 });
 
 test('preamble for Cline maps to Cline tools', () => {
