@@ -7,7 +7,6 @@ test('happy path: classic + canvas, approve plan, no polish', async () => {
   const result = await runSkill(skill, {
     context: { difficulty: 'beginner' },
     model: mockModel({
-      welcome: { excited: true },
       'choose-variant': { variant: 'classic' },
       'name-game': { name: 'RetroBlocks' },
       'choose-renderer': { renderer: 'canvas' },
@@ -22,7 +21,6 @@ test('happy path: classic + canvas, approve plan, no polish', async () => {
   });
 
   assert.deepEqual(result.path, [
-    'welcome',
     'choose-variant',
     'name-game',
     'choose-renderer',
@@ -39,7 +37,6 @@ test('happy path: classic + canvas, approve plan, no polish', async () => {
 test('modern + dom, revise plan once, one polish pass', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
-      welcome: { excited: true },
       'choose-variant': { variant: 'modern' },
       'name-game': { name: 'NeonDrop' },
       'choose-renderer': { renderer: 'dom' },
@@ -63,7 +60,6 @@ test('modern + dom, revise plan once, one polish pass', async () => {
 test('design-review rejection loops back to choose-variant', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
-      welcome: { excited: true },
       'choose-variant': [{ variant: 'puzzle' }, { variant: 'classic' }],
       'name-game': [{ name: 'PuzzleTris' }, { name: 'ClassicFall' }],
       'choose-renderer': [{ renderer: 'webgl' }, { renderer: 'canvas' }],

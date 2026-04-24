@@ -38,7 +38,7 @@ export default skill({
     'A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. ' +
     'Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent.',
   triggers: ['game jam', 'build a game', 'tetris', 'game tutorial'],
-  entry: 'welcome',
+  entry: 'choose-variant',
   system:
     "You're a friendly game development mentor guiding someone through building their first Tetris game. Be encouraging and practical.",
 
@@ -54,15 +54,7 @@ export default skill({
     themeCss: z.string(),
   }),
 })
-  // --- Step 1: Welcome ---
-  .step('welcome', {
-    prompt: ({ context }) =>
-      prompt`Welcome the user to the game jam! They're at ${context.difficulty} level. Ask them what kind of Tetris game they want to build.`,
-    output: z.object({ excited: z.boolean() }),
-    next: 'choose-variant',
-  })
-
-  // --- Step 2: Choose variant (askUser structured) ---
+  // --- Choose variant (askUser structured) ---
   .step('choose-variant', {
     act: act.askUser({
       type: 'structured',
@@ -78,16 +70,15 @@ export default skill({
     next: 'name-game',
   })
 
-  // --- Step 3: Name the game (askUser open) ---
+  // --- Name the game (askUser open) ---
   .step('name-game', {
-    prompt: prompt`The user picked the variant already. Now get a creative name for their game.`,
     act: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
     next: 'choose-renderer',
   })
 
-  // --- Step 4: Choose renderer (askUser structured) ---
+  // --- Choose renderer (askUser structured) ---
   .step('choose-renderer', {
     act: act.askUser({
       type: 'structured',
@@ -103,31 +94,27 @@ export default skill({
     next: 'design-review',
   })
 
-  // --- Step 5: Design review (confirm) ---
+  // --- Design review (confirm) ---
   .step('design-review', {
     prompt: ({ stash }) =>
-      prompt`Summarize the design: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering. Ask if they're ready to proceed.`,
+      prompt`Summarize the design so far: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering.`,
     act: act.confirm({
       message: 'Design choices are locked in. Ready to start planning the build?',
-      destructive: false,
       defaultAnswer: 'yes',
     }),
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'research-renderer' : 'choose-variant'),
   })
 
-  // --- Step 6: Research renderer (subagent) ---
+  // --- Research renderer (subagent) ---
   .step('research-renderer', {
-    prompt: ({ stash, refs }) =>
-      prompt`Research best practices for building a Tetris game with ${stash.renderer} rendering.
-
-Reference material:
-${refs.load('tetris-patterns.md')}
-
-Return a focused summary of key implementation tips.`,
+    prompt: ({ stash, refs }) => prompt`
+      Research best practices for building a Tetris game with ${stash.renderer} rendering.
+      Reference material:
+      ${refs.load('tetris-patterns.md')}
+    `,
     act: act.subagent({
-      prompt:
-        'Research best practices for the chosen rendering approach for a Tetris game. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
+      prompt: 'Return a concise summary of performance tips, animation patterns, and common pitfalls.',
       output: z.object({ summary: z.string() }),
     }),
     output: z.object({ summary: z.string() }),
@@ -135,7 +122,7 @@ Return a focused summary of key implementation tips.`,
     next: 'implementation-plan',
   })
 
-  // --- Step 7: Implementation plan (act.plan — dynamic from stash) ---
+  // --- Implementation plan (act.plan — dynamic from stash) ---
   .step('implementation-plan', {
     prompt: ({ stash, act }) => [
       act.plan({
@@ -149,23 +136,22 @@ Return a focused summary of key implementation tips.`,
           'Add theme and visual polish',
         ],
       }),
-      prompt`Present the implementation plan. The research found: ${stash.researchSummary}`,
+      prompt`Research notes: ${stash.researchSummary}`,
     ],
     output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
     next: ({ output }) => (output.approved ? 'build' : 'revise-plan'),
   })
 
-  // --- Step 7b: Revise plan (askUser open, loops back) ---
+  // --- Revise plan (askUser open, loops back) ---
   .extend('revise-plan', openQuestionStep, {
-    prompt: prompt`The user wants to revise the plan. Ask what they'd like to change.`,
     act: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
     next: 'implementation-plan',
   })
 
-  // --- Step 8: Build (checklist + work in one step via array composition) ---
+  // --- Build (checklist + work in one step via array composition) ---
   .step('build', {
     prompt: ({ stash, act, system }) => [
-      system`You are a game development mentor. Be methodical — complete each checklist item before moving to the next.`,
+      system`Be methodical — complete each checklist item before moving to the next.`,
 
       act.checklist({
         create: [
@@ -178,22 +164,24 @@ Return a focused summary of key implementation tips.`,
         ],
       }),
 
-      prompt`Build the ${stash.variant} Tetris game "${stash.name}" using ${stash.renderer} rendering.
-
-Create the game files. Update each checklist item as you complete it.
-Use the research: ${stash.researchSummary}`,
+      prompt`
+        Build the ${stash.variant} Tetris game "${stash.name}" using ${stash.renderer} rendering.
+        Create the game files. Update each checklist item as you complete it.
+        Research notes: ${stash.researchSummary}
+      `,
     ],
     output: z.object({ filesCreated: z.array(z.string()), summary: z.string() }),
     next: 'generate-theme',
   })
 
-  // --- Step 10: Generate theme (subagent) ---
+  // --- Generate theme (subagent) ---
   .step('generate-theme', {
-    prompt: ({ stash }) =>
-      prompt`Generate a CSS theme for a ${stash.variant}-style Tetris game called "${stash.name}". Make it visually distinctive.`,
+    prompt: ({ stash }) => prompt`
+      The game "${stash.name}" needs a visual identity.
+      Variant: ${stash.variant}. Renderer: ${stash.renderer}.
+    `,
     act: act.subagent({
-      prompt:
-        'Generate a CSS theme for the game. Include color scheme, fonts, and animations. Return the CSS as a string.',
+      prompt: 'Generate a CSS theme with color scheme, fonts, and animations. Return the CSS as a string.',
       output: z.object({ css: z.string() }),
     }),
     output: z.object({ css: z.string() }),
@@ -201,29 +189,26 @@ Use the research: ${stash.researchSummary}`,
     next: 'final-review',
   })
 
-  // --- Step 11: Final review (confirm) ---
+  // --- Final review (confirm) ---
   .step('final-review', {
     act: act.confirm({
       message: 'The game is built! Want to add any finishing touches?',
-      destructive: false,
       defaultAnswer: 'no',
     }),
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'polish' : 'summary'),
   })
 
-  // --- Step 11b: Polish loop (askUser open, maxVisits) ---
+  // --- Polish loop (askUser open, maxVisits) ---
   .extend('polish', openQuestionStep, {
-    prompt: prompt`The user wants to polish the game. Ask what they'd like to improve.`,
     act: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
     next: 'final-review',
     maxVisits: 2,
     onMaxVisits: 'summary',
   })
 
-  // --- Step 12: Summary card (terminal) ---
+  // --- Summary card (terminal) ---
   .step('summary', {
-    prompt: () => prompt`Present the final game summary card.`,
     render: ({ stash }) =>
       render.section(
         'Game Jam Complete!',
@@ -244,6 +229,7 @@ Use the research: ${stash.researchSummary}`,
           ]),
         ].join('\n'),
       ),
+    prompt: 'Present the rendered summary card verbatim.',
     output: z.object({ summary: z.string() }),
     action: saveGameConfig,
     actionInput: ({ stash }) => ({
