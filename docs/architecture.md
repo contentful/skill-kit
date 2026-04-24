@@ -93,17 +93,17 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 ### CLI Flags
 
-| Flag            | Required     | Description                                                                  |
-| --------------- | ------------ | ---------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                     |
-| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode   |
-| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`       |
+| Flag            | Required     | Description                                                                                                                     |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                        |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                      |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                    |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                          |
 | `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`, `generic` |
-| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). E.g., `AskUserQuestion,EnterPlanMode,TaskCreate,Agent`        |
-| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                      |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                      |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode     |
+| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). E.g., `AskUserQuestion,EnterPlanMode,TaskCreate,Agent`       |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                     |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                         |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                        |
 
 ### Why stateless is still supported
 
@@ -223,11 +223,21 @@ The lint rule `no-host-tool-names` enforces that raw tool names only appear insi
 
 ### Known host tool inventories
 
-**Claude Code:** AskUserQuestion, EnterPlanMode, ExitPlanMode, TaskCreate, TaskUpdate, TaskList, TaskGet, Agent, Skill, Read, Edit, Write, Bash, Glob, Grep, WebFetch, WebSearch, TodoWrite, and others.
+The SDK maintains a `HOST_REGISTRY` in `src/protocol/host.ts` mapping host names to their known tools. The registry currently covers 9 hosts:
 
-**Codex CLI:** shell, apply_patch, update_plan, web_search, view_image, request_permissions, exec_command, write_stdin.
+**Claude Code:** AskUserQuestion, EnterPlanMode, ExitPlanMode, TaskCreate, TaskUpdate, TaskList, TaskGet, Agent, Skill, Read, Edit, Write, Bash, Glob, Grep, WebFetch, WebSearch, TodoWrite, SendMessage, Monitor, LSP, NotebookEdit, EnterWorktree, ExitWorktree.
 
-**OpenCode:** bash, read, write, edit, apply_patch, multiedit, glob, grep, list, webfetch, task, todowrite, todoread, skill, optional lsp.
+**Codex CLI:** shell, apply_patch, update_plan, web_search, view_image, exec_command, write_stdin, ToolRequestUserInput, CollabAgent.
+
+**OpenCode:** bash, read, write, edit, apply_patch, glob, grep, codesearch, lsp, webfetch, websearch, question, todo, task, plan, skill.
+
+**Gemini CLI:** shell, read-file, write-file, edit, glob, grep, web-search, web-fetch, ask-user, enter-plan-mode, exit-plan-mode, write-todos, agent, tracker-create-task, tracker-update-task, memory, activate-skill, complete-task.
+
+**Cline / Roo Code / Kilo Code:** execute_command, read_file, write_to_file, edit_file, apply_diff, apply_patch, search_files, list_files, codebase_search, ask_followup_question, attempt_completion, new_task, switch_mode, update_todo_list, and host-specific additions.
+
+**Cursor:** codebase_search, read_file, edit_file, run_terminal_command, file_search, grep_search, list_dir.
+
+**Amp:** shell, read, write, edit.
 
 ---
 

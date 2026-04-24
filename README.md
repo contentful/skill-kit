@@ -198,15 +198,17 @@ The SDK supports two invocation modes. **Session mode** (recommended) writes pro
 
 ### Host-aware primitives
 
-The SDK uses an abstract verb system. The preamble (sent on first response) maps verbs to host-specific tools:
+The SDK renders primitive directives as XML tags. The preamble (sent on first response) maps each tag to the host's tool via a markdown table:
 
-| Verb               | Claude Code            | Codex / OpenCode        | Generic                |
-| ------------------ | ---------------------- | ----------------------- | ---------------------- |
-| `ASK_STRUCTURED`   | `AskUserQuestion` tool | Prose with option list  | Prose with option list |
-| `PRESENT_PLAN`     | `EnterPlanMode`        | `update_plan`           | Numbered list          |
-| `CREATE_CHECKLIST` | `TaskCreate`           | Checklist / `todowrite` | Markdown checklist     |
+| Tag           | Description                  | Example tool (Claude Code) |
+| ------------- | ---------------------------- | -------------------------- |
+| `<ask-user>`  | Structured or open question  | `AskUserQuestion`          |
+| `<confirm>`   | Binary yes/no confirmation   | `AskUserQuestion`          |
+| `<plan>`      | Plan presentation with steps | `EnterPlanMode`            |
+| `<checklist>` | Tracked task list            | `TaskCreate`               |
+| `<subagent>`  | Sub-agent delegation         | `Agent`                    |
 
-Same skill, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full verb table and how prose generation works.
+No tool names in the XML. The preamble handles the mapping. Same skill, same XML, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full tag table and how the preamble is generated.
 
 ---
 
@@ -377,7 +379,7 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 
 - **Builder pattern.** `skill()` returns a builder. `.step()` callbacks get typed context/stash via contextual inference — no annotations.
 - **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
-- **Abstract verb system.** Step prose uses verbs (`ASK_STRUCTURED`, `ASK_FREEFORM`). The preamble maps them to host-specific tools.
+- **XML output format.** Primitives render as XML tags (`<ask-user>`, `<plan>`, `<checklist>`, etc.). The preamble maps tags to host-specific tools via a markdown table.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.
 - **Three skill patterns, one build pipeline.** Workflow skills for state machines, reference skills for progressive disclosure, and composite skills that combine sub-skills and topics under a single dispatcher. All build to the same agentskills.io directory structure.
 

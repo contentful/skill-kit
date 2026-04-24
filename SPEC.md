@@ -890,18 +890,18 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 
 ### Flags
 
-| Flag            | Required     | Description                                                                                                               |
-| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string. Validated against the skill's context schema.                                                                |
-| `--step`        | On `advance` | Name of the step whose output is being submitted. Not needed with `--session` in file mode.                               |
-| `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                 |
-| `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.      |
+| Flag            | Required     | Description                                                                                                                                                                    |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--context`     | On `start`   | JSON string. Validated against the skill's context schema.                                                                                                                     |
+| `--step`        | On `advance` | Name of the step whose output is being submitted. Not needed with `--session` in file mode.                                                                                    |
+| `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                                                                      |
+| `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.                                                           |
 | `--host`        | Optional     | Host identifier for tool resolution. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. |
-| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.                                              |
-| `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).                                                               |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                                                                        |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How the agent passes step output. Only on start with `--session new`.                                                                               |
-| `--help`        | —            | Print usage to stderr, exit 0.                                                                                                                                                  |
+| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.                                             |
+| `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).                                                              |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                                                                       |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How the agent passes step output. Only on start with `--session new`.                                                                              |
+| `--help`        | —            | Print usage to stderr, exit 0.                                                                                                                                                 |
 
 ### Statelessness
 
@@ -1540,8 +1540,7 @@ function resolveTools(handshake: Handshake): ToolResolver {
 
   const resolved: ToolResolver = {};
   for (const p of ALL_PRIMITIVES) {
-    const match =
-      p.tools.find((t) => explicit.includes(t)) ?? p.tools.find((t) => registry.includes(t));
+    const match = p.tools.find((t) => explicit.includes(t)) ?? p.tools.find((t) => registry.includes(t));
     resolved[p.tag] = match; // string | undefined
   }
   return resolved;

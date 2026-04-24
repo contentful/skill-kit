@@ -550,16 +550,16 @@ Prompt functions can return `string | PromptPiece | PromptPiece[]`. When returni
 
 The SDK renders all prompt segments as XML tags. The preamble (sent once at session start) maps each tag to the host's tool via a markdown table:
 
-| Tag | Description | Example tool (Claude Code) |
-| --- | --- | --- |
-| `<system>` | Behavioral directives (persona, tone) | — |
-| `<prompt>` | Task instructions (plain strings get wrapped) | — |
-| `<ask-user>` | Structured or open question | `AskUserQuestion` |
-| `<confirm>` | Binary yes/no confirmation | `AskUserQuestion` |
-| `<plan>` | Plan presentation with steps | `EnterPlanMode` |
-| `<checklist>` | Tracked task list | `TaskCreate` |
-| `<subagent>` | Sub-agent delegation | `Agent` |
-| `<rendered>` | Pre-rendered verbatim output | — |
+| Tag           | Description                                   | Example tool (Claude Code) |
+| ------------- | --------------------------------------------- | -------------------------- |
+| `<system>`    | Behavioral directives (persona, tone)         | —                          |
+| `<prompt>`    | Task instructions (plain strings get wrapped) | —                          |
+| `<ask-user>`  | Structured or open question                   | `AskUserQuestion`          |
+| `<confirm>`   | Binary yes/no confirmation                    | `AskUserQuestion`          |
+| `<plan>`      | Plan presentation with steps                  | `EnterPlanMode`            |
+| `<checklist>` | Tracked task list                             | `TaskCreate`               |
+| `<subagent>`  | Sub-agent delegation                          | `Agent`                    |
+| `<rendered>`  | Pre-rendered verbatim output                  | —                          |
 
 No tool names appear in the XML itself. The preamble table maps tags to tools. On hosts without a matching tool, the instruction column provides generic fallback behavior (e.g., present a numbered list for `<ask-user>`).
 
@@ -855,17 +855,17 @@ skill-kit build <entry.ts> -o <dir> --single                # current platform o
 
 ### Runtime flags
 
-| Flag            | Required     | Description                                                                                                                                                                                          |
-| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                                             |
-| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                                           |
-| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                                         |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                                               |
-| `--host`        | Optional     | Host identifier for tool resolution: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. Defaults to `generic`                                     |
-| `--tools`       | Optional     | Comma-separated list of available tools, overrides host registry for more accurate preamble generation. E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`                               |
-| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                                                          |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                                               |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                                                             |
+| Flag            | Required     | Description                                                                                                                                                            |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                               |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                             |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                           |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                 |
+| `--host`        | Optional     | Host identifier for tool resolution: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. Defaults to `generic`        |
+| `--tools`       | Optional     | Comma-separated list of available tools, overrides host registry for more accurate preamble generation. E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent` |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                            |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                               |
 
 Output (bun mode):
 
