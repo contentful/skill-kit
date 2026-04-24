@@ -14,7 +14,6 @@ test('happy path: classic + canvas, approve plan, no polish', async () => {
       'design-review': { approved: true },
       'research-renderer': { summary: 'Use requestAnimationFrame for smooth rendering' },
       'implementation-plan': { approved: true },
-      'build-checklist': { acknowledged: true },
       build: { filesCreated: ['index.html', 'game.js', 'style.css'], summary: 'Game built!' },
       'generate-theme': { css: ':root { --primary: #00ff00; }' },
       'final-review': { approved: false },
@@ -30,7 +29,6 @@ test('happy path: classic + canvas, approve plan, no polish', async () => {
     'design-review',
     'research-renderer',
     'implementation-plan',
-    'build-checklist',
     'build',
     'generate-theme',
     'final-review',
@@ -49,7 +47,6 @@ test('modern + dom, revise plan once, one polish pass', async () => {
       'research-renderer': { summary: 'Use CSS Grid for the board layout' },
       'implementation-plan': [{ approved: false, modifications: 'Add hold-piece support first' }, { approved: true }],
       'revise-plan': { answer: 'Add hold-piece as step 2, shift everything else down' },
-      'build-checklist': { acknowledged: true },
       build: { filesCreated: ['index.html', 'game.ts'], summary: 'Built with hold-piece' },
       'generate-theme': { css: ':root { --primary: #ff00ff; }' },
       'final-review': [{ approved: true }, { approved: false }],
@@ -73,7 +70,6 @@ test('design-review rejection loops back to choose-variant', async () => {
       'design-review': [{ approved: false }, { approved: true }],
       'research-renderer': { summary: 'Canvas is straightforward' },
       'implementation-plan': { approved: true },
-      'build-checklist': { acknowledged: true },
       build: { filesCreated: ['game.js'], summary: 'Done' },
       'generate-theme': { css: 'body { background: #111; }' },
       'final-review': { approved: false },
@@ -81,7 +77,6 @@ test('design-review rejection loops back to choose-variant', async () => {
     }),
   });
 
-  // Should visit choose-variant twice (once rejected, once approved)
-  const variantVisits = result.path.filter((s) => s === 'choose-variant');
+  const variantVisits = result.path.filter((s: string) => s === 'choose-variant');
   assert.equal(variantVisits.length, 2);
 });

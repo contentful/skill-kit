@@ -1,17 +1,4 @@
-import {
-  skill,
-  step,
-  z,
-  action,
-  fragment,
-  prompt,
-  render,
-  askUser,
-  confirm,
-  plan,
-  checklist,
-  subagent,
-} from '@contentful/skill-kit';
+import { skill, step, z, action, fragment, prompt, render, askUser, confirm, subagent } from '@contentful/skill-kit';
 
 // --- Fragments ---
 
@@ -154,23 +141,24 @@ Return a focused summary of key implementation tips.`,
     next: 'implementation-plan',
   })
 
-  // --- Step 7: Implementation plan (plan) ---
+  // --- Step 7: Implementation plan (act.plan — dynamic from stash) ---
   .step('implementation-plan', {
-    primitive: plan({
-      summary: 'Build the Tetris game in 6 steps',
-      steps: [
-        'Set up the game board data structure (10×20 grid)',
-        'Implement the piece system with all 7 tetrominoes',
-        'Add keyboard controls (move, rotate, drop)',
-        'Build the scoring and level system',
-        'Create the renderer and game loop',
-        'Add theme and visual polish',
-      ],
-    }),
-    prompt: ({ stash }) =>
-      prompt`${gameMasterTone} Present the implementation plan for "${stash.name}". The research found: ${stash.researchSummary}`,
+    prompt: ({ stash, act }) => [
+      act.plan({
+        summary: `Build "${stash.name}" — a ${stash.variant} Tetris game with ${stash.renderer} rendering`,
+        steps: [
+          'Set up the game board data structure (10×20 grid)',
+          'Implement the piece system with all 7 tetrominoes',
+          'Add keyboard controls (move, rotate, drop)',
+          'Build the scoring and level system',
+          `Create the ${stash.renderer} renderer and game loop`,
+          'Add theme and visual polish',
+        ],
+      }),
+      prompt`${gameMasterTone} Present the implementation plan. The research found: ${stash.researchSummary}`,
+    ],
     output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-    next: ({ output }) => (output.approved ? 'build-checklist' : 'revise-plan'),
+    next: ({ output }) => (output.approved ? 'build' : 'revise-plan'),
   })
 
   // --- Step 7b: Revise plan (askUser open, loops back) ---
@@ -180,31 +168,27 @@ Return a focused summary of key implementation tips.`,
     next: 'implementation-plan',
   })
 
-  // --- Step 8: Build checklist (checklist) ---
-  .step('build-checklist', {
-    primitive: checklist({
-      create: [
-        { title: 'Board data structure', status: 'pending' },
-        { title: 'Piece system (7 tetrominoes)', status: 'pending' },
-        { title: 'Keyboard controls', status: 'pending' },
-        { title: 'Scoring and levels', status: 'pending' },
-        { title: 'Renderer and game loop', status: 'pending' },
-        { title: 'Theme and polish', status: 'pending' },
-      ],
-    }),
-    prompt: ({ stash }) =>
-      prompt`${gameMasterTone} Set up the implementation checklist for "${stash.name}". Track each item as you build it.`,
-    output: z.object({ acknowledged: z.boolean() }),
-    next: 'build',
-  })
-
-  // --- Step 9: Build the game ---
+  // --- Step 8: Build (checklist + work in one step via array composition) ---
   .step('build', {
-    prompt: ({ stash }) =>
-      prompt`${gameMasterTone} Now build the ${stash.variant} Tetris game "${stash.name}" using ${stash.renderer} rendering.
+    prompt: ({ stash, act, system }) => [
+      system`You are a game development mentor. Be methodical — complete each checklist item before moving to the next.`,
+
+      act.checklist({
+        create: [
+          { title: 'Board data structure', status: 'pending' },
+          { title: 'Piece system (7 tetrominoes)', status: 'pending' },
+          { title: 'Keyboard controls', status: 'pending' },
+          { title: 'Scoring and levels', status: 'pending' },
+          { title: `${stash.renderer} renderer and game loop`, status: 'pending' },
+          { title: 'Theme and polish', status: 'pending' },
+        ],
+      }),
+
+      prompt`Build the ${stash.variant} Tetris game "${stash.name}" using ${stash.renderer} rendering.
 
 Create the game files. Update each checklist item as you complete it.
-Follow the implementation plan. Use the research: ${stash.researchSummary}`,
+Use the research: ${stash.researchSummary}`,
+    ],
     output: z.object({ filesCreated: z.array(z.string()), summary: z.string() }),
     next: 'generate-theme',
   })
