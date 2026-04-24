@@ -61,13 +61,13 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
   assert.ok(result.includes('**start**: Begin the process.'));
 });
 
-test('generateSkillMd uses default description when none provided', () => {
+test('generateSkillMd uses empty description when none provided', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('description: "minimal skill powered by @contentful/skill-kit."'));
+  assert.ok(result.includes('description: ""'));
 });
 
 test('generateSkillMd double-quotes YAML description content', () => {
