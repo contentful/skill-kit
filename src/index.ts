@@ -51,6 +51,8 @@ export type {
   ReferenceDefinition,
   ReferenceBuilderConfig,
   TopicConfig,
+  PackageConfig,
+  VersionStrategy,
   SubskillRegistration,
   RedirectResult,
   Buildable,

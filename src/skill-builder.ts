@@ -116,6 +116,8 @@ export class SkillBuilder<TContext, TStash> {
       observers: this.config.observers,
       finalOutput: this.config.finalOutput,
       skillMd: this.config.skillMd,
+      resolveVersion: this.config.resolveVersion ?? false,
+      package: this.config.package,
       ...(hasSubskills ? { subskills: Object.freeze({ ...this.subskills }) } : {}),
       ...(hasTopics ? { topics: Object.freeze({ ...this.topics }) } : {}),
     };

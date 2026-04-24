@@ -176,11 +176,24 @@ export interface ObserverMap {
   onSkillComplete?: (ctx: { path: string[]; finalOutput: unknown; durationMs: number }) => void | Promise<void>;
 }
 
+// --- Package Config ---
+
+export interface PackageConfig {
+  name?: string;
+  description?: string;
+  license?: string;
+  files?: string[];
+  [key: string]: unknown;
+}
+
+export type VersionStrategy =
+  | { version?: string; resolveVersion?: never }
+  | { version?: never; resolveVersion: true };
+
 // --- Skill Builder Config (input to skill()) ---
 
-export interface SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
+export type SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> = {
   name: string;
-  version?: string;
   description?: string;
   triggers?: string[];
   entry: string;
@@ -189,7 +202,8 @@ export interface SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TSta
   observers?: ObserverMap;
   finalOutput?: z.ZodType;
   skillMd?: string | ((skill: SkillDefinition) => string);
-}
+  package?: PackageConfig;
+} & VersionStrategy;
 
 // --- Skill Definition (output of .build()) ---
 
@@ -197,6 +211,7 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly kind: 'skill';
   readonly name: string;
   readonly version: string;
+  readonly resolveVersion: boolean;
   readonly description: string;
   readonly entry: string;
   readonly context: TContext | undefined;
@@ -205,6 +220,7 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly observers: ObserverMap | undefined;
   readonly finalOutput: z.ZodType | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
+  readonly package: PackageConfig | undefined;
   readonly subskills?: Readonly<Record<string, SubskillRegistration>>;
   readonly topics?: Readonly<Record<string, TopicConfig>>;
 }
@@ -226,17 +242,19 @@ export interface TopicConfig {
   content: (ctx: { refs: ReferenceLoader }) => string;
 }
 
-export interface ReferenceBuilderConfig {
+export type ReferenceBuilderConfig = {
   name: string;
-  version?: string;
   description: string;
-}
+  package?: PackageConfig;
+} & VersionStrategy;
 
 export interface ReferenceDefinition {
   readonly kind: 'reference';
   readonly name: string;
   readonly version: string;
+  readonly resolveVersion: boolean;
   readonly description: string;
+  readonly package: PackageConfig | undefined;
   readonly topics: Readonly<Record<string, TopicConfig>>;
 }
 
