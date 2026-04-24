@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveProseGenerator } from './prose/index.js';
+import { buildProseGenerator } from './prose/index.js';
 import { askUser } from './ask-user.js';
 import type { Handshake } from '../types.js';
 
@@ -14,21 +14,39 @@ const config = askUser({
   ],
 });
 
-test('askUser produces ASK_STRUCTURED verb with question and options', () => {
+test('askUser on Claude Code names AskUserQuestion tool', () => {
   const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion'] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.askUser(config);
 
   assert.ok(result.includes('ASK_STRUCTURED'));
+  assert.ok(result.includes('AskUserQuestion'));
   assert.ok(result.includes('Which deployment target?'));
   assert.ok(result.includes('Production'));
 });
 
-test('askUser uses same verb on generic host', () => {
+test('askUser on generic host does not name host-specific tools', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.askUser(config);
 
   assert.ok(result.includes('ASK_STRUCTURED'));
+  assert.ok(!result.includes('AskUserQuestion'));
   assert.ok(result.includes('Production'));
+});
+
+test('askUser on Cline uses ask_followup_question', () => {
+  const host: Handshake = { host: 'cline', toolsAvailable: ['ask_followup_question'] };
+  const prose = buildProseGenerator(host);
+  const result = prose.askUser(config);
+
+  assert.ok(result.includes('ask_followup_question'));
+});
+
+test('hybrid fallback: host name resolves tools from registry', () => {
+  const host: Handshake = { host: 'claude-code', toolsAvailable: [] };
+  const prose = buildProseGenerator(host);
+  const result = prose.askUser(config);
+
+  assert.ok(result.includes('AskUserQuestion'), 'should resolve from registry when toolsAvailable is empty');
 });

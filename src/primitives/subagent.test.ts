@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { subagent } from './subagent.js';
-import { resolveProseGenerator } from './prose/index.js';
+import { buildProseGenerator } from './prose/index.js';
 import type { Handshake } from '../types.js';
 
 const config = subagent({
@@ -16,19 +16,21 @@ test('subagent() returns a frozen SubagentConfig', () => {
   assert.ok(Object.isFrozen(config));
 });
 
-test('subagent prose includes SPAWN_SUBAGENT verb and prompt text', () => {
+test('subagent on Claude Code names Agent tool', () => {
   const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion', 'Agent'] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.subagent(config);
 
   assert.ok(result.includes('SPAWN_SUBAGENT'));
+  assert.ok(result.includes('Agent tool'));
   assert.ok(result.includes('Research the top 5 CVEs'));
 });
 
-test('subagent prose uses same verb on generic host', () => {
+test('subagent on generic host does not name host-specific tools', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.subagent(config);
 
   assert.ok(result.includes('SPAWN_SUBAGENT'));
+  assert.ok(!result.includes('Agent tool'));
 });

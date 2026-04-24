@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveProseGenerator } from './prose/index.js';
+import { buildProseGenerator } from './prose/index.js';
 import type { Handshake, ConfirmConfig } from '../types.js';
 
 const config: ConfirmConfig = {
@@ -12,7 +12,7 @@ const config: ConfirmConfig = {
 
 test('confirm with destructive=true includes warning on Claude Code', () => {
   const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion'] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.confirm(config);
 
   assert.ok(result.includes('destructive'));
@@ -21,7 +21,7 @@ test('confirm with destructive=true includes warning on Claude Code', () => {
 
 test('confirm with destructive=true includes warning on generic', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.confirm(config);
 
   assert.ok(result.includes('destructive'));

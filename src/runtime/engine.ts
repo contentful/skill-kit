@@ -15,7 +15,7 @@ import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
 import { StashStore } from './stash.js';
 import { ObserverDispatcher } from './observer-dispatch.js';
-import { resolveProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
+import { buildProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
 import { generatePreamble } from './preamble.js';
 
 const NOOP_REFS: ReferenceLoader = {
@@ -41,7 +41,7 @@ export class WorkflowEngine {
     this.skill = skill;
     this.handshake = handshake;
     this.refs = refs ?? NOOP_REFS;
-    this.prose = resolveProseGenerator(handshake);
+    this.prose = buildProseGenerator(handshake);
     this.observers = new ObserverDispatcher(skill.observers ?? {});
     this.abortController = new AbortController();
     this.history = new History();

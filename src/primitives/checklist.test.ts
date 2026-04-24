@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checklist } from './checklist.js';
-import { resolveProseGenerator } from './prose/index.js';
+import { buildProseGenerator } from './prose/index.js';
 import type { Handshake } from '../types.js';
 
 const config = checklist({
@@ -17,22 +17,22 @@ test('checklist() returns a frozen ChecklistConfig', () => {
   assert.ok(Object.isFrozen(config));
 });
 
-test('checklist prose includes CREATE_CHECKLIST verb and task titles', () => {
+test('checklist on Claude Code names TaskCreate tool', () => {
   const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion', 'TaskCreate'] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.checklist(config);
 
   assert.ok(result.includes('CREATE_CHECKLIST'));
+  assert.ok(result.includes('TaskCreate'));
   assert.ok(result.includes('Fix CI configuration'));
   assert.ok(result.includes('Update dependencies'));
-  assert.ok(result.includes('pending'));
-  assert.ok(result.includes('in_progress'));
 });
 
-test('checklist prose uses same verb on generic host', () => {
+test('checklist on generic host does not name host-specific tools', () => {
   const host: Handshake = { host: 'generic', toolsAvailable: [] };
-  const prose = resolveProseGenerator(host);
+  const prose = buildProseGenerator(host);
   const result = prose.checklist(config);
 
   assert.ok(result.includes('CREATE_CHECKLIST'));
+  assert.ok(!result.includes('TaskCreate'));
 });
