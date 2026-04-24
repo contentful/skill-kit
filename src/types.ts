@@ -223,6 +223,7 @@ export type SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash ex
   description?: string;
   triggers?: string[];
   entry: string;
+  system?: string;
   context?: TContext;
   stash?: TStash;
   observers?: ObserverMap;
@@ -240,6 +241,7 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly resolveVersion: boolean;
   readonly description: string;
   readonly entry: string;
+  readonly system: string | undefined;
   readonly context: TContext | undefined;
   readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;

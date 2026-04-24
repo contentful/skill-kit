@@ -110,6 +110,7 @@ export class SkillBuilder<TContext, TStash> {
       version: this.config.version ?? '0.0.0',
       description,
       entry,
+      system: this.config.system,
       context: this.config.context,
       stash: this.config.stash,
       steps: Object.freeze({ ...this.steps }),

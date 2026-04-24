@@ -1,12 +1,4 @@
-import { skill, step, z, action, fragment, prompt, render, act } from '@contentful/skill-kit';
-
-// --- Fragments ---
-
-const gameMasterTone = fragment(
-  'game-master-tone',
-  `You're a friendly game development mentor guiding someone through
-   building their first Tetris game. Be encouraging and practical.`,
-);
+import { skill, step, z, action, prompt, render, act } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
@@ -47,6 +39,8 @@ export default skill({
     'Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent.',
   triggers: ['game jam', 'build a game', 'tetris', 'game tutorial'],
   entry: 'welcome',
+  system:
+    "You're a friendly game development mentor guiding someone through building their first Tetris game. Be encouraging and practical.",
 
   context: z.object({
     difficulty: z.enum(['beginner', 'intermediate', 'advanced']).default('intermediate'),
@@ -63,7 +57,7 @@ export default skill({
   // --- Step 1: Welcome ---
   .step('welcome', {
     prompt: ({ context }) =>
-      prompt`${gameMasterTone} Welcome the user to the game jam! They're at ${context.difficulty} level. Ask them what kind of Tetris game they want to build.`,
+      prompt`Welcome the user to the game jam! They're at ${context.difficulty} level. Ask them what kind of Tetris game they want to build.`,
     output: z.object({ excited: z.boolean() }),
     next: 'choose-variant',
   })
@@ -87,7 +81,7 @@ export default skill({
   // --- Step 3: Name the game (askUser open) ---
   .step('name-game', {
     act: act.askUser({ type: 'open', question: 'What should we call your game?' }),
-    prompt: prompt`${gameMasterTone} The user picked the variant already. Now get a creative name for their game.`,
+    prompt: prompt`The user picked the variant already. Now get a creative name for their game.`,
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
     next: 'choose-renderer',
@@ -117,7 +111,7 @@ export default skill({
       defaultAnswer: 'yes',
     }),
     prompt: ({ stash }) =>
-      prompt`${gameMasterTone} Summarize the design: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering. Ask if they're ready to proceed.`,
+      prompt`Summarize the design: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering. Ask if they're ready to proceed.`,
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'research-renderer' : 'choose-variant'),
   })
@@ -130,7 +124,7 @@ export default skill({
       output: z.object({ summary: z.string() }),
     }),
     prompt: ({ stash, refs }) =>
-      prompt`${gameMasterTone} Research best practices for building a Tetris game with ${stash.renderer} rendering.
+      prompt`Research best practices for building a Tetris game with ${stash.renderer} rendering.
 
 Reference material:
 ${refs.load('tetris-patterns.md')}
@@ -155,7 +149,7 @@ Return a focused summary of key implementation tips.`,
           'Add theme and visual polish',
         ],
       }),
-      prompt`${gameMasterTone} Present the implementation plan. The research found: ${stash.researchSummary}`,
+      prompt`Present the implementation plan. The research found: ${stash.researchSummary}`,
     ],
     output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
     next: ({ output }) => (output.approved ? 'build' : 'revise-plan'),
@@ -164,7 +158,7 @@ Return a focused summary of key implementation tips.`,
   // --- Step 7b: Revise plan (askUser open, loops back) ---
   .extend('revise-plan', openQuestionStep, {
     act: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
-    prompt: prompt`${gameMasterTone} The user wants to revise the plan. Ask what they'd like to change.`,
+    prompt: prompt`The user wants to revise the plan. Ask what they'd like to change.`,
     next: 'implementation-plan',
   })
 
@@ -201,7 +195,7 @@ Use the research: ${stash.researchSummary}`,
       output: z.object({ css: z.string() }),
     }),
     prompt: ({ stash }) =>
-      prompt`${gameMasterTone} Generate a CSS theme for a ${stash.variant}-style Tetris game called "${stash.name}". Make it visually distinctive.`,
+      prompt`Generate a CSS theme for a ${stash.variant}-style Tetris game called "${stash.name}". Make it visually distinctive.`,
     output: z.object({ css: z.string() }),
     stash: ({ output }) => ({ themeCss: output.css }),
     next: 'final-review',
@@ -221,7 +215,7 @@ Use the research: ${stash.researchSummary}`,
   // --- Step 11b: Polish loop (askUser open, maxVisits) ---
   .extend('polish', openQuestionStep, {
     act: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
-    prompt: prompt`${gameMasterTone} The user wants to polish the game. Ask what they'd like to improve.`,
+    prompt: prompt`The user wants to polish the game. Ask what they'd like to improve.`,
     next: 'final-review',
     maxVisits: 2,
     onMaxVisits: 'summary',
@@ -229,7 +223,7 @@ Use the research: ${stash.researchSummary}`,
 
   // --- Step 12: Summary card (terminal) ---
   .step('summary', {
-    prompt: () => prompt`${gameMasterTone} Present the final game summary card.`,
+    prompt: () => prompt`Present the final game summary card.`,
     render: ({ stash }) =>
       render.section(
         'Game Jam Complete!',

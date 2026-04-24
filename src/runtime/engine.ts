@@ -75,7 +75,8 @@ export class WorkflowEngine {
     this.validateParentSentinels();
     this.cycleGuard = validateCycleGuards(this.skill.steps);
     const prompt = this.buildPrompt(this.currentStep);
-    prompt.preamble = generatePreamble(this.handshake);
+    const preamble = generatePreamble(this.handshake);
+    prompt.preamble = this.skill.system ? `${this.skill.system}\n\n${preamble}` : preamble;
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
     return prompt;
   }
