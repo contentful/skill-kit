@@ -19,7 +19,7 @@ test('CLI start returns first step prompt as JSON', async () => {
 
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'greet');
-  assert.ok(result.prompt.includes('Say hello.'));
+  assert.equal(result.prompt, '<prompt>\nSay hello.\n</prompt>');
   assert.ok(result.schema);
 });
 
@@ -44,7 +44,7 @@ test('CLI implicit start (no subcommand) returns first step prompt as JSON', asy
 
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'greet');
-  assert.ok(result.prompt.includes('Say hello.'));
+  assert.equal(result.prompt, '<prompt>\nSay hello.\n</prompt>');
   assert.ok(result.schema);
 });
 
@@ -89,7 +89,7 @@ test('CLI session start returns session pointer', async () => {
   const prompt = JSON.parse(lines[1]!);
   assert.equal(prompt.type, 'prompt');
   assert.equal(prompt.step, 'greet');
-  assert.ok(prompt.prompt.includes('Say hello.'));
+  assert.equal(prompt.prompt, '<prompt>\nSay hello.\n</prompt>');
 });
 
 test('CLI session advance in flag mode returns line number', async () => {

@@ -116,7 +116,7 @@ test('engine provides dynamic prompt context', async () => {
   const p = await engine.advance('a', { val: 42 });
 
   assert.ok(capturedCtx);
-  assert.ok((p as PromptResult).prompt.includes('42'));
+  assert.equal((p as PromptResult).prompt, '<prompt>\nPrevious: {"val":42}\n</prompt>');
 });
 
 test('engine replays history for single-invocation mode', () => {
