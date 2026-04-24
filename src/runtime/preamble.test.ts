@@ -32,3 +32,24 @@ test('preamble for generic host uses prose fallbacks', () => {
   assert.ok(result.includes('PRESENT_PLAN'));
   assert.ok(!result.includes('EnterPlanMode'));
 });
+
+test('preamble for Cline maps to Cline tools', () => {
+  const host: Handshake = {
+    host: 'cline',
+    toolsAvailable: ['ask_followup_question', 'PLAN_MODE', 'update_todo_list', 'USE_SUBAGENTS'],
+  };
+  const result = generatePreamble(host);
+
+  assert.ok(result.includes('ask_followup_question'));
+  assert.ok(result.includes('PLAN_MODE'));
+  assert.ok(result.includes('update_todo_list'));
+  assert.ok(result.includes('USE_SUBAGENTS'));
+});
+
+test('preamble hybrid fallback resolves host from registry', () => {
+  const host: Handshake = { host: 'gemini-cli', toolsAvailable: [] };
+  const result = generatePreamble(host);
+
+  assert.ok(result.includes('ask-user'));
+  assert.ok(result.includes('enter-plan-mode'));
+});
