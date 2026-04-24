@@ -70,12 +70,16 @@ Update `src/build/index.ts`: if `def.resolveVersion`, call `resolveVersionFromAn
 
 ## Steps
 
-- [ ] Add `PackageConfig`, `VersionStrategy` types; update config/definition interfaces
-- [ ] Export `PackageConfig` from `src/index.ts`
-- [ ] Thread `resolveVersion` and `package` through `SkillBuilder` and `ReferenceBuilder`
-- [ ] Create `src/build/resolve-version.ts` with tests
-- [ ] Rewrite `src/build/package-json-template.ts` and update tests
-- [ ] Update `src/build/index.ts` orchestrator
-- [ ] Verify: typecheck + tests + format + manual build
+- [x] Add `PackageConfig`, `VersionStrategy` types; update config/definition interfaces
+- [x] Export `PackageConfig` from `src/index.ts`
+- [x] Thread `resolveVersion` and `package` through `SkillBuilder` and `ReferenceBuilder`
+- [x] Create `src/build/resolve-version.ts` with tests
+- [x] Rewrite `src/build/package-json-template.ts` and update tests
+- [x] Update `src/build/index.ts` orchestrator
+- [x] Verify: typecheck + tests + format + manual build
 
 ## Notes
+
+- `SkillBuilderConfig` and `ReferenceBuilderConfig` changed from `interface` to `type` (intersection with `VersionStrategy`). This is backward compatible for consumers.
+- Manual build verification confirmed merge works: existing `package.json` fields are preserved, `name`/`version` are overwritten by build.
+- 208 tests pass, including 6 new resolve-version tests and 6 new/updated package-json generation tests.
