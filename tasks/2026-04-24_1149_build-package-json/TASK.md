@@ -31,9 +31,7 @@ export interface PackageConfig {
   [key: string]: unknown;
 }
 
-type VersionStrategy =
-  | { version?: string; resolveVersion?: never }
-  | { version?: never; resolveVersion: true };
+type VersionStrategy = { version?: string; resolveVersion?: never } | { version?: never; resolveVersion: true };
 ```
 
 `SkillBuilderConfig` and `ReferenceBuilderConfig` become intersections with `VersionStrategy` and gain `package?: PackageConfig`. `SkillDefinition` and `ReferenceDefinition` gain `readonly resolveVersion: boolean` and `readonly package: PackageConfig | undefined`.
@@ -53,7 +51,7 @@ export interface PackageJsonOptions {
   existingPath?: string;
 }
 
-export function generatePackageJson(version: string, opts: PackageJsonOptions): string
+export function generatePackageJson(version: string, opts: PackageJsonOptions): string;
 ```
 
 `version` is a standalone managed parameter. Merge order: existing (base) -> packageConfig (override) -> name/version (authoritative).
