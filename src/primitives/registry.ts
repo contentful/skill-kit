@@ -1,6 +1,6 @@
 import type { PrimitiveConfig, Handshake } from '../types.js';
 import { HOST_REGISTRY } from '../protocol/host.js';
-import type { PreambleRow } from './primitive.js';
+import type { PreambleRow, RenderContext } from './primitive.js';
 import { askUserPrimitive } from './ask-user.js';
 import { confirmPrimitive } from './confirm.js';
 import { planPrimitive } from './plan.js';
@@ -9,16 +9,16 @@ import { subagentPrimitive } from './subagent.js';
 
 const ALL_PRIMITIVES = [askUserPrimitive, confirmPrimitive, planPrimitive, checklistPrimitive, subagentPrimitive];
 
-const RENDERERS: Record<string, (config: never) => string> = {
-  askUser: askUserPrimitive.render as (config: never) => string,
-  confirm: confirmPrimitive.render as (config: never) => string,
-  plan: planPrimitive.render as (config: never) => string,
-  checklist: checklistPrimitive.render as (config: never) => string,
-  subagent: subagentPrimitive.render as (config: never) => string,
+const RENDERERS: Record<string, (config: never, ctx?: RenderContext) => string> = {
+  askUser: askUserPrimitive.render as (config: never, ctx?: RenderContext) => string,
+  confirm: confirmPrimitive.render as (config: never, ctx?: RenderContext) => string,
+  plan: planPrimitive.render as (config: never, ctx?: RenderContext) => string,
+  checklist: checklistPrimitive.render as (config: never, ctx?: RenderContext) => string,
+  subagent: subagentPrimitive.render as (config: never, ctx?: RenderContext) => string,
 };
 
-export function renderPrimitive(config: PrimitiveConfig): string {
-  return RENDERERS[config.kind]!(config as never);
+export function renderPrimitive(config: PrimitiveConfig, ctx?: RenderContext): string {
+  return RENDERERS[config.kind]!(config as never, ctx);
 }
 
 export type ToolResolver = Record<string, string | undefined>;

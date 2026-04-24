@@ -22,9 +22,11 @@ export const subagentPrimitive = definePrimitive({
     });
   },
 
-  render(config) {
-    const attr = config.allowRecursion ? '' : ' no-recurse="true"';
-    return `<subagent${attr}>${config.prompt}</subagent>`;
+  render(config, ctx) {
+    if (!config.allowRecursion && ctx?.skillName) {
+      return `<subagent no-recurse="${ctx.skillName}">${config.prompt}</subagent>`;
+    }
+    return `<subagent>${config.prompt}</subagent>`;
   },
 
   preambleRow(tool) {

@@ -298,7 +298,7 @@ export class WorkflowEngine {
       .map((piece) => {
         if (typeof piece === 'string') return `<prompt>\n${piece}\n</prompt>`;
         if (piece.kind === 'system') return `<system>${piece.text}</system>`;
-        if (piece.kind === 'act') return renderPrimitive(piece.primitive);
+        if (piece.kind === 'act') return renderPrimitive(piece.primitive, { skillName: this.skill.name });
         return '';
       })
       .filter(Boolean)
