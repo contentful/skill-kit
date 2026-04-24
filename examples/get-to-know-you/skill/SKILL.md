@@ -1,8 +1,8 @@
 ---
 name: get-to-know-you
-description: 'A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker'
+description: "A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker"
 metadata:
-  version: '1.0.0'
+  version: "1.0.0"
 ---
 
 # get-to-know-you
@@ -51,7 +51,6 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
-
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -65,9 +64,10 @@ Determine which agent host you are running in, and pass it as `--host`:
 
 ### Report your tools
 
-Pass the tools you have available as a comma-separated `--tools` flag on every command.
-This produces the most accurate mappings. If omitted, the skill infers tools from
-`--host`. If both are omitted, all interactions use generic fallbacks.
+Pass the tools you have available as a comma-separated `--tools` flag on the **start**
+command. The session remembers them — you don't need to pass `--tools` on advance.
+If omitted, the skill infers tools from `--host`. If both are omitted, all
+interactions use generic fallbacks.
 
 ### Step 1: Start with a session
 
@@ -98,7 +98,7 @@ Produce a JSON object matching the `schema`.
 Pass your output back with the step name:
 
 ```bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 --tools <your-tools> 2>/dev/null
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
 ```
 
 This returns a single line number (e.g., `4`). Read **exactly and only that line** from the session file — it contains the next prompt. Do not read any other lines.

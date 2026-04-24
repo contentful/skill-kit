@@ -20,6 +20,7 @@ export interface CreateSessionOptions {
   sessionDir?: string;
   skill: string;
   host: string;
+  tools?: string[];
   context: unknown;
   outputMode?: SessionOutputMode;
 }
@@ -124,6 +125,7 @@ export class SessionManager {
       sessionId,
       skill: options.skill,
       host: options.host,
+      ...(options.tools?.length ? { tools: options.tools } : {}),
       context: options.context,
       createdAt: new Date().toISOString(),
       outputMode: options.outputMode ?? 'file',

@@ -335,6 +335,7 @@ export interface SessionHeader {
   sessionId: string;
   skill: string;
   host: string;
+  tools?: string[];
   context: unknown;
   createdAt: string;
   outputMode: SessionOutputMode;

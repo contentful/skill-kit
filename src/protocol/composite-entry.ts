@@ -198,10 +198,18 @@ function resolveSessionForCommand(
 
   if (command === 'start' && sessionFlag === 'new') {
     const outputMode = (flags['output-mode'] as SessionOutputMode) ?? 'file';
+    const toolsRaw = flags['tools'];
+    const sessionTools = toolsRaw
+      ? toolsRaw
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : undefined;
     const session = SessionManager.create({
       sessionDir: flags['session-dir'],
       skill: skillName,
       host: flags['host'] ?? 'generic',
+      tools: sessionTools,
       context: flags['context'] ? (JSON.parse(flags['context']) as unknown) : {},
       outputMode,
     });
@@ -276,7 +284,8 @@ async function handleDispatcher(
   refs: ReferenceLoader,
 ): Promise<void> {
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], parseTools(parsed.flags));
+  const tools = session?.header.tools ?? parseTools(parsed.flags);
+  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], tools);
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
@@ -324,7 +333,8 @@ async function handleSubskill(
   }
 
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], parseTools(parsed.flags));
+  const subTools = session?.header.tools ?? parseTools(parsed.flags);
+  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], subTools);
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};

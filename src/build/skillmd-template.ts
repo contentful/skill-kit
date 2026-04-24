@@ -83,9 +83,10 @@ Determine which agent host you are running in, and pass it as \`--host\`:
 
 ### Report your tools
 
-Pass the tools you have available as a comma-separated \`--tools\` flag on every command.
-This produces the most accurate mappings. If omitted, the skill infers tools from
-\`--host\`. If both are omitted, all interactions use generic fallbacks.
+Pass the tools you have available as a comma-separated \`--tools\` flag on the **start**
+command. The session remembers them — you don't need to pass \`--tools\` on advance.
+If omitted, the skill infers tools from \`--host\`. If both are omitted, all
+interactions use generic fallbacks.
 
 ${protocolInstructions}
 ### Important
@@ -137,7 +138,7 @@ Produce a JSON object matching the \`schema\`.
 Pass your output back with the step name:
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 --tools <your-tools> 2>/dev/null
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
 \`\`\`
 
 This returns a single line number (e.g., \`4\`). Read **exactly and only that line** from the session file — it contains the next prompt. Do not read any other lines.
@@ -174,7 +175,7 @@ Produce a JSON object matching the \`schema\`.
 ### Step 3: Advance
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code --tools <your-tools> 2>/dev/null
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code 2>/dev/null
 \`\`\`
 
 - \`--step\`: the step name from the previous response

@@ -31,6 +31,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             sessionDir: flags['session-dir'],
             skill: skill.name,
             host: flags['host'] ?? 'generic',
+            tools,
             context,
             outputMode,
           });
@@ -78,7 +79,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             session.append({ type: 'output', step: stepName, output });
           }
 
-          await handleAdvance(skill, stepName, output, history, session.header.host, session, tools);
+          await handleAdvance(skill, stepName, output, history, session.header.host, session, session.header.tools);
         } else {
           const step = flags['step'];
           const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
