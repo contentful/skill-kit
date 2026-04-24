@@ -81,17 +81,11 @@ Determine which agent host you are running in, and pass it as \`--host\`:
 - Amp: \`--host amp\`
 - Unknown/other: omit the flag (defaults to generic)
 
-### Report your tools (optional)
+### Report your tools
 
-If you know which tools you have available, pass them as a comma-separated list:
-
-\`\`\`bash
-<skill>/scripts/run --host claude-code --tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent --context '{}' 2>/dev/null
-\`\`\`
-
-This produces the most accurate tool mappings. If omitted, the skill infers your
-tools from the \`--host\` value. If both are omitted, all interactions use generic
-fallbacks (numbered lists, prose checklists, etc.).
+Pass the tools you have available as a comma-separated \`--tools\` flag on every command.
+This produces the most accurate mappings. If omitted, the skill infers tools from
+\`--host\`. If both are omitted, all interactions use generic fallbacks.
 
 ${protocolInstructions}
 ### Important
@@ -117,7 +111,7 @@ function generateSessionInstructions(): string {
   return `### Step 1: Start with a session
 
 \`\`\`bash
-<skill>/scripts/run --context '{}' --host claude-code --session new 2>/dev/null
+<skill>/scripts/run --context '{}' --host claude-code --tools <your-tools> --session new 2>/dev/null
 \`\`\`
 
 This returns a JSON pointer with \`sessionId\`, \`file\`, and \`line\`. The \`line\` field tells you
@@ -125,13 +119,17 @@ which line to read — it will be \`2\`, not \`1\` (line 1 is an internal header
 
 Read **only** line \`line\` from \`file\`. It contains the step prompt, schema, and preamble.
 
-**Read the \`preamble\` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
-that prompts use throughout the skill. Follow these mappings for every step.
+**Read the \`preamble\` first.** It contains a table mapping XML tags to the tools
+available in your environment. Refer to it throughout the workflow.
 
 ### Step 2: Follow the prompt
 
-Read the \`prompt\` field from the session file line. It contains instructions — follow them.
-The prompt may ask you to use specific tools, write files, analyze code, or interact with the user.
+Read the \`prompt\` field. It contains XML-tagged sections (described in "How this skill
+works" above): \`<system>\` directives to follow, \`<prompt>\` instructions to act on, and
+interaction tags (\`<ask-user>\`, \`<confirm>\`, \`<plan>\`, \`<checklist>\`, \`<subagent>\`)
+to execute using the tools mapped in the preamble. If a \`<rendered>\` block appears,
+emit its content verbatim.
+
 Produce a JSON object matching the \`schema\`.
 
 ### Step 3: Advance
@@ -139,7 +137,7 @@ Produce a JSON object matching the \`schema\`.
 Pass your output back with the step name:
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 2>/dev/null
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --session abc123 --tools <your-tools> 2>/dev/null
 \`\`\`
 
 This returns a single line number (e.g., \`4\`). Read **exactly and only that line** from the session file — it contains the next prompt. Do not read any other lines.
@@ -155,22 +153,28 @@ function generateStatelessInstructions(): string {
   return `### Step 1: Start
 
 \`\`\`bash
-<skill>/scripts/run --context '{}' --host claude-code 2>/dev/null
+<skill>/scripts/run --context '{}' --host claude-code --tools <your-tools> 2>/dev/null
 \`\`\`
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
 
-**Read the \`preamble\` first.** It defines verb-to-tool mappings (e.g., ASK_STRUCTURED, ASK_FREEFORM)
-that prompts use throughout the skill. Follow these mappings for every step.
+**Read the \`preamble\` first.** It contains a table mapping XML tags to the tools
+available in your environment. Refer to it throughout the workflow.
 
 ### Step 2: Follow the prompt
 
-Read the \`prompt\` field. Do what it says, then produce a JSON object matching \`schema\`.
+Read the \`prompt\` field. It contains XML-tagged sections (described in "How this skill
+works" above): \`<system>\` directives to follow, \`<prompt>\` instructions to act on, and
+interaction tags (\`<ask-user>\`, \`<confirm>\`, \`<plan>\`, \`<checklist>\`, \`<subagent>\`)
+to execute using the tools mapped in the preamble. If a \`<rendered>\` block appears,
+emit its content verbatim.
+
+Produce a JSON object matching the \`schema\`.
 
 ### Step 3: Advance
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code 2>/dev/null
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code --tools <your-tools> 2>/dev/null
 \`\`\`
 
 - \`--step\`: the step name from the previous response

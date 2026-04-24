@@ -41,7 +41,7 @@ A skill is a folder containing a small CLI program plus supporting prose and ref
 - **Reviewable.** Each step is small and has an explicit contract. Skills become diffable the way code is diffable.
 - **Deterministic where it matters.** Formatting-heavy outputs (tables, reports) are rendered by code and pasted by the model verbatim, not negotiated per turn.
 - **Branchable without drift.** The CLI decides next steps from typed outputs, not by hoping the model picks the right path out of a long prose flowchart.
-- **Host-portable.** Different agent hosts expose different native tools. The SDK emits prose calibrated to whichever host invoked the CLI, so one skill works everywhere with the best UX the host can offer.
+- **Host-portable.** Different agent hosts expose different native tools. The SDK emits XML tags for primitives and maps them to host tools via the preamble, so one skill works everywhere with the best UX the host can offer.
 - **Improves over time.** Prompt-engineering work done in the SDK benefits every skill that uses SDK primitives. Authors don't rewrite prose to pick up improvements.
 
 ### What authors write
@@ -76,7 +76,7 @@ export default skill({
 ### What authors don't write
 
 - A state machine implementation — the SDK provides it.
-- Host-specific tool invocations — the SDK's primitives emit the right prose per host.
+- Host-specific tool invocations — the SDK's primitives emit XML tags mapped to tools via the preamble.
 - Parsing, validation, retry logic — handled at the boundary by schemas.
 - Formatting templates repeated across prompts — renderers and fragments cover that.
 
@@ -326,7 +326,7 @@ The `act` and `system` helpers are injected via `PromptContext`, not imported. A
 
 Each `act` method returns an `act` segment with the primitive's host-aware prose. The returned `PromptPiece` is opaque to authors — the SDK renders it during prompt assembly.
 
-**Assembly** — `resolvePromptValue` calls the prompt function, `normalizePieces` coerces the return to an array of `PromptPiece`, and `assemblePieces` renders each piece (calling `renderPrimitive` for `act` segments) and concatenates them in order. This replaces the old flow where `buildPrimitiveProse` prepended primitive prose to the prompt.
+**Assembly** — `resolvePromptValue` calls the prompt function, `normalizePieces` coerces the return to an array of `PromptPiece`, and `assemblePieces` renders each piece as XML: plain strings become `<prompt>` tags, system segments become `<system>` tags, act segments are rendered via `renderPrimitive()` into their respective XML tags (e.g., `<ask-user>`, `<plan>`), and rendered output is wrapped in `<rendered>` tags. All pieces are concatenated in author order.
 
 The `PromptFn` return type is `PromptReturn` (= `string | PromptPiece | PromptPiece[]`).
 
@@ -896,11 +896,12 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 | `--step`        | On `advance` | Name of the step whose output is being submitted. Not needed with `--session` in file mode.                               |
 | `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                 |
 | `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.      |
-| `--host`        | Optional     | Host identifier for host-aware prose generation. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`. |
-| `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).         |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                  |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How the agent passes step output. Only on start with `--session new`.                         |
-| `--help`        | —            | Print usage to stderr, exit 0.                                                                                            |
+| `--host`        | Optional     | Host identifier for tool resolution. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. |
+| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.                                              |
+| `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).                                                               |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                                                                        |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How the agent passes step output. Only on start with `--session new`.                                                                               |
+| `--help`        | —            | Print usage to stderr, exit 0.                                                                                                                                                  |
 
 ### Statelessness
 
@@ -1266,7 +1267,7 @@ The CLI cannot call tools. The CLI cannot invoke MCP methods. The CLI cannot cau
 
 So when the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can actually do is return prose that names the tool and describes how to use it. The model reads the prose, decides to call the tool, and on its next turn the CLI sees the answer in whatever form the model passes it back. The shape of the answer is still enforced by the step's Zod schema — that's unchanged. What changes from a naive prose skill is _which prose_ gets emitted and _how reliably_ it steers the model.
 
-Everything in the rest of this section is downstream of that constraint. The primitives are prose generators with host-aware variants. The "capability system" is a lookup table that picks which variant to emit. There is no secret channel.
+Everything in the rest of this section is downstream of that constraint. The primitives render XML tags; the preamble maps those tags to host-specific tools via a markdown table. The "capability system" is `resolveTools()` picking which tool name (if any) each primitive gets. There is no secret channel.
 
 ### Why primitives still matter
 
@@ -1286,37 +1287,70 @@ That last point is the real pitch. Skills written against primitives inherit pro
 
 The SDK has two levers for calibrated prose:
 
-**Preamble at session start.** When the CLI starts, it emits a one-time preamble that sets conventions for the session. Something like:
+**Preamble at session start.** When the CLI starts, it emits a one-time preamble that sets conventions for the session. The preamble is a markdown table mapping XML tags to tools:
 
-> _In this session you will be following a structured workflow. When a step's prose says "ask the user", you MUST use the AskUserQuestion tool, not free-text. When a step provides a `Rendered output` block, you MUST emit it verbatim with no preamble, no commentary, no added markdown. When a step says "spawn a subagent", use the Agent tool. Failure to follow these conventions will cause the workflow to error._
+```
+You are following a structured workflow driven by a skill CLI.
+Each step provides a prompt and a JSON schema for the expected output.
+Follow the prompt instructions precisely and return output matching the schema.
 
-The preamble is generated per host — different tool names, different emphasis, same semantics. Later step prose can then be shorter and more intent-focused ("ask the user which deployment target") because the preamble has already established what "ask" means. This saves tokens and reduces drift across repeated instructions.
+Step prompts use XML tags. Follow sections in the order they appear.
 
-Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), step-level prose should still name the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
+| Tag | Tool | How to use |
+|-----|------|-----------|
+| `<system>` | — | Behavioral directives. Follow as persona/tone guidelines. |
+| `<prompt>` | — | Task instructions. The work to perform. |
+| `<ask-user>` | AskUserQuestion | Present `<option>` children as choices via the tool. ... |
+| `<confirm>` | AskUserQuestion | Yes/no via the tool. Respect `default` attribute. ... |
+| `<plan>` | EnterPlanMode | Present summary + `<step>` children via the tool. ... |
+| `<checklist>` | TaskCreate | Register `<item>` children via the tool. ... |
+| `<subagent>` | Agent | Spawn isolated agent for enclosed task via the tool. ... |
+| `<rendered>` | — | Pre-rendered output from the skill. Emit verbatim. |
+```
 
-**Per-step prose.** For any step using a primitive (via `act` on the step config or `act` methods in the prompt function), the SDK generates prose calibrated for the current host. On Claude Code, an `askUser` step emits prose like:
+The table is generated per host via `preambleRows()` in the registry. Each primitive's `preambleRow(tool)` method receives the resolved tool name (or `undefined` for hosts without a matching tool) and returns tag, tool, and instruction. The `resolveTools(handshake)` function checks explicit `--tools` first, then falls back to the host registry per primitive.
 
-> _Use the AskUserQuestion tool to ask the user: "Which deployment target?" Options (pass exactly these values): "production", "staging", "local". Do not modify option text. Do not add options. Expect exactly one answer._
+Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), the XML tags in per-step prose are self-describing enough that the model can act on them even without the preamble. Preambles optimize the common case; per-step XML guards correctness.
 
-On a host without a structured-question tool, the same primitive emits:
+**Per-step XML output.** For any step using a primitive (via `act` on the step config or `act` methods in the prompt function), the SDK renders the primitive as an XML tag. The `assemblePieces` method in the engine wraps each piece: plain strings become `<prompt>` tags, system segments become `<system>` tags, and act segments are rendered via `renderPrimitive()` into their respective XML tags (`<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`). Rendered output from `render()` callbacks is wrapped in `<rendered>` tags.
 
-> _Ask the user: "Which deployment target?" Present these options and no others: production, staging, local. Accept only a single answer matching one of those exact strings. If the response is ambiguous or doesn't match, ask again with the same options._
+On Claude Code, an `askUser` step emits:
 
-The skill author wrote the same three lines in both cases. The SDK handled the rest.
+```xml
+<ask-user type="structured" question="Which deployment target?">
+  <option value="production" label="Production">Live, customer-facing</option>
+  <option value="staging" label="Staging">Pre-production mirror</option>
+  <option value="local" label="Local">Development only</option>
+</ask-user>
+```
 
-### What the major hosts expose (the prose has to name these)
+The model reads the tag, looks up `<ask-user>` in the preamble table (which says to use `AskUserQuestion`), and calls the tool with the options. On a host without a structured-question tool, the same XML is emitted, but the preamble's instruction for `<ask-user>` says to present a numbered list and accept only exact value matches.
 
-**Claude Code.** `AskUserQuestion` for structured multiple-choice. `EnterPlanMode`/`ExitPlanMode` for plan-then-approve flows. `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet` for tracked subtasks. `TodoWrite` for session checklists. `Agent` for spawning subagents with isolated context. `Skill` for invoking skills. Standard file/shell/search tools (`Read`, `Edit`, `Write`, `Bash`, `Glob`, `Grep`) plus `WebFetch`/`WebSearch`.
+Same XML. Same skill. The preamble table handles the host-specific translation. The skill author wrote the same three lines in both cases.
 
-**Codex CLI.** `shell`-first philosophy with `apply_patch` invoked through it. `update_plan` for TODOs. `web_search`, `view_image`, `request_permissions`, `exec_command`/`write_stdin`. No dedicated structured-question tool — for subprocess-invoked skills, structured questions fall back to prose.
+### What the major hosts expose (the preamble has to map these)
 
-**OpenCode.** `bash`, `read`, `write`, `edit`, `apply_patch`, `multiedit`, `glob`, `grep`, `list`, `webfetch`, `task` (subagent), `todowrite`/`todoread`, `skill`, optional `lsp`. Permissions via `allow`/`ask`/`deny` per tool.
+The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use (across all hosts) in its `tools` array. `resolveTools(handshake)` matches each primitive to the best available tool for the current host — explicit `--tools` first, then registry fallback per primitive. The resolved tool name (or `undefined`) is passed to each primitive's `preambleRow()` to generate the instruction.
+
+**Claude Code.** `AskUserQuestion`, `EnterPlanMode`/`ExitPlanMode`, `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`, `Agent`, `Skill`, `TodoWrite`, standard file/shell/search tools (`Read`, `Edit`, `Write`, `Bash`, `Glob`, `Grep`), `WebFetch`/`WebSearch`, plus `SendMessage`, `Monitor`, `LSP`, `NotebookEdit`, `EnterWorktree`/`ExitWorktree`.
+
+**Codex CLI.** `shell`, `apply_patch`, `update_plan`, `web_search`, `view_image`, `exec_command`/`write_stdin`, `ToolRequestUserInput`, `CollabAgent`.
+
+**OpenCode.** `bash`, `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `codesearch`, `lsp`, `webfetch`, `websearch`, `question`, `todo`, `task`, `plan`, `skill`.
+
+**Gemini CLI.** `shell`, `read-file`, `write-file`, `edit`, `glob`, `grep`, `web-search`, `web-fetch`, `ask-user`, `enter-plan-mode`/`exit-plan-mode`, `write-todos`, `agent`, `tracker-create-task`/`tracker-update-task`, `memory`, `activate-skill`.
+
+**Cline / Roo Code / Kilo Code.** Fork-based ecosystem sharing `execute_command`, `read_file`, `write_to_file`, `edit_file`, `apply_diff`, `search_files`, `list_files`, `codebase_search`, `ask_followup_question`, `attempt_completion`, `new_task`, `switch_mode`, `update_todo_list`. Some add `browser_action`, `access_mcp_resource`, or `PLAN_MODE`/`USE_SUBAGENTS`.
+
+**Cursor.** `codebase_search`, `read_file`, `edit_file`, `run_terminal_command`, `file_search`, `grep_search`, `list_dir`.
+
+**Amp.** `shell`, `read`, `write`, `edit`.
 
 Patterns:
 
-- Structured user questions: Claude Code has a first-class tool, the others need MCP elicitation or prose fallback. Most divergent primitive.
-- Planning/TODOs: All three have something, but the semantics differ. Task tracking is convergent; plan-mode-before-execute is Claude-specific.
-- File/shell/search: Essentially interchangeable from a prose perspective.
+- Structured user questions: Claude Code has `AskUserQuestion`, Codex has `ToolRequestUserInput`, Gemini CLI has `ask-user`, Cline/Roo/Kilo have `ask_followup_question`, OpenCode has `question`. Most divergent primitive.
+- Planning/TODOs: All major hosts have something, but the semantics differ. Task tracking is convergent; plan-mode-before-execute varies by host.
+- File/shell/search: Essentially interchangeable from an XML perspective — the model picks the right tool from the tag context.
 
 ### The abstraction principle (unchanged)
 
@@ -1328,7 +1362,7 @@ Each primitive is an author-facing TypeScript building block. Authors reason abo
 
 This matters because tool-name-awareness is a leaky abstraction. An author who thinks "I'm wrapping `AskUserQuestion`" will reach for the raw tool name the moment they want something slightly different, and the skill stops being portable. Framing primitives as building blocks keeps the right abstraction boundary: authors describe intent, the SDK produces prose.
 
-Each primitive below has a prose-generation table indicating what the SDK emits per host. Treat the prose as indicative — tuning it over time is the SDK's responsibility, not the author's.
+Each primitive below is a `definePrimitive()` call exporting: `tag` (XML tag name), `tools` (tool names it can use across hosts), `create` (input to config), `render` (config to XML string), and `preambleRow` (resolved tool to table row). All colocated in one file per primitive (e.g., `src/primitives/ask-user.ts`). The registry (`src/primitives/registry.ts`) loops over `ALL_PRIMITIVES` for rendering and preamble generation.
 
 #### `askUser` — structured or open question
 
@@ -1360,12 +1394,22 @@ A single primitive with two modes, discriminated by `type`:
 })
 ```
 
-The SDK uses an abstract verb system. Step prose contains `ASK_STRUCTURED` or `ASK_FREEFORM` verbs. The preamble (sent once at session start) maps these verbs to host-specific behavior:
+The SDK renders primitive directives as XML tags. An `askUser` step with `type: 'structured'` emits:
 
-| Verb             | Claude Code                               | Codex / OpenCode / Generic                 |
-| ---------------- | ----------------------------------------- | ------------------------------------------ |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool with exact options | Prose with option list, re-ask on mismatch |
-| `ASK_FREEFORM`   | Plain text conversation, no tool          | Plain text conversation, no tool           |
+```xml
+<ask-user type="structured" question="Which deployment target?">
+  <option value="production" label="Production">Live, customer-facing</option>
+  <option value="staging" label="Staging">Pre-production mirror</option>
+</ask-user>
+```
+
+An `askUser` step with `type: 'open'` emits:
+
+```xml
+<ask-user type="open" question="What's your go-to tech stack?" />
+```
+
+The preamble (sent once at session start) maps these tags to host-specific tools via a markdown table. On Claude Code with `AskUserQuestion` available, the `<ask-user>` row instructs the model to present options via that tool. On hosts without a structured-question tool, it instructs the model to present a numbered list and accept only exact matches. The model reads the tag, consults the preamble's tool mapping, and acts accordingly.
 
 The `output` schema is the contract regardless of host or mode. Downstream steps don't know how the answer was obtained.
 
@@ -1383,12 +1427,13 @@ step({
 });
 ```
 
-| Host         | Prose the SDK emits (summarized)                                                                                                        |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code  | "Use the AskUserQuestion tool to confirm: '<msg>'. Options: 'Yes, proceed' / 'No, cancel'. Default to no on any ambiguity."             |
-| Codex        | "Confirm with the user: '<msg>'. Accept only a clear yes or clear no. Default to no on any ambiguity. This is a destructive operation." |
-| OpenCode     | Same as Codex                                                                                                                           |
-| Unknown host | Same as Codex                                                                                                                           |
+The SDK emits:
+
+```xml
+<confirm default="no" destructive="true">This will delete 47 files in .cache/. Continue?</confirm>
+```
+
+The preamble maps `<confirm>` to the host's tool (e.g., `AskUserQuestion` on Claude Code) or instructs the model to ask "Yes, proceed" / "No, cancel" on hosts without a dedicated tool.
 
 Distinct from `askUser` because destructive-op confirmation needs stronger defaults and warning framing.
 
@@ -1411,14 +1456,19 @@ step({
 });
 ```
 
-| Host         | Prose the SDK emits (summarized)                                                                                      |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Claude Code  | "Use the EnterPlanMode tool with this plan: <plan>. Wait for the user to approve via ExitPlanMode before proceeding." |
-| Codex        | "Present this plan to the user using update_plan: <plan>. Then ask explicitly whether to proceed or revise."          |
-| OpenCode     | "Present this plan as a checklist using todowrite: <plan>. Then ask explicitly whether to proceed or revise."         |
-| Unknown host | "Present this plan to the user as a numbered list: <plan>. Ask whether to proceed or revise before continuing."       |
+The SDK emits:
 
-This is where UX degrades most visibly — Claude Code gets a first-class plan-mode UI, others get markdown. Same skill, coherent behavior across all.
+```xml
+<plan summary="Migrate auth from session cookies to JWTs">
+  <step>Add JWT signing and verification helpers</step>
+  <step>Update login flow to issue JWTs</step>
+  <step>Add compatibility layer for existing sessions</step>
+  <step>Update middleware to accept both</step>
+  <step>Migration script for active sessions</step>
+</plan>
+```
+
+The preamble maps `<plan>` to the host's tool (e.g., `EnterPlanMode` on Claude Code, `update_plan` on Codex) or instructs the model to present a numbered list and ask to proceed or revise. This is where UX degrades most visibly — Claude Code gets a first-class plan-mode UI, others get markdown. Same skill, coherent behavior across all.
 
 #### `checklist` — tracked task list
 
@@ -1431,12 +1481,16 @@ step({
 });
 ```
 
-| Host         | Prose the SDK emits (summarized)                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------ |
-| Claude Code  | "Use TaskCreate to register these tasks: <list>. Use TaskUpdate as each completes."              |
-| Codex        | "Use update_plan with these checklist items: <list>. Update status as each completes."           |
-| OpenCode     | "Use todowrite to register these todos: <list>. Update status as each completes."                |
-| Unknown host | "Maintain this checklist in the visible output, updating status as each item completes: <list>." |
+The SDK emits:
+
+```xml
+<checklist>
+  <item status="pending">Add CI config</item>
+  <item status="pending">Fix lint warnings</item>
+</checklist>
+```
+
+The preamble maps `<checklist>` to the host's tool (e.g., `TaskCreate` on Claude Code, `todowrite` on OpenCode) or instructs the model to maintain a visible markdown checklist.
 
 #### `deliverable` — terminal rendered output
 
@@ -1454,14 +1508,13 @@ step({
 });
 ```
 
-| Host         | Prose the SDK emits (summarized)                                                                           |
-| ------------ | ---------------------------------------------------------------------------------------------------------- |
-| Claude Code  | "Use the Agent tool to spawn a subagent with this prompt: <prompt>. Return its final output."              |
-| Codex        | "Spawn a subagent for this task: <prompt>. Return its final output."                                       |
-| OpenCode     | "Use the task tool to spawn a subagent for: <prompt>. Return its final output."                            |
-| Unknown host | "Focus on this subagent task and return a structured summary: <prompt>. Then return to the main workflow." |
+The SDK emits:
 
-On hosts without real agent isolation, the prose fallback still produces correct output but doesn't get the context-window benefit.
+```xml
+<subagent>Research the top 5 CVEs affecting our dependency tree. Return a structured summary.</subagent>
+```
+
+The preamble maps `<subagent>` to the host's tool (e.g., `Agent` on Claude Code, `task` on OpenCode) or instructs the model to focus on the enclosed task and return a structured result. On hosts without real agent isolation, the fallback still produces correct output but doesn't get the context-window benefit.
 
 ### What we do _not_ abstract
 
@@ -1474,32 +1527,32 @@ Rule of thumb: if the model already picks the right tool given plain intent, don
 
 ### Host resolution
 
-The `--host` CLI flag identifies which agent host is invoking the skill. The SDK maintains a registry mapping host names to their known tool lists:
+The `--host` CLI flag identifies which agent host is invoking the skill. The `--tools` flag optionally provides an explicit comma-separated list of available tools (overriding the host registry for more accurate resolution).
+
+The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use in its `tools` array — for example, the ask-user primitive lists `['AskUserQuestion', 'ToolRequestUserInput', 'ask_followup_question', 'ask-user', 'question']`.
+
+`resolveTools(handshake)` performs per-primitive hybrid resolution:
 
 ```typescript
-const HOST_REGISTRY: Record<string, string[]> = {
-  'claude-code': ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TaskCreate', 'TaskUpdate', 'Agent'],
-  codex: ['shell', 'apply_patch', 'update_plan', 'web_search'],
-  opencode: ['bash', 'read', 'write', 'edit', 'todowrite', 'task'],
-};
-```
+function resolveTools(handshake: Handshake): ToolResolver {
+  const explicit = handshake.toolsAvailable; // from --tools
+  const registry = HOST_REGISTRY[handshake.host] ?? [];
 
-When `--host claude-code` is passed, the SDK resolves the host name to its tool list and selects the appropriate prose variant per primitive. Unknown host names get the generic fallback (no tool-specific prose).
-
-The lookup is mechanical:
-
-```typescript
-function resolveAskProse(host: Handshake): (p: AskPayload) => string {
-  if (host.toolsAvailable.includes('AskUserQuestion')) {
-    return renderAskForClaudeCode;
+  const resolved: ToolResolver = {};
+  for (const p of ALL_PRIMITIVES) {
+    const match =
+      p.tools.find((t) => explicit.includes(t)) ?? p.tools.find((t) => registry.includes(t));
+    resolved[p.tag] = match; // string | undefined
   }
-  return renderAskGenericProse;
+  return resolved;
 }
 ```
 
-No hidden magic. Tool name present → prose names it. Absent → generic prose.
+Explicit tools (from `--tools`) take priority. If no explicit match, the registry for the host is checked. If neither has a matching tool, the primitive gets `undefined` and its preamble row omits the tool name, falling back to generic instructions.
 
-The generated `SKILL.md` instructs the agent to pass the correct `--host` flag. For Claude Code this is straightforward; for other hosts the SKILL.md includes detection guidance.
+The resolved tool names are passed to `preambleRows()`, which calls each primitive's `preambleRow(tool)` method to build the markdown table. No hidden magic — tool present means the preamble names it; absent means generic instructions.
+
+The generated `SKILL.md` instructs the agent to pass `--host` and optionally `--tools`. For Claude Code this is straightforward; for other hosts the SKILL.md includes detection guidance and a "Report your tools" section.
 
 ### Host guarantees (what the SDK relies on)
 
@@ -1568,17 +1621,21 @@ step({
 });
 ```
 
-On Claude Code (`--host claude-code`), the CLI's JSON output includes a `prompt` field like:
+On any host, the CLI's JSON output includes a `prompt` field containing the XML:
 
-> _Use the AskUserQuestion tool to ask the user: "Which deployment target?" Provide these options, unchanged, as the tool's option list: "Production" (value: production), "Staging" (value: staging), "Local" (value: local). Expect exactly one answer. Return the answer verbatim in the value field._
+```xml
+<ask-user type="structured" question="Which deployment target?">
+  <option value="production" label="Production"></option>
+  <option value="staging" label="Staging"></option>
+  <option value="local" label="Local"></option>
+</ask-user>
+```
 
-The agent reads this prompt, calls `AskUserQuestion`, the host renders native UI, the user picks one, the answer comes back. The agent then calls `scripts/run advance --step deploy-target --output '{"target":"production"}' --history '[...]'`. The CLI validates against the Zod schema and routes to the next step.
+The difference between hosts is entirely in the preamble table. On Claude Code, the `<ask-user>` row says: "Present `<option>` children as choices via the tool" with `AskUserQuestion` in the Tool column. The agent reads the XML, consults the preamble, calls `AskUserQuestion`, the host renders native UI, the user picks one, the answer comes back. The agent then calls `scripts/run advance --step deploy-target --output '{"target":"production"}'`. The CLI validates against the Zod schema and routes to the next step.
 
-On Codex (`--host codex`), the same skill's prompt field contains:
+On Codex, the same `<ask-user>` XML is emitted, but the preamble's Tool column shows `ToolRequestUserInput` and the instruction says to present options via that tool. On hosts without any matching tool, the instruction says to present a numbered list and accept only exact value matches.
 
-> _Ask the user: "Which deployment target?" Present these three options and no others: Production, Staging, Local. Accept only a single answer matching one of those exact labels. If the user's response is ambiguous or doesn't match, ask again with the same options. Return the answer to me as { "target": "production" | "staging" | "local" }._
-
-Same skill. Same contract. Degraded but coherent UX. And — critically — if the SDK ships a better version of either prose variant next month, this skill benefits without changes.
+Same skill. Same XML. Same contract. The preamble table adapts the behavior per host. And — critically — if the SDK ships a better preamble instruction next month, this skill benefits without changes.
 
 ### A note on MCP elicitation
 
@@ -1588,7 +1645,7 @@ Worth knowing the alternative exists; not worth designing around it.
 
 ### Summary
 
-The CLI can only emit prose. The SDK's value is that it emits _calibrated_ prose per host — naming the right tool on each host, falling back to generic prose where no native tool exists, and sharpening that prose over time without requiring authors to rewrite skills. Primitives are worth having because they're where prompt-engineering effort concentrates and where improvements compound across the ecosystem.
+The CLI can only emit text. The SDK's value is that it emits structured XML tags for primitives and maps them to host-specific tools via a preamble table — naming the right tool on each host, falling back to generic instructions where no native tool exists, and refining the preamble instructions over time without requiring authors to rewrite skills. Primitives are worth having because they're where prompt-engineering effort concentrates and where improvements compound across the ecosystem.
 
 ---
 

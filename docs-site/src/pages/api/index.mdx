@@ -95,7 +95,7 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 `prompt` accepts three forms: a static string, an array of `PromptPiece` values, or a `PromptFn` callback that receives `PromptContext` and returns `PromptReturn` (`string | PromptPiece | PromptPiece[]`). When using a function, the `act` and `system` builders on `PromptContext` let you compose primitives and system directives inline — see [Composable Prompt Vocabulary](#composable-prompt-vocabulary).
 
-`act` is the declarative alternative: set it to an `ActSegment` (returned by `act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`) and the SDK prepends the generated prose automatically. For dynamic primitive composition (e.g., a `plan()` whose steps depend on stash), use `act.*` inside a prompt function instead. Convention: place `prompt` before `act` in the step config object.
+`act` is the declarative alternative: set it to an `ActSegment` (returned by `act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`) and the SDK prepends the rendered XML tag automatically. For dynamic primitive composition (e.g., a `plan()` whose steps depend on stash), use `act.*` inside a prompt function instead. Convention: place `prompt` before `act` in the step config object.
 
 ### PromptContext
 
@@ -421,14 +421,14 @@ The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string
 
 ## Primitives
 
-Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions.
+Interactive building blocks rendered as XML tags. Authors describe intent; the preamble maps each tag to the host's tools.
 
 There are two ways to attach a primitive to a step:
 
-1. **`act` field** (declarative) — set `act: act.askUser(...)` on the step config. The SDK prepends the generated prose before the step's prompt.
-2. **`act.*` in a prompt function** (composable) — call `act.askUser(...)` etc. inside the prompt callback to control exactly where the primitive prose appears, mix primitives with system segments, or derive primitive config from stash/context.
+1. **`act` field** (declarative) — set `act: act.askUser(...)` on the step config. The SDK prepends the rendered XML tag before the step's `<prompt>`.
+2. **`act.*` in a prompt function** (composable) — call `act.askUser(...)` etc. inside the prompt callback to control exactly where the primitive XML tag appears, mix primitives with system segments, or derive primitive config from stash/context.
 
-Both approaches produce identical prose output. Use the `act` field for static configs; use `act.*` in a prompt function when you need composition or dynamic values.
+Both approaches produce identical XML output. Use the `act` field for static configs; use `act.*` in a prompt function when you need composition or dynamic values.
 
 ### `askUser` — structured or open
 
@@ -529,23 +529,53 @@ The prompt function returns `PromptReturn` — a string, a single `PromptPiece`,
 
 - **Plain string** — included as-is.
 - **`system` tagged template or function call** — a `SystemSegment` with directives for the model. Supports tagged template literals (with fragment interpolation) and plain string calls.
-- **`act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`** — an `ActSegment` that the engine resolves to host-aware prose at runtime.
+- **`act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`** — an `ActSegment` that the engine renders to its XML tag at runtime via `renderPrimitive()`.
 
-The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` renders each piece (system text, primitive prose, or plain string) and joins with double newlines. If an `act` field is also set on the step, it is prepended as the first piece.
+The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` wraps each piece in its XML tag (`<prompt>` for strings, `<system>` for system segments, primitive-specific tags like `<ask-user>` or `<checklist>` for act segments) and joins with double newlines. If an `act` field is also set on the step, it is prepended as the first piece.
 
-### Host-aware verb mapping
+### XML output format
 
-The SDK uses an abstract verb system. Step prose contains verbs; the preamble (sent once at session start) maps them to host-specific behavior:
+All prompt segments are emitted as XML tags in the output: `<system>`, `<prompt>`, `<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`, `<rendered>`. No tool names appear in the XML. The preamble (sent once at session start) maps tags to host-specific tools.
 
-| Verb               | Claude Code                      | Codex                   | OpenCode                | Generic                 |
-| ------------------ | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
-| `ASK_STRUCTURED`   | `AskUserQuestion` tool           | Prose with option list  | Prose with option list  | Prose with option list  |
-| `ASK_FREEFORM`     | Plain text conversation          | Plain text conversation | Plain text conversation | Plain text conversation |
-| `PRESENT_PLAN`     | `EnterPlanMode` / `ExitPlanMode` | `update_plan`           | Numbered list           | Numbered list           |
-| `CREATE_CHECKLIST` | `TaskCreate` / `TaskUpdate`      | `update_plan` checklist | `todowrite`             | Markdown checklist      |
-| `SPAWN_SUBAGENT`   | `Agent` tool                     | Focus locally           | `task` tool             | Focus locally           |
+The preamble is a markdown table with columns: **Tag**, **Tool**, **How to use**. Each primitive's `preambleRow()` method generates its row, with the tool column populated by `resolveTools()` which matches the primitive's tool list against the host's available tools.
+
+Example preamble table (Claude Code):
+
+| Tag           | Tool            | How to use                                                                                                                     |
+| ------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `<system>`    | —               | Behavioral directives. Follow as persona/tone guidelines.                                                                      |
+| `<prompt>`    | —               | Task instructions. The work to perform.                                                                                        |
+| `<ask-user>`  | AskUserQuestion | Present `<option>` children as choices via the tool. For type="open", ask conversationally. Return selected value(s) verbatim. |
+| `<confirm>`   | AskUserQuestion | Yes/no via the tool. Respect `default` attribute. If `destructive`, emphasize consequences.                                    |
+| `<plan>`      | EnterPlanMode   | Present summary + `<step>` children via the tool. Wait for approval.                                                           |
+| `<checklist>` | TaskCreate      | Register `<item>` children via the tool. Update status as each completes.                                                      |
+| `<subagent>`  | Agent           | Spawn isolated agent for enclosed task via the tool. Return its output.                                                        |
+| `<rendered>`  | —               | Pre-rendered output from the skill. Emit verbatim — no edits, no commentary.                                                   |
+
+When no matching tool is available, the tool column is `—` and the instruction falls back to prose-only behavior (e.g., numbered lists for `<plan>`, markdown checklists for `<checklist>`).
 
 Same skill, every host. The preamble handles the translation.
+
+### Primitive type contract
+
+Each primitive is defined with `definePrimitive()`:
+
+```typescript
+import { definePrimitive } from './primitive.js';
+
+definePrimitive({
+  tag: string,                                    // XML tag name (e.g., 'ask-user')
+  tools: readonly string[],                       // tool names to match against host inventory
+  create: (input: TInput) => TConfig,             // normalize author input to frozen config
+  render: (config: TConfig) => string,            // produce XML output
+  preambleRow: (tool: string | undefined) => PreambleRow,  // generate preamble table row
+});
+```
+
+The registry (`src/primitives/registry.ts`) exposes two functions:
+
+- **`renderPrimitive(config)`** — renders any `PrimitiveConfig` to its XML tag output.
+- **`resolveTools(handshake)`** — matches each primitive's tool list against the host's available tools. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
 ---
 
