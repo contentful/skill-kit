@@ -200,11 +200,11 @@ The SDK supports two invocation modes. **Session mode** (recommended) writes pro
 
 The SDK uses an abstract verb system. The preamble (sent on first response) maps verbs to host-specific tools:
 
-| Verb             | Claude Code            | Codex / OpenCode        | Generic                |
-| ---------------- | ---------------------- | ----------------------- | ---------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool | Prose with option list  | Prose with option list |
-| `PRESENT_PLAN`   | `EnterPlanMode`        | `update_plan`           | Numbered list          |
-| `CREATE_TASKS`   | `TaskCreate`           | Checklist / `todowrite` | Markdown checklist     |
+| Verb               | Claude Code            | Codex / OpenCode        | Generic                |
+| ------------------ | ---------------------- | ----------------------- | ---------------------- |
+| `ASK_STRUCTURED`   | `AskUserQuestion` tool | Prose with option list  | Prose with option list |
+| `PRESENT_PLAN`     | `EnterPlanMode`        | `update_plan`           | Numbered list          |
+| `CREATE_CHECKLIST` | `TaskCreate`           | Checklist / `todowrite` | Markdown checklist     |
 
 Same skill, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full verb table and how prose generation works.
 
@@ -296,8 +296,8 @@ reference({ name, description, version?, resolveVersion?, package? })
 | `askUser({ type, question, ... })`   | Structured or open question  |
 | `confirm({ message, destructive? })` | Binary yes/no approval       |
 | `plan({ summary, steps })`           | Show plan, wait for approval |
-| `tasks({ create })`                  | Tracked subtask list         |
-| `subtask({ prompt, output })`        | Spawn isolated sub-agent     |
+| `checklist({ create })`              | Tracked task list            |
+| `subagent({ prompt, output })`       | Spawn isolated sub-agent     |
 
 ### Testing
 
@@ -340,8 +340,8 @@ skill-kit check <skill.ts>                          # Lint for portability issue
   ask?: AskUserConfig,
   confirm?: ConfirmConfig,
   plan?: PlanConfig,
-  tasks?: TasksConfig,
-  subtask?: SubtaskConfig,
+  checklist?: ChecklistConfig,
+  subagent?: SubagentConfig,
 }
 ```
 

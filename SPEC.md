@@ -1233,7 +1233,7 @@ The SDK has two levers for calibrated prose:
 
 **Preamble at session start.** When the CLI starts, it emits a one-time preamble that sets conventions for the session. Something like:
 
-> _In this session you will be following a structured workflow. When a step's prose says "ask the user", you MUST use the AskUserQuestion tool, not free-text. When a step provides a `Rendered output` block, you MUST emit it verbatim with no preamble, no commentary, no added markdown. When a step says "spawn a subtask", use the Agent tool. Failure to follow these conventions will cause the workflow to error._
+> _In this session you will be following a structured workflow. When a step's prose says "ask the user", you MUST use the AskUserQuestion tool, not free-text. When a step provides a `Rendered output` block, you MUST emit it verbatim with no preamble, no commentary, no added markdown. When a step says "spawn a subagent", use the Agent tool. Failure to follow these conventions will cause the workflow to error._
 
 The preamble is generated per host — different tool names, different emphasis, same semantics. Later step prose can then be shorter and more intent-focused ("ask the user which deployment target") because the preamble has already established what "ask" means. This saves tokens and reduces drift across repeated instructions.
 
@@ -1363,11 +1363,11 @@ step({
 
 This is where UX degrades most visibly — Claude Code gets a first-class plan-mode UI, others get markdown. Same skill, coherent behavior across all.
 
-#### `tasks` — tracked subtask list
+#### `checklist` — tracked task list
 
 ```typescript
 step({
-  tasks: {
+  checklist: {
     create: prev.remediations.map((r) => ({ title: r.action, status: 'pending' })),
   },
   next: 'execute-tasks',
@@ -1385,11 +1385,11 @@ step({
 
 Already covered by `render` + verbatim-paste in §4. Sits in the capability system because future hosts may expose richer structured output (interactive tables, collapsible sections) that `render` can dispatch to via host introspection. For now, the SDK emits "output the following verbatim" prose with host-specific emphasis on what verbatim means for that model.
 
-#### `subtask` — spawn an isolated sub-agent
+#### `subagent` — spawn an isolated sub-agent
 
 ```typescript
 step({
-  subtask: {
+  subagent: {
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
   },
@@ -1397,12 +1397,12 @@ step({
 });
 ```
 
-| Host         | Prose the SDK emits (summarized)                                                                     |
-| ------------ | ---------------------------------------------------------------------------------------------------- |
-| Claude Code  | "Use the Agent tool to spawn a subagent with this prompt: <prompt>. Return its final output."        |
-| Codex        | "Spawn a subagent for this task: <prompt>. Return its final output."                                 |
-| OpenCode     | "Use the task tool to spawn a subagent for: <prompt>. Return its final output."                      |
-| Unknown host | "Focus on this subtask and return a structured summary: <prompt>. Then return to the main workflow." |
+| Host         | Prose the SDK emits (summarized)                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Claude Code  | "Use the Agent tool to spawn a subagent with this prompt: <prompt>. Return its final output."              |
+| Codex        | "Spawn a subagent for this task: <prompt>. Return its final output."                                       |
+| OpenCode     | "Use the task tool to spawn a subagent for: <prompt>. Return its final output."                            |
+| Unknown host | "Focus on this subagent task and return a structured summary: <prompt>. Then return to the main workflow." |
 
 On hosts without real agent isolation, the prose fallback still produces correct output but doesn't get the context-window benefit.
 

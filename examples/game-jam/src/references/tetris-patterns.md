@@ -14,16 +14,16 @@
 
 ## Scoring
 
-| Action | Points |
-|--------|--------|
-| Single line | 100 × level |
-| Double | 300 × level |
-| Triple | 500 × level |
-| Tetris (4 lines) | 800 × level |
-| T-Spin Single | 800 × level |
-| T-Spin Double | 1200 × level |
-| Soft drop | 1 per cell |
-| Hard drop | 2 per cell |
+| Action           | Points       |
+| ---------------- | ------------ |
+| Single line      | 100 × level  |
+| Double           | 300 × level  |
+| Triple           | 500 × level  |
+| Tetris (4 lines) | 800 × level  |
+| T-Spin Single    | 800 × level  |
+| T-Spin Double    | 1200 × level |
+| Soft drop        | 1 per cell   |
+| Hard drop        | 2 per cell   |
 
 ## Rendering Approaches
 

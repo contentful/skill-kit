@@ -136,13 +136,13 @@ Everything in the host-aware system is downstream of this constraint. Primitives
 
 **Preamble at session start.** Generated once per skill invocation. Establishes session conventions:
 
-> _When a step says "ASK_STRUCTURED", use the AskUserQuestion tool with exact options. When a step provides a "Rendered output" block, emit it verbatim. When a step says "SPAWN_SUBTASK", use the Agent tool._
+> _When a step says "ASK_STRUCTURED", use the AskUserQuestion tool with exact options. When a step provides a "Rendered output" block, emit it verbatim. When a step says "SPAWN_SUBAGENT", use the Agent tool._
 
 The preamble is generated per host — different tool names, different emphasis, same semantics. Later step prompts can be shorter because the preamble has set the context.
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives, per-step prose also names the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
 
-**Per-step prose generation.** For any step using a primitive (`ask`, `confirm`, `plan`, `tasks`, `subtask`), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
+**Per-step prose generation.** For any step using a primitive (`ask`, `confirm`, `plan`, `checklist`, `subagent`), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
 
 > _Use the AskUserQuestion tool to ask: "Which target?" Options (pass exactly these values): "production", "staging". Do not modify option text._
 
@@ -152,7 +152,7 @@ On a host without a structured-question tool:
 
 ### Prose generator resolution
 
-`resolveProseGenerator(handshake)` picks the generator by checking `handshake.toolsAvailable` for host-identifying tools. Falls back to the `handshake.host` name, then to `generic`.
+`buildProseGenerator(handshake)` picks the generator by checking `handshake.toolsAvailable` for host-identifying tools. Falls back to the `handshake.host` name, then to `generic`.
 
 Each generator implements the `ProseGenerator` interface:
 
@@ -161,8 +161,8 @@ interface ProseGenerator {
   askUser(config: AskUserConfig): string;
   confirm(config: ConfirmConfig): string;
   plan(config: PlanConfig): string;
-  tasks(config: TasksConfig): string;
-  subtask(config: SubtaskConfig): string;
+  checklist(config: ChecklistConfig): string;
+  subagent(config: SubagentConfig): string;
 }
 ```
 

@@ -3,6 +3,7 @@
 ## Scope
 
 **In:**
+
 - Rename `tasks` → `checklist` and `subtask` → `subagent` across the entire SDK
 - Update the host registry from 3 to 9 agents with corrected tool names
 - Replace the monolithic (and broken) per-host prose resolution with a centralized `CAPABILITY_MAP` + hybrid fallback
@@ -13,6 +14,7 @@
 - Update all 5 documentation locations
 
 **Out:**
+
 - Adding new primitives (browser, memory, notifications — too host-specific)
 - Adding `--tools` flag for hosts to report tools directly (future work)
 - MCP elicitation support (future: when hosts expose structured questions via MCP)
@@ -34,6 +36,7 @@ Additionally: `subtask` (agent isolation) vs `tasks` (progress checklist) naming
 Full survey in `/Users/tim/.claude/plans/we-have-a-bunch-nested-floyd-agent-a90be017114509e63.md`.
 
 Capability adoption:
+
 - Structured questions: 7-8/13 (5 different tool names)
 - Plan mode: 10/13
 - Todo/task lists: 8/13
@@ -60,37 +63,37 @@ Replace the monolithic `resolveProseGenerator()` with a centralized capability r
 ```typescript
 const CAPABILITY_MAP: Record<keyof ProseGenerator, Array<[tool: string, prose: Function]>> = {
   askUser: [
-    ['AskUserQuestion',       askUserQuestionProse],       // CC: header, preview, multi-q
-    ['ToolRequestUserInput',  toolRequestInputProse],      // Codex: isSecret, isOther
-    ['ask_followup_question', askFollowupProse],           // Cline/Roo/Kilo: 2-4 options
-    ['ask-user',              geminiAskUserProse],          // Gemini CLI
-    ['question',              opencodeQuestionProse],       // OpenCode
+    ['AskUserQuestion', askUserQuestionProse], // CC: header, preview, multi-q
+    ['ToolRequestUserInput', toolRequestInputProse], // Codex: isSecret, isOther
+    ['ask_followup_question', askFollowupProse], // Cline/Roo/Kilo: 2-4 options
+    ['ask-user', geminiAskUserProse], // Gemini CLI
+    ['question', opencodeQuestionProse], // OpenCode
   ],
   confirm: [
-    ['AskUserQuestion',       askUserQuestionConfirmProse],
+    ['AskUserQuestion', askUserQuestionConfirmProse],
     ['ask_followup_question', askFollowupConfirmProse],
   ],
   plan: [
-    ['EnterPlanMode',         enterPlanModeProse],         // CC
-    ['enter-plan-mode',       enterPlanModeProse],         // Gemini (same semantics)
-    ['update_plan',           updatePlanProse],            // Codex
-    ['plan',                  planToolProse],              // OpenCode
-    ['PLAN_MODE',             planModeToggleProse],        // Cline
+    ['EnterPlanMode', enterPlanModeProse], // CC
+    ['enter-plan-mode', enterPlanModeProse], // Gemini (same semantics)
+    ['update_plan', updatePlanProse], // Codex
+    ['plan', planToolProse], // OpenCode
+    ['PLAN_MODE', planModeToggleProse], // Cline
   ],
   checklist: [
-    ['TaskCreate',            taskCreateProse],            // CC
-    ['tracker-create-task',   trackerProse],               // Gemini
-    ['write-todos',           writeTodosProse],            // Gemini alt
-    ['todo',                  todoToolProse],              // OpenCode
-    ['update_todo_list',      updateTodoListProse],        // Cline/Roo/Kilo
+    ['TaskCreate', taskCreateProse], // CC
+    ['tracker-create-task', trackerProse], // Gemini
+    ['write-todos', writeTodosProse], // Gemini alt
+    ['todo', todoToolProse], // OpenCode
+    ['update_todo_list', updateTodoListProse], // Cline/Roo/Kilo
   ],
   subagent: [
-    ['Agent',                 agentToolProse],             // CC
-    ['agent',                 agentToolProse],             // Gemini (same semantics)
-    ['CollabAgent',           collabAgentProse],           // Codex
-    ['task',                  taskToolProse],              // OpenCode
-    ['USE_SUBAGENTS',         useSubagentsProse],          // Cline
-    ['new_task',              newTaskProse],               // Roo/Kilo
+    ['Agent', agentToolProse], // CC
+    ['agent', agentToolProse], // Gemini (same semantics)
+    ['CollabAgent', collabAgentProse], // Codex
+    ['task', taskToolProse], // OpenCode
+    ['USE_SUBAGENTS', useSubagentsProse], // Cline
+    ['new_task', newTaskProse], // Roo/Kilo
   ],
 };
 ```
@@ -108,6 +111,7 @@ Each tool-specific prose function encodes that tool's unique constraints (Cline'
 ### Game-jam showcase skill
 
 Guided Tetris game builder exercising all 5 primitives:
+
 - `askUser` structured (2x): variant choice, renderer choice
 - `askUser` open (3x): game name, plan revision, polish requests
 - `confirm` (2x): design review gate, final review gate
@@ -124,21 +128,23 @@ Research found browser automation (3/13), memory (2/13), image generation (4/13)
 ## Steps
 
 - [x] Create branch and task file
-- [ ] Rename `tasks` → `checklist` across SDK
-- [ ] Rename `subtask` → `subagent` across SDK
-- [ ] Typecheck + test checkpoint
-- [ ] Update host registry (3 → 9 hosts, fix stale tool names)
-- [ ] Implement centralized CAPABILITY_MAP and per-tool prose functions
-- [ ] Replace `resolveProseGenerator` with `buildProseGenerator`
-- [ ] Typecheck + test checkpoint
-- [ ] Update preamble for new verbs and all known tools
-- [ ] Typecheck + test checkpoint
-- [ ] Build game-jam showcase skill with tests
-- [ ] Typecheck + test checkpoint
-- [ ] Create docs/hosts.md agent capability reference
+- [x] Rename `tasks` → `checklist` and `subtask` → `subagent` across SDK
+- [x] Typecheck + test checkpoint (210 pass → 210 pass)
+- [x] Update host registry (3 → 9 hosts, fix stale OpenCode/Codex tool names)
+- [x] Implement centralized CAPABILITY_MAP (26 tool-specific prose functions + 5 generic fallbacks)
+- [x] Replace `resolveProseGenerator` with `buildProseGenerator` (old name deprecated)
+- [x] Typecheck + test checkpoint (213 pass — 3 new cross-host prose tests)
+- [x] Update preamble for new verbs and all known tools (hybrid fallback)
+- [x] Typecheck + test checkpoint (215 pass — 2 new preamble tests)
+- [x] Build game-jam showcase skill with tests (3 tests, exercises all 5 primitives)
+- [x] Typecheck + test checkpoint (215 SDK + 18 examples = all pass)
+- [x] Create docs/hosts.md agent capability reference (13 agents, ~340 lines)
 - [ ] Update SPEC.md, docs/api.md, docs/architecture.md, docs-site MDX, README.md
 - [ ] Final typecheck + test + format check
 
 ## Notes
 
-(Running log of implementation decisions)
+- The `dist/` directory was stale from a prior build and needed `pnpm run build` to regenerate after the rename. The examples resolve via the `import` condition in package.json exports, which points to dist. Added to build step.
+- `unknown-tool-names` lint rule now derives KNOWN_TOOLS from HOST_REGISTRY instead of maintaining a duplicate list.
+- `resolveProseGenerator` kept as deprecated alias for backwards compatibility.
+- The `prose/default.ts` file still exists but is no longer imported by the prose index — the per-tool files supersede it. Left in place as a reference.

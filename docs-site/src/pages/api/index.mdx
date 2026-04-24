@@ -91,8 +91,8 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   ask?: AskUserConfig,
   confirm?: ConfirmConfig,
   plan?: PlanConfig,
-  tasks?: TasksConfig,
-  subtask?: SubtaskConfig,
+  checklist?: ChecklistConfig,
+  subagent?: SubagentConfig,
 }
 ```
 
@@ -457,12 +457,12 @@ plan: plan({
 });
 ```
 
-### `tasks` — tracked task list
+### `checklist` — tracked task list
 
 ```typescript
-import { tasks } from '@contentful/skill-kit';
+import { checklist } from '@contentful/skill-kit';
 
-tasks: tasks({
+checklist: checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
@@ -470,12 +470,12 @@ tasks: tasks({
 });
 ```
 
-### `subtask` — spawn isolated sub-agent
+### `subagent` — spawn isolated sub-agent
 
 ```typescript
-import { subtask } from '@contentful/skill-kit';
+import { subagent } from '@contentful/skill-kit';
 
-subtask: subtask({
+subagent: subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
 });
@@ -485,13 +485,13 @@ subtask: subtask({
 
 The SDK uses an abstract verb system. Step prose contains verbs; the preamble (sent once at session start) maps them to host-specific behavior:
 
-| Verb             | Claude Code                      | Codex                   | OpenCode                | Generic                 |
-| ---------------- | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool           | Prose with option list  | Prose with option list  | Prose with option list  |
-| `ASK_FREEFORM`   | Plain text conversation          | Plain text conversation | Plain text conversation | Plain text conversation |
-| `PRESENT_PLAN`   | `EnterPlanMode` / `ExitPlanMode` | `update_plan`           | Numbered list           | Numbered list           |
-| `CREATE_TASKS`   | `TaskCreate` / `TaskUpdate`      | `update_plan` checklist | `todowrite`             | Markdown checklist      |
-| `SPAWN_SUBTASK`  | `Agent` tool                     | Focus locally           | `task` tool             | Focus locally           |
+| Verb               | Claude Code                      | Codex                   | OpenCode                | Generic                 |
+| ------------------ | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
+| `ASK_STRUCTURED`   | `AskUserQuestion` tool           | Prose with option list  | Prose with option list  | Prose with option list  |
+| `ASK_FREEFORM`     | Plain text conversation          | Plain text conversation | Plain text conversation | Plain text conversation |
+| `PRESENT_PLAN`     | `EnterPlanMode` / `ExitPlanMode` | `update_plan`           | Numbered list           | Numbered list           |
+| `CREATE_CHECKLIST` | `TaskCreate` / `TaskUpdate`      | `update_plan` checklist | `todowrite`             | Markdown checklist      |
+| `SPAWN_SUBAGENT`   | `Agent` tool                     | Focus locally           | `task` tool             | Focus locally           |
 
 Same skill, every host. The preamble handles the translation.
 
