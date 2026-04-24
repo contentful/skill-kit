@@ -49,7 +49,7 @@ export default skill({
   })
 
   .step('configure', {
-    ask: askUser({
+    primitive: askUser({
       type: 'structured',
       question: 'What would you like to configure?',
       options: [

@@ -83,7 +83,7 @@ export default skill({
 
   // --- Step 2: Choose variant (askUser structured) ---
   .step('choose-variant', {
-    ask: askUser({
+    primitive: askUser({
       type: 'structured',
       question: 'What style of Tetris do you want to build?',
       options: [
@@ -99,7 +99,7 @@ export default skill({
 
   // --- Step 3: Name the game (askUser open) ---
   .step('name-game', {
-    ask: askUser({ type: 'open', question: 'What should we call your game?' }),
+    primitive: askUser({ type: 'open', question: 'What should we call your game?' }),
     prompt: prompt`${gameMasterTone} The user picked the variant already. Now get a creative name for their game.`,
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
@@ -108,7 +108,7 @@ export default skill({
 
   // --- Step 4: Choose renderer (askUser structured) ---
   .step('choose-renderer', {
-    ask: askUser({
+    primitive: askUser({
       type: 'structured',
       question: 'Which rendering approach do you want to use?',
       options: [
@@ -124,7 +124,7 @@ export default skill({
 
   // --- Step 5: Design review (confirm) ---
   .step('design-review', {
-    confirm: confirm({
+    primitive: confirm({
       message: 'Design choices are locked in. Ready to start planning the build?',
       destructive: false,
       defaultAnswer: 'yes',
@@ -137,7 +137,7 @@ export default skill({
 
   // --- Step 6: Research renderer (subagent) ---
   .step('research-renderer', {
-    subagent: subagent({
+    primitive: subagent({
       prompt:
         'Research best practices for the chosen rendering approach for a Tetris game. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
       output: z.object({ summary: z.string() }),
@@ -156,7 +156,7 @@ Return a focused summary of key implementation tips.`,
 
   // --- Step 7: Implementation plan (plan) ---
   .step('implementation-plan', {
-    plan: plan({
+    primitive: plan({
       summary: 'Build the Tetris game in 6 steps',
       steps: [
         'Set up the game board data structure (10×20 grid)',
@@ -175,14 +175,14 @@ Return a focused summary of key implementation tips.`,
 
   // --- Step 7b: Revise plan (askUser open, loops back) ---
   .extend('revise-plan', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'What should we change about the plan?' }),
+    primitive: askUser({ type: 'open', question: 'What should we change about the plan?' }),
     prompt: prompt`${gameMasterTone} The user wants to revise the plan. Ask what they'd like to change.`,
     next: 'implementation-plan',
   })
 
   // --- Step 8: Build checklist (checklist) ---
   .step('build-checklist', {
-    checklist: checklist({
+    primitive: checklist({
       create: [
         { title: 'Board data structure', status: 'pending' },
         { title: 'Piece system (7 tetrominoes)', status: 'pending' },
@@ -211,7 +211,7 @@ Follow the implementation plan. Use the research: ${stash.researchSummary}`,
 
   // --- Step 10: Generate theme (subagent) ---
   .step('generate-theme', {
-    subagent: subagent({
+    primitive: subagent({
       prompt:
         'Generate a CSS theme for the game. Include color scheme, fonts, and animations. Return the CSS as a string.',
       output: z.object({ css: z.string() }),
@@ -225,7 +225,7 @@ Follow the implementation plan. Use the research: ${stash.researchSummary}`,
 
   // --- Step 11: Final review (confirm) ---
   .step('final-review', {
-    confirm: confirm({
+    primitive: confirm({
       message: 'The game is built! Want to add any finishing touches?',
       destructive: false,
       defaultAnswer: 'no',
@@ -236,7 +236,7 @@ Follow the implementation plan. Use the research: ${stash.researchSummary}`,
 
   // --- Step 11b: Polish loop (askUser open, maxVisits) ---
   .extend('polish', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'What would you like to polish or change?' }),
+    primitive: askUser({ type: 'open', question: 'What would you like to polish or change?' }),
     prompt: prompt`${gameMasterTone} The user wants to polish the game. Ask what they'd like to improve.`,
     next: 'final-review',
     maxVisits: 2,

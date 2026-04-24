@@ -86,7 +86,7 @@ export default skill({
   })
 
   .step('ask-role', {
-    ask: askUser({
+    primitive: askUser({
       type: 'structured',
       question: "What's your primary role?",
       options: [
@@ -113,7 +113,7 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
-    ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+    primitive: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     prompt: ({ stash }) =>
       prompt`
         ${playfulTone}
@@ -126,7 +126,7 @@ export default skill({
   })
 
   .extend('ask-tools', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'What design tools do you live in?' }),
+    primitive: askUser({ type: 'open', question: 'What design tools do you live in?' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -138,7 +138,7 @@ export default skill({
   })
 
   .extend('ask-team-size', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'Tell me about your team.' }),
+    primitive: askUser({ type: 'open', question: 'Tell me about your team.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -150,7 +150,7 @@ export default skill({
   })
 
   .extend('ask-specialty', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
+    primitive: askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     prompt: () =>
       prompt`
         ${playfulTone}
@@ -162,7 +162,7 @@ export default skill({
   })
 
   .step('ask-hobby', {
-    ask: askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
+    primitive: askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     prompt: ({ attempts }) =>
       prompt`
         ${playfulTone}
@@ -180,7 +180,7 @@ export default skill({
   })
 
   .step('confirm-profile', {
-    confirm: {
+    primitive: {
       kind: 'confirm',
       message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
       destructive: false,

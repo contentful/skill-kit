@@ -5,7 +5,7 @@ export function fragment(name: string, content: string): Fragment {
   return Object.freeze({ name, content: content.trim() });
 }
 
-export function prompt(strings: TemplateStringsArray, ...values: unknown[]): string {
+export function resolveTemplate(strings: TemplateStringsArray, values: unknown[]): string {
   let raw = '';
   for (let i = 0; i < strings.length; i++) {
     raw += strings[i];
@@ -21,10 +21,13 @@ export function prompt(strings: TemplateStringsArray, ...values: unknown[]): str
   return dedent(raw);
 }
 
+export function prompt(strings: TemplateStringsArray, ...values: unknown[]): string {
+  return resolveTemplate(strings, values);
+}
+
 function dedent(text: string): string {
   const lines = text.split('\n');
 
-  // Drop leading/trailing empty lines
   while (lines.length > 0 && lines[0]!.trim() === '') lines.shift();
   while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop();
 

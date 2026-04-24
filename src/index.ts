@@ -1,7 +1,7 @@
 export { z } from 'zod';
 export { skill } from './skill.js';
 export { step } from './step.js';
-export { fragment, prompt } from './fragment.js';
+export { fragment, prompt, resolveTemplate } from './fragment.js';
 export { action } from './action.js';
 export { render } from './render/index.js';
 export { askUser } from './primitives/ask-user.js';
@@ -43,6 +43,11 @@ export type {
   ChecklistConfig,
   SubagentConfig,
   PrimitiveConfig,
+  SystemSegment,
+  ActSegment,
+  PromptSegment,
+  PromptPiece,
+  PromptReturn,
   CliResult,
   PromptResult,
   DoneResult,

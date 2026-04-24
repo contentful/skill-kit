@@ -9,6 +9,9 @@ import type {
   CliResult,
   PromptContext,
   ReferenceLoader,
+  PrimitiveConfig,
+  PromptPiece,
+  PromptReturn,
 } from '../types.js';
 import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
@@ -17,6 +20,14 @@ import { StashStore } from './stash.js';
 import { ObserverDispatcher } from './observer-dispatch.js';
 import { buildProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
 import { generatePreamble } from './preamble.js';
+import { act } from '../act.js';
+import { system } from '../system.js';
+
+function normalizePieces(raw: PromptReturn): PromptPiece[] {
+  if (typeof raw === 'string') return [raw];
+  if (Array.isArray(raw)) return [...raw];
+  return [raw];
+}
 
 const NOOP_REFS: ReferenceLoader = {
   load: () => '',
@@ -234,26 +245,22 @@ export class WorkflowEngine {
       attempts: this.history.visitCount(stepName),
       host: this.handshake,
       stash: this.stash.all(),
+      act,
+      system,
     };
 
     if (stepDef.config.render) {
       (promptCtx as { rendered: string | undefined }).rendered = stepDef.config.render(promptCtx);
     }
 
-    let promptText: string;
-    const { prompt: promptConfig } = stepDef.config;
-    if (typeof promptConfig === 'function') {
-      promptText = promptConfig(promptCtx);
-    } else if (typeof promptConfig === 'string') {
-      promptText = promptConfig;
-    } else {
-      promptText = '';
+    const raw = this.resolvePromptValue(stepDef, promptCtx);
+    const pieces = normalizePieces(raw);
+
+    if (stepDef.config.primitive) {
+      pieces.unshift({ kind: 'act' as const, primitive: stepDef.config.primitive });
     }
 
-    const primitiveProse = this.buildPrimitiveProse(stepDef);
-    if (primitiveProse) {
-      promptText = primitiveProse + (promptText ? '\n\n' + promptText : '');
-    }
+    const promptText = this.assemblePieces(pieces);
 
     let schema: unknown = null;
     try {
@@ -276,14 +283,39 @@ export class WorkflowEngine {
     }
   }
 
-  private buildPrimitiveProse(stepDef: StepDefinition): string | null {
-    const { ask, confirm, plan: planConfig, checklist: checklistConfig, subagent: subagentConfig } = stepDef.config;
-    if (ask) return this.prose.askUser(ask);
-    if (confirm) return this.prose.confirm(confirm);
-    if (planConfig) return this.prose.plan(planConfig);
-    if (checklistConfig) return this.prose.checklist(checklistConfig);
-    if (subagentConfig) return this.prose.subagent(subagentConfig);
-    return null;
+  private resolvePromptValue(stepDef: StepDefinition, ctx: PromptContext): PromptReturn {
+    const { prompt: promptConfig } = stepDef.config;
+    if (typeof promptConfig === 'function') return promptConfig(ctx);
+    if (typeof promptConfig === 'string') return promptConfig;
+    if (Array.isArray(promptConfig)) return promptConfig;
+    return '';
+  }
+
+  private assemblePieces(pieces: PromptPiece[]): string {
+    return pieces
+      .map((piece) => {
+        if (typeof piece === 'string') return piece;
+        if (piece.kind === 'system') return piece.text;
+        if (piece.kind === 'act') return this.renderPrimitive(piece.primitive);
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  private renderPrimitive(config: PrimitiveConfig): string {
+    switch (config.kind) {
+      case 'askUser':
+        return this.prose.askUser(config);
+      case 'confirm':
+        return this.prose.confirm(config);
+      case 'plan':
+        return this.prose.plan(config);
+      case 'checklist':
+        return this.prose.checklist(config);
+      case 'subagent':
+        return this.prose.subagent(config);
+    }
   }
 
   private buildDone(): DoneResult {

@@ -42,7 +42,7 @@ test('no-host-tool-names does not flag guarded reference', () => {
 test('primitive-schema-mismatch flags mismatched askUser options', () => {
   const s = skill({ name: 'mismatch', entry: 'a' })
     .step('a', {
-      ask: askUser({
+      primitive: askUser({
         type: 'structured',
         question: 'Pick one',
         options: [
