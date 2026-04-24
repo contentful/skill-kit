@@ -1,11 +1,11 @@
 ---
-name: contentful-help
-description: "Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup"
+name: game-jam
+description: "A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial"
 metadata:
   version: "1.0.0"
 ---
 
-# contentful-help
+# game-jam
 
 This skill is a structured workflow driven by a compiled CLI binary. You interact with it
 by calling the binary, reading its JSON output, following the instructions in the `prompt`
@@ -118,39 +118,15 @@ contains the skill's result. Present it to the user.
 
 ## Steps in this skill
 
-- **choose**: (dynamic)
-- **get-space**: Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environm...
-- **ask-topic**: (dynamic)
-
-
-## Sub-skills
-
-This skill contains sub-skills that the workflow routes to automatically.
-Start the skill normally — the dispatcher will determine which sub-skill to use.
-Only use direct sub-skill access if the user explicitly requests a specific sub-skill by name.
-
-Sub-skill step names are prefixed: `<subskill>/<step>` (e.g., `doctor/diagnose`).
-
-### Direct sub-skill access
-
-```bash
-<skill>/scripts/run <subskill> --context '{}' --session new
-<skill>/scripts/run <subskill> advance --session <id>
-```
-
-### Available sub-skills
-
-- **doctor**: Diagnose and fix common Contentful issues.
-- **setup**: Guided Contentful space setup and configuration.
-
-## Reference topics
-
-Quick-reference topics accessible without running the full workflow:
-
-```bash
-<skill>/scripts/run topics              # list all topics
-<skill>/scripts/run topic <name>         # load a specific topic
-```
-
-- **rate-limits**: API rate limits and throttling
-- **locales**: Content localization and locale configuration
+- **choose-variant**: (dynamic)
+- **name-game**: (dynamic)
+- **choose-renderer**: (dynamic)
+- **design-review**: (dynamic)
+- **research-renderer**: (dynamic)
+- **implementation-plan**: (dynamic)
+- **revise-plan**: (dynamic)
+- **build**: (dynamic)
+- **generate-theme**: (dynamic)
+- **final-review**: (dynamic)
+- **polish**: (dynamic)
+- **summary**: Present the rendered summary card verbatim.
