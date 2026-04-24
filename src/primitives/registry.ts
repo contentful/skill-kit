@@ -24,15 +24,13 @@ export function renderPrimitive(config: PrimitiveConfig, ctx?: RenderContext): s
 export type ToolResolver = Record<string, string | undefined>;
 
 export function resolveTools(handshake: Handshake): ToolResolver {
-  const explicit = handshake.toolsAvailable;
-  const registry = HOST_REGISTRY[handshake.host] ?? [];
+  // Explicit tools (from --tools) are authoritative — subagents may report a subset.
+  // Only fall back to host registry when no tools are reported at all.
+  const tools = handshake.toolsAvailable.length > 0 ? handshake.toolsAvailable : (HOST_REGISTRY[handshake.host] ?? []);
 
   const resolved: ToolResolver = {};
   for (const p of ALL_PRIMITIVES) {
-    // Per-primitive: explicit tools first, registry fallback if no explicit match
-    const match =
-      p.tools.find((t: string) => explicit.includes(t)) ?? p.tools.find((t: string) => registry.includes(t));
-    resolved[p.tag] = match;
+    resolved[p.tag] = p.tools.find((t: string) => tools.includes(t));
   }
   return resolved;
 }

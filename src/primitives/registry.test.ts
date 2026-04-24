@@ -5,16 +5,16 @@ import type { Handshake } from '../types.js';
 import { checklist } from './checklist.js';
 import { confirm } from './confirm.js';
 
-test('resolveTools: explicit tools take priority over registry', () => {
+test('resolveTools: explicit tools are authoritative — no registry merge', () => {
   const handshake: Handshake = {
     host: 'claude-code',
     toolsAvailable: ['ask_followup_question'],
   };
   const resolved = resolveTools(handshake);
-  // Explicit tool wins for ask-user (ask_followup_question over AskUserQuestion from registry)
+  // Explicit tool matched for ask-user
   assert.equal(resolved['ask-user'], 'ask_followup_question');
-  // No explicit match for plan — falls back to registry (claude-code has EnterPlanMode)
-  assert.equal(resolved['plan'], 'EnterPlanMode');
+  // No match for plan in the explicit list — undefined, not registry fallback
+  assert.equal(resolved['plan'], undefined);
 });
 
 test('resolveTools: registry fallback per-primitive when no explicit tools', () => {
@@ -41,7 +41,7 @@ test('resolveTools: unknown host with no tools gets all undefined', () => {
   assert.equal(resolved['subagent'], undefined);
 });
 
-test('resolveTools: partial explicit tools, registry fills gaps', () => {
+test('resolveTools: partial explicit tools — unmatched primitives get undefined', () => {
   const handshake: Handshake = {
     host: 'cline',
     toolsAvailable: ['AskUserQuestion', 'Agent'],
@@ -50,9 +50,9 @@ test('resolveTools: partial explicit tools, registry fills gaps', () => {
   // Explicit matches
   assert.equal(resolved['ask-user'], 'AskUserQuestion');
   assert.equal(resolved['subagent'], 'Agent');
-  // Registry fallback for cline (has PLAN_MODE, update_todo_list)
-  assert.equal(resolved['plan'], 'PLAN_MODE');
-  assert.equal(resolved['checklist'], 'update_todo_list');
+  // No match in explicit list — undefined, not registry fallback
+  assert.equal(resolved['plan'], undefined);
+  assert.equal(resolved['checklist'], undefined);
 });
 
 test('resolveTools: explicit tool not in any primitive is ignored', () => {
