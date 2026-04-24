@@ -1516,7 +1516,17 @@ The SDK emits:
 
 The preamble maps `<subagent>` to the host's tool (e.g., `Agent` on Claude Code, `task` on OpenCode) or instructs the model to focus on the enclosed task and return a structured result. On hosts without real agent isolation, the fallback still produces correct output but doesn't get the context-window benefit.
 
-**Recursion note:** Subagents have access to the host's full tool set, including the Skill tool. This means a subagent _can_ invoke the same skill recursively — or invoke sub-skills via the dispatcher. This is powerful (a skill can compose with itself) but also a source of unintended loops. Skill authors should be explicit in the subagent prompt about whether re-invoking the skill is intended. If it is not, say so in the prompt ("Do not invoke any skills"). If it is, design the sub-skill entry point to handle the recursive case.
+**Recursion guard:** Subagents have access to the host's full tool set, including the Skill tool, so they _can_ invoke the same skill recursively. By default, `allowRecursion` is `false` and the SDK emits `<subagent no-recurse="skill-name">`, which the preamble tells the agent to respect. Set `allowRecursion: true` to remove the guard — useful when a skill intentionally composes with itself via sub-skills.
+
+```typescript
+// Default: subagent won't re-invoke this skill
+act.subagent({ prompt: 'Write a README', output: schema });
+// → <subagent no-recurse="game-jam">Write a README</subagent>
+
+// Opt-in: subagent CAN re-invoke this skill
+act.subagent({ prompt: 'Run the doctor sub-skill', output: schema, allowRecursion: true });
+// → <subagent>Run the doctor sub-skill</subagent>
+```
 
 ### What we do _not_ abstract
 

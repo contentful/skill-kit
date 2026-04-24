@@ -1,8 +1,8 @@
 ---
 name: get-to-know-you
-description: "A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker"
+description: 'A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker'
 metadata:
-  version: "1.0.0"
+  version: '1.0.0'
 ---
 
 # get-to-know-you
@@ -24,7 +24,8 @@ a prompt containing XML-tagged sections:
 - **`<confirm>`** — Binary yes/no confirmation. Attributes: `default`, `destructive`.
 - **`<plan>`** — Present a plan for approval. Contains `<step>` children.
 - **`<checklist>`** — Create tracked work items. Contains `<item>` children with status.
-- **`<subagent>`** — Delegate work to an isolated sub-agent.
+- **`<subagent>`** — Delegate work to an isolated sub-agent. If `no-recurse` is set,
+  the subagent must not invoke the skill named in the attribute.
 - **`<rendered>`** — Pre-rendered output. Emit verbatim — no edits, no added commentary.
 
 A step may contain one or more of these sections in sequence. Follow them in order.
@@ -51,6 +52,7 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`

@@ -1,8 +1,8 @@
 ---
 name: contentful-help
-description: "Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup"
+description: 'Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup'
 metadata:
-  version: "1.0.0"
+  version: '1.0.0'
 ---
 
 # contentful-help
@@ -24,7 +24,8 @@ a prompt containing XML-tagged sections:
 - **`<confirm>`** — Binary yes/no confirmation. Attributes: `default`, `destructive`.
 - **`<plan>`** — Present a plan for approval. Contains `<step>` children.
 - **`<checklist>`** — Create tracked work items. Contains `<item>` children with status.
-- **`<subagent>`** — Delegate work to an isolated sub-agent.
+- **`<subagent>`** — Delegate work to an isolated sub-agent. If `no-recurse` is set,
+  the subagent must not invoke the skill named in the attribute.
 - **`<rendered>`** — Pre-rendered output. Emit verbatim — no edits, no added commentary.
 
 A step may contain one or more of these sections in sequence. Follow them in order.
@@ -51,6 +52,7 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -120,7 +122,6 @@ contains the skill's result. Present it to the user.
 - **choose**: (dynamic)
 - **get-space**: Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environm...
 - **ask-topic**: (dynamic)
-
 
 ## Sub-skills
 

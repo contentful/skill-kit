@@ -24,7 +24,8 @@ a prompt containing XML-tagged sections:
 - **`<confirm>`** — Binary yes/no confirmation. Attributes: `default`, `destructive`.
 - **`<plan>`** — Present a plan for approval. Contains `<step>` children.
 - **`<checklist>`** — Create tracked work items. Contains `<item>` children with status.
-- **`<subagent>`** — Delegate work to an isolated sub-agent.
+- **`<subagent>`** — Delegate work to an isolated sub-agent. If `no-recurse` is set,
+  the subagent must not invoke the skill named in the attribute.
 - **`<rendered>`** — Pre-rendered output. Emit verbatim — no edits, no added commentary.
 
 A step may contain one or more of these sections in sequence. Follow them in order.
