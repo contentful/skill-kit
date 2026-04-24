@@ -21,18 +21,20 @@ skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
 
 ### `skill()` config
 
-| Field         | Type                                           | Required | Description                                                |
-| ------------- | ---------------------------------------------- | -------- | ---------------------------------------------------------- |
-| `name`        | `string`                                       | yes      | Skill identifier                                           |
-| `entry`       | `string`                                       | yes      | Name of the first step                                     |
-| `version`     | `string`                                       | no       | Defaults to `'0.0.0'`                                      |
-| `description` | `string`                                       | no       | Used in generated SKILL.md                                 |
-| `triggers`    | `string[]`                                     | no       | Keywords appended to description for agent discoverability |
-| `context`     | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                |
-| `stash`       | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                    |
-| `finalOutput` | `z.ZodType`                                    | no       | Schema for the terminal step's output                      |
-| `observers`   | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))              |
-| `skillMd`     | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                          |
+| Field            | Type                                           | Required | Description                                                                             |
+| ---------------- | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `name`           | `string`                                       | yes      | Skill identifier                                                                        |
+| `entry`          | `string`                                       | yes      | Name of the first step                                                                  |
+| `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
+| `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
+| `description`    | `string`                                       | no       | Used in generated SKILL.md                                                              |
+| `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                              |
+| `context`        | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                                             |
+| `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                 |
+| `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                   |
+| `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                           |
+| `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                       |
+| `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))     |
 
 Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
@@ -151,18 +153,20 @@ For skills that don't need a workflow — just progressive disclosure of content
 ```typescript
 import { reference } from '@contentful/skill-kit';
 
-reference({ name, description, version? })
+reference({ name, description, version?, resolveVersion?, package? })
   .topic(name, { label, content: (ctx) => string })
   .build()                                           // → ReferenceDefinition (frozen)
 ```
 
 ### `reference()` config
 
-| Field         | Type     | Required | Description                |
-| ------------- | -------- | -------- | -------------------------- |
-| `name`        | `string` | yes      | Reference skill identifier |
-| `description` | `string` | yes      | Used in generated SKILL.md |
-| `version`     | `string` | no       | Defaults to `'0.0.0'`      |
+| Field            | Type            | Required | Description                                                                             |
+| ---------------- | --------------- | -------- | --------------------------------------------------------------------------------------- |
+| `name`           | `string`        | yes      | Reference skill identifier                                                              |
+| `description`    | `string`        | yes      | Used in generated SKILL.md                                                              |
+| `version`        | `string`        | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
+| `resolveVersion` | `true`          | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
+| `package`        | `PackageConfig` | no       | Fields written to the output `package.json` (see [Package Config](#package-config))     |
 
 ### `.topic(name, config)`
 
@@ -180,6 +184,46 @@ Registers a topic. `content` is a lazy function receiving `{ refs: ReferenceLoad
 ```
 
 At least one topic is required. `build()` throws if name, description, or topics are missing.
+
+---
+
+## Package Config
+
+Both `skill()` and `reference()` accept an optional `package` field that controls the generated `package.json`:
+
+```typescript
+export default skill({
+  name: 'my-skill',
+  resolveVersion: true,
+  entry: 'start',
+  package: {
+    name: '@org/skill-my-skill',
+    license: 'MIT',
+    files: ['SKILL.md', 'scripts/**', 'bin/**'],
+  },
+});
+```
+
+### `PackageConfig` fields
+
+| Field         | Type       | Description                                         |
+| ------------- | ---------- | --------------------------------------------------- |
+| `name`        | `string`   | Override package name (default: skill name)         |
+| `description` | `string`   | Written to `package.json`                           |
+| `license`     | `string`   | Written to `package.json`                           |
+| `files`       | `string[]` | Written to `package.json`                           |
+| `[key]`       | `unknown`  | Any other field is passed through to `package.json` |
+
+### Version strategy
+
+Version is set via one of two mutually exclusive fields (enforced at the type level):
+
+- **`version`** — Explicit version string (e.g., `version: '1.0.0'`). Defaults to `'0.0.0'` if omitted.
+- **`resolveVersion: true`** — The build walks up from the entry file's directory to find the nearest ancestor `package.json` with a `version` field and uses that. Useful when a version manager like `release-it` bumps the root `package.json`.
+
+### Merge behavior
+
+If a `package.json` already exists in the output directory, the build merges rather than overwrites: existing fields are preserved, `package` config fields override, and `name`/`version` are always authoritative.
 
 ---
 
@@ -747,7 +791,7 @@ Output (bun mode):
 ```
 <dir>/
   SKILL.md               ← Generated agent-facing docs
-  package.json           ← Name and version
+  package.json           ← Name, version, and package config fields
   scripts/run            ← Shell wrapper (platform dispatcher)
   bin/<name>-<platform>  ← Compiled Bun executables
   references/            ← Copied from source
@@ -758,7 +802,7 @@ Output (node mode):
 ```
 <dir>/
   SKILL.md               ← Generated agent-facing docs
-  package.json           ← Name and version
+  package.json           ← Name, version, and package config fields
   scripts/run            ← Shell wrapper (Node version check)
   bin/<name>.mjs         ← Single ESM bundle
   references/            ← Copied from source

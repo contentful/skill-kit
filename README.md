@@ -272,7 +272,7 @@ A composite skill that dispatches to doctor and setup sub-skills, or resolves FA
 ### Workflow Builder
 
 ```typescript
-skill({ name, entry, description?, triggers?, context?, stash?, observers?, finalOutput? })
+skill({ name, entry, version?, resolveVersion?, package?, description?, triggers?, context?, stash?, observers?, finalOutput? })
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type
@@ -284,7 +284,7 @@ skill({ name, entry, description?, triggers?, context?, stash?, observers?, fina
 ### Reference Builder
 
 ```typescript
-reference({ name, description, version? })
+reference({ name, description, version?, resolveVersion?, package? })
   .topic(name, { label, content: (ctx) => string })  // content receives { refs }
   .build()                                            // → ReferenceDefinition
 ```

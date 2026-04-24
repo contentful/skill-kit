@@ -221,7 +221,7 @@ The `--mode` flag selects the bundling strategy:
    - **Node mode:** Run esbuild to produce a single `.mjs` bundle with all dependencies inlined.
 5. **Generate scripts/run** — Shell wrapper (mode-dependent: platform dispatcher for bun, Node version check for node).
 6. **Generate SKILL.md** — Agent-facing documentation with invocation instructions, step descriptions, and reference pointers.
-7. **Generate package.json** — Minimal metadata (name, version).
+7. **Generate package.json** — Name, version, and any fields from the skill's `package` config. Merges with existing `package.json` in the output directory. When `resolveVersion: true`, reads the version from the nearest ancestor `package.json`.
 8. **Copy references/** — Markdown files from the source `references/` directory.
 9. **Clean up** — Remove temporary wrapper files.
 
