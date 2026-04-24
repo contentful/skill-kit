@@ -186,9 +186,7 @@ export interface PackageConfig {
   [key: string]: unknown;
 }
 
-export type VersionStrategy =
-  | { version?: string; resolveVersion?: never }
-  | { version?: never; resolveVersion: true };
+export type VersionStrategy = { version?: string; resolveVersion?: never } | { version?: never; resolveVersion: true };
 
 // --- Skill Builder Config (input to skill()) ---
 
