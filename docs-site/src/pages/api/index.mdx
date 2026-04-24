@@ -12,7 +12,7 @@ Full reference for `@contentful/skill-kit`. Start with the [Getting Started](/ge
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
+skill({ name, entry, system?, context?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -25,6 +25,7 @@ skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
 | ---------------- | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
 | `name`           | `string`                                       | yes      | Skill identifier                                                                        |
 | `entry`          | `string`                                       | yes      | Name of the first step                                                                  |
+| `system`         | `string`                                       | no       | System-level directive prepended to the preamble (persona, constraints, tone)           |
 | `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
 | `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
 | `description`    | `string`                                       | no       | Used in generated SKILL.md                                                              |
@@ -47,7 +48,7 @@ Adds a step. Returns the builder for chaining. See [Step Config](#step-config) f
 Inherits a shared step definition and overrides specific fields. The base step's config is shallow-merged with overrides (overrides win).
 
 ```typescript
-import { step, z, askUser } from '@contentful/skill-kit';
+import { step, z, act } from '@contentful/skill-kit';
 
 const openQuestion = step({
   output: z.object({ answer: z.string() }),
@@ -56,8 +57,8 @@ const openQuestion = step({
 
 // In the builder:
 .extend('ask-stack', openQuestion, {
-  primitive: askUser({ type: 'open', question: "What's your tech stack?" }),
   prompt: ({ stash }) => `Ask ${stash.name} about their tech stack.`,
+  act: act.askUser({ type: 'open', question: "What's your tech stack?" }),
   next: 'ask-hobby',
 })
 ```
@@ -79,7 +80,8 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 ```typescript
 {
   prompt?: string | PromptPiece[] | PromptFn,
-  output: z.ZodType,                                      // required
+  act?: ActSegment,                                        // from act.askUser(...), act.confirm(...), etc.
+  output: z.ZodType,                                       // required
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },  // required
   render?: (ctx: PromptContext) => string,
   action?: ActionDefinition,
@@ -88,13 +90,12 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  primitive?: PrimitiveConfig,
 }
 ```
 
 `prompt` accepts three forms: a static string, an array of `PromptPiece` values, or a `PromptFn` callback that receives `PromptContext` and returns `PromptReturn` (`string | PromptPiece | PromptPiece[]`). When using a function, the `act` and `system` builders on `PromptContext` let you compose primitives and system directives inline — see [Composable Prompt Vocabulary](#composable-prompt-vocabulary).
 
-`primitive` is the declarative alternative: set it to a `PrimitiveConfig` (returned by `askUser()`, `confirm()`, `plan()`, `checklist()`, `subagent()`) and the SDK prepends the generated prose automatically. For dynamic primitive composition (e.g., a `plan()` whose steps depend on stash), use `act.*` inside a prompt function instead.
+`act` is the declarative alternative: set it to an `ActSegment` (returned by `act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`) and the SDK prepends the generated prose automatically. For dynamic primitive composition (e.g., a `plan()` whose steps depend on stash), use `act.*` inside a prompt function instead. Convention: place `prompt` before `act` in the step config object.
 
 ### PromptContext
 
@@ -424,18 +425,18 @@ Interactive building blocks that generate host-aware prose. Authors describe int
 
 There are two ways to attach a primitive to a step:
 
-1. **`primitive` field** (declarative) — set `primitive: askUser(...)` on the step config. The SDK prepends the generated prose before the step's prompt.
+1. **`act` field** (declarative) — set `act: act.askUser(...)` on the step config. The SDK prepends the generated prose before the step's prompt.
 2. **`act.*` in a prompt function** (composable) — call `act.askUser(...)` etc. inside the prompt callback to control exactly where the primitive prose appears, mix primitives with system segments, or derive primitive config from stash/context.
 
-Both approaches produce identical prose output. Use `primitive` for static configs; use `act.*` when you need composition or dynamic values.
+Both approaches produce identical prose output. Use the `act` field for static configs; use `act.*` in a prompt function when you need composition or dynamic values.
 
 ### `askUser` — structured or open
 
 ```typescript
-import { askUser } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Structured — fixed options, host uses best available tool
-primitive: askUser({
+act: act.askUser({
   type: 'structured',
   question: 'Which environment?',
   options: [
@@ -446,7 +447,7 @@ primitive: askUser({
 }),
 
 // Open — free-text conversation, never a structured tool
-primitive: askUser({
+act: act.askUser({
   type: 'open',
   question: "What's your tech stack?",
 }),
@@ -455,9 +456,9 @@ primitive: askUser({
 ### `confirm` — binary approval
 
 ```typescript
-import { confirm } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-primitive: confirm({
+act: act.confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
   destructive: true, // optional — adds warning in prose
   defaultAnswer: 'no', // optional — 'yes' or 'no'
@@ -469,9 +470,9 @@ Step output should include `{ approved: z.boolean() }`.
 ### `plan` — present and approve
 
 ```typescript
-import { plan } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-primitive: plan({
+act: act.plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
 }),
@@ -480,9 +481,9 @@ primitive: plan({
 ### `checklist` — tracked task list
 
 ```typescript
-import { checklist } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-primitive: checklist({
+act: act.checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
@@ -493,9 +494,9 @@ primitive: checklist({
 ### `subagent` — spawn isolated sub-agent
 
 ```typescript
-import { subagent } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-primitive: subagent({
+act: act.subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
 }),
@@ -530,7 +531,7 @@ The prompt function returns `PromptReturn` — a string, a single `PromptPiece`,
 - **`system` tagged template or function call** — a `SystemSegment` with directives for the model. Supports tagged template literals (with fragment interpolation) and plain string calls.
 - **`act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`** — an `ActSegment` that the engine resolves to host-aware prose at runtime.
 
-The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` renders each piece (system text, primitive prose, or plain string) and joins with double newlines. If a `primitive` field is also set on the step, it is prepended as the first piece.
+The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` renders each piece (system text, primitive prose, or plain string) and joins with double newlines. If an `act` field is also set on the step, it is prepended as the first piece.
 
 ### Host-aware verb mapping
 
@@ -936,7 +937,7 @@ for (const d of diagnostics) {
 A complete skill showing context, stash, `askUser`, branching, and terminal steps:
 
 ```typescript
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 
 export default skill({
   name: 'deploy-check',
@@ -945,7 +946,8 @@ export default skill({
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
-    primitive: askUser({
+    prompt: 'Ask which environment to deploy to.',
+    act: act.askUser({
       type: 'structured',
       question: 'Which environment?',
       options: [
@@ -980,7 +982,7 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `primitive: askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `act: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
 
 2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
 

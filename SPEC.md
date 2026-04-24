@@ -111,6 +111,7 @@ import { skill, z } from '@contentful/skill-kit';
 export default skill({
   name: 'repo-doctor',
   version: '1.0.0',
+  system: 'You are a thorough code health inspector. Be precise and actionable.',
   entry: 'diagnose',
   context: z.object({ repoPath: z.string().default('.') }),
   stash: z.object({ failCount: z.number() }),
@@ -309,6 +310,10 @@ The `act` and `system` helpers are injected via `PromptContext`, not imported. A
 })
 ```
 
+**Convention:** When a step has both `prompt` and `act`, `prompt` should appear first in the object literal.
+
+````
+
 **`system`** — creates a system segment for persona or framing. Used as a template tag (`system\`...\``) or called as a function (`system('...')`).
 
 **`act`** — provides methods for each primitive:
@@ -327,17 +332,17 @@ The `PromptFn` return type is `PromptReturn` (= `string | PromptPiece | PromptPi
 
 #### Simple single-primitive steps
 
-For steps that consist entirely of one primitive with no additional prose, the step-level `primitive` field provides a shorthand:
+For steps that consist entirely of one primitive with no additional prose, the step-level `act` field provides a shorthand:
 
 ```typescript
 .step('choose', {
-  primitive: askUser({ type: 'structured', question: '...', options: [...] }),
+  act: act.askUser({ type: 'structured', question: '...', options: [...] }),
   output: z.object({ choice: z.string() }),
   next: 'next-step',
 })
-```
+````
 
-The `primitive` field replaces the old `ask`, `confirm`, `plan`, `checklist`, and `subagent` step-level fields. When `primitive` is set, no `prompt` is needed — the SDK generates the full prompt from the primitive config.
+The `act` field takes an `ActSegment` (from `act.askUser(...)`, `act.confirm(...)`, etc.) and replaces the old `ask`, `confirm`, `plan`, `checklist`, and `subagent` step-level fields. When `act` is set, no `prompt` is needed — the SDK generates the full prompt from the primitive config.
 
 ---
 
@@ -552,7 +557,7 @@ skill({ stash: z.object({ appName: z.string() }), ... })
 When related skills share references, context, or user-facing scope, they can be combined into a single composite skill. A composite is a regular `skill()` that has sub-skills and/or topics registered on it.
 
 ```typescript
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
@@ -1289,7 +1294,7 @@ The preamble is generated per host — different tool names, different emphasis,
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), step-level prose should still name the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
 
-**Per-step prose.** For any step using a primitive (via `primitive` on the step config or `act` methods in the prompt function), the SDK generates prose calibrated for the current host. On Claude Code, an `askUser` step emits prose like:
+**Per-step prose.** For any step using a primitive (via `act` on the step config or `act` methods in the prompt function), the SDK generates prose calibrated for the current host. On Claude Code, an `askUser` step emits prose like:
 
 > _Use the AskUserQuestion tool to ask the user: "Which deployment target?" Options (pass exactly these values): "production", "staging", "local". Do not modify option text. Do not add options. Expect exactly one answer._
 
@@ -1332,7 +1337,7 @@ A single primitive with two modes, discriminated by `type`:
 ```typescript
 // Structured — presents fixed options via host-specific tool (simple shorthand)
 .step("choose-target", {
-  primitive: askUser({
+  act: act.askUser({
     type: "structured",
     question: "Which deployment target?",
     options: [
@@ -1368,7 +1373,7 @@ The `output` schema is the contract regardless of host or mode. Downstream steps
 
 ```typescript
 step({
-  primitive: confirm({
+  act: act.confirm({
     message: 'This will delete 47 files in .cache/. Continue?',
     destructive: true,
     defaultAnswer: 'no',
@@ -1391,7 +1396,7 @@ Distinct from `askUser` because destructive-op confirmation needs stronger defau
 
 ```typescript
 step({
-  primitive: plan({
+  act: act.plan({
     summary: 'Migrate auth from session cookies to JWTs',
     steps: [
       'Add JWT signing and verification helpers',
@@ -1419,7 +1424,7 @@ This is where UX degrades most visibly — Claude Code gets a first-class plan-m
 
 ```typescript
 step({
-  primitive: checklist({
+  act: act.checklist({
     create: prev.remediations.map((r) => ({ title: r.action, status: 'pending' })),
   }),
   next: 'execute-tasks',
@@ -1441,7 +1446,7 @@ Already covered by `render` + verbatim-paste in §4. Sits in the capability syst
 
 ```typescript
 step({
-  primitive: subagent({
+  act: act.subagent({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
   }),
@@ -1550,7 +1555,7 @@ Author writes:
 
 ```typescript
 step({
-  primitive: askUser({
+  act: act.askUser({
     question: 'Which deployment target?',
     options: [
       { value: 'production', label: 'Production' },

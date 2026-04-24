@@ -9,7 +9,7 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
+skill({ name, entry, system?, context?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -18,20 +18,21 @@ skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
 
 ### `skill()` config
 
-| Field            | Type                                           | Required | Description                                                                             |
-| ---------------- | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `name`           | `string`                                       | yes      | Skill identifier                                                                        |
-| `entry`          | `string`                                       | yes      | Name of the first step                                                                  |
-| `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
-| `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
-| `description`    | `string`                                       | no       | Used in generated SKILL.md                                                              |
-| `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                              |
-| `context`        | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                                             |
-| `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                 |
-| `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                   |
-| `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                           |
-| `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                       |
-| `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))     |
+| Field            | Type                                           | Required | Description                                                                                                         |
+| ---------------- | ---------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `name`           | `string`                                       | yes      | Skill identifier                                                                                                    |
+| `entry`          | `string`                                       | yes      | Name of the first step                                                                                              |
+| `system`         | `string`                                       | no       | System-level persona prepended to the preamble. Steps inherit it; steps can override with `system` in array prompts |
+| `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                                                     |
+| `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`                             |
+| `description`    | `string`                                       | no       | Used in generated SKILL.md                                                                                          |
+| `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                                                          |
+| `context`        | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                                                                         |
+| `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                                             |
+| `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                                               |
+| `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                                                       |
+| `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                                                   |
+| `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                 |
 
 Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
@@ -78,6 +79,7 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 ```typescript
 {
   prompt: string | PromptFn,                               // string, or function returning PromptReturn
+  act?: ActSegment,                                        // shorthand for single-primitive steps
   output: z.ZodType,                                      // required
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },  // required
   render?: (ctx: PromptContext) => string,
@@ -87,7 +89,6 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  primitive?: PrimitiveConfig,                             // shorthand for single-primitive steps
 }
 ```
 
@@ -101,7 +102,9 @@ A `PromptPiece` is one of:
 
 When a prompt function returns an array, pieces are assembled in **author order**.
 
-The `primitive` field provides a shorthand for steps that consist entirely of one primitive with no additional prose. When set, no `prompt` is needed — the SDK generates the full prompt from the primitive config. This replaces the old `ask`, `confirm`, `plan`, `checklist`, and `subagent` step-level fields.
+**Convention:** When a step has both `prompt` and `act`, `prompt` should appear first in the object literal.
+
+The `act` field takes an `ActSegment` (from `act.askUser(...)`, `act.confirm(...)`, etc.) and provides a shorthand for steps that consist entirely of one primitive with no additional prose. When set, no `prompt` is needed — the SDK generates the full prompt from the primitive config. This replaces the old `ask`, `confirm`, `plan`, `checklist`, `subagent`, and `primitive` step-level fields.
 
 ### PromptContext
 
@@ -416,19 +419,19 @@ The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string
 
 ## Primitives
 
-Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions. Primitives can be used two ways:
+Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions. All primitive creation goes through the `act` namespace. Primitives can be used two ways:
 
-1. **Step-level `primitive` field** — shorthand for steps that consist entirely of one primitive with no additional prose.
+1. **Step-level `act` field** — shorthand for steps that consist entirely of one primitive with no additional prose.
 2. **`act` methods in prompt functions** — composable directives mixed with other prompt pieces.
 
-### `askUser` — structured or open
+### `act.askUser` — structured or open
 
 ```typescript
-import { askUser } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Step-level shorthand — simple single-primitive step
 .step('choose-env', {
-  primitive: askUser({
+  act: act.askUser({
     type: 'structured',
     question: 'Which environment?',
     options: [
@@ -441,7 +444,7 @@ import { askUser } from '@contentful/skill-kit';
   next: 'deploy',
 })
 
-// Composed with other prompt pieces via act
+// Composed with other prompt pieces via act (from PromptContext)
 .step('ask-stack', {
   prompt: ({ act }) => [
     act.askUser({ type: 'open', question: "What's your tech stack?" }),
@@ -452,17 +455,17 @@ import { askUser } from '@contentful/skill-kit';
 })
 ```
 
-### `confirm` — binary approval
+### `act.confirm` — binary approval
 
 ```typescript
-import { confirm } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Step-level shorthand
-primitive: confirm({
+act: act.confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
   destructive: true, // optional — adds warning in prose
   defaultAnswer: 'no', // optional — 'yes' or 'no'
-});
+}),
 
 // Or via act in a prompt function
 prompt: ({ act }) => [
@@ -473,33 +476,33 @@ prompt: ({ act }) => [
 
 Step output should include `{ approved: z.boolean() }`.
 
-### `plan` — present and approve
+### `act.plan` — present and approve
 
 ```typescript
-import { plan } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Step-level shorthand
-primitive: plan({
+act: act.plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
-});
+}),
 
 // Or via act in a prompt function
 prompt: ({ act }) => act.plan({ summary: '...', steps: [...] }),
 ```
 
-### `checklist` — tracked task list
+### `act.checklist` — tracked task list
 
 ```typescript
-import { checklist } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Step-level shorthand
-primitive: checklist({
+act: act.checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
   ],
-});
+}),
 
 // Or via act in a prompt function
 prompt: ({ stash, act }) => [
@@ -508,16 +511,16 @@ prompt: ({ stash, act }) => [
 ],
 ```
 
-### `subagent` — spawn isolated sub-agent
+### `act.subagent` — spawn isolated sub-agent
 
 ```typescript
-import { subagent } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Step-level shorthand
-primitive: subagent({
+act: act.subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
-});
+}),
 
 // Or via act in a prompt function
 prompt: ({ act }) => act.subagent({ prompt: 'Review the PR.', output: FindingsSchema }),
@@ -937,7 +940,7 @@ for (const d of diagnostics) {
 A complete skill showing context, stash, `askUser`, branching, and terminal steps:
 
 ```typescript
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 
 export default skill({
   name: 'deploy-check',
@@ -946,7 +949,7 @@ export default skill({
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
-    primitive: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'Which environment?',
       options: [
@@ -978,7 +981,7 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `primitive: askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `act: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
 
 2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
 

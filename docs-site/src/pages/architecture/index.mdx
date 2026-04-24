@@ -142,7 +142,7 @@ The preamble is generated per host — different tool names, different emphasis,
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives, per-step prose also names the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
 
-**Per-step prose generation.** For any step using a primitive (via the `primitive` field or `act.*` in a prompt function), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
+**Per-step prose generation.** For any step using a primitive (via the `act` field or `act.*` in a prompt function), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
 
 > _Use the AskUserQuestion tool to ask: "Which target?" Options (pass exactly these values): "production", "staging". Do not modify option text._
 
@@ -181,7 +181,7 @@ When the engine builds a step's prompt, it follows this sequence:
 
 1. **`resolvePromptValue`** — Evaluates the step's `prompt` config. If it's a function, calls it with `PromptContext` (which includes `act` and `system` builders). If it's a string or array, uses it directly. Returns `PromptReturn`.
 2. **`normalizePieces`** — Wraps the result in an array of `PromptPiece` values. A single string or segment becomes a one-element array.
-3. **Prepend `primitive`** — If the step config has a `primitive` field, an `ActSegment` wrapping it is unshifted to the front of the pieces array. This means declarative primitives always appear before prompt content.
+3. **Prepend `act`** — If the step config has an `act` field, the `ActSegment` is unshifted to the front of the pieces array. This means declarative primitives always appear before prompt content.
 4. **`assemblePieces`** — Walks the array in author order, rendering each piece:
    - Plain strings pass through.
    - `SystemSegment` (`{ kind: 'system' }`) emits its text.
@@ -189,7 +189,7 @@ When the engine builds a step's prompt, it follows this sequence:
 
    Non-empty results are joined with double newlines.
 
-This pipeline means the author controls ordering. A prompt function returning `[system`...`, act.checklist(...), 'Build the game.']` produces exactly that sequence in the final prompt. The `primitive` field is a convenience that always prepends; use `act.*` when ordering matters.
+This pipeline means the author controls ordering. A prompt function returning `[system`...`, act.checklist(...), 'Build the game.']` produces exactly that sequence in the final prompt. The `act` field is a convenience that always prepends; use `act.*` in a prompt function when ordering matters.
 
 ### Why primitives matter
 

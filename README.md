@@ -163,9 +163,9 @@ When related skills share references and overlap in scope, combine them into a s
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
-skill({ name: 'contentful-help', entry: 'choose', ... })
+skill({ name: 'contentful-help', entry: 'choose', system: 'You are a helpful Contentful support assistant.', ... })
   .step('choose', {
-    primitive: askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
+    act: act.askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
     output: z.object({ choice: z.string() }),
     next: ({ output }) => `subskill:${output.choice}`,
   })
@@ -218,7 +218,7 @@ A playful interview that builds a developer trading card. Shows branching, `askU
 
 ```typescript
 .step('ask-role', {
-  primitive: askUser({
+  act: act.askUser({
     type: 'structured',
     question: "What's your primary role?",
     options: [
@@ -272,7 +272,7 @@ A composite skill that dispatches to doctor and setup sub-skills, or resolves FA
 ### Workflow Builder
 
 ```typescript
-skill({ name, entry, version?, resolveVersion?, package?, description?, triggers?, context?, stash?, observers?, finalOutput? })
+skill({ name, entry, system?, version?, resolveVersion?, package?, description?, triggers?, context?, stash?, observers?, finalOutput? })
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type
@@ -291,15 +291,15 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 ### Primitives
 
-Use via `primitive:` on the step config (single-primitive shorthand) or `act` methods in prompt functions (composable):
+All primitive creation goes through the `act` namespace (`import { act } from '@contentful/skill-kit'`). Use via `act:` on the step config (single-primitive shorthand) or `act` methods in prompt functions (composable):
 
-| Export / Method                      | What it does                 |
-| ------------------------------------ | ---------------------------- |
-| `askUser({ type, question, ... })`   | Structured or open question  |
-| `confirm({ message, destructive? })` | Binary yes/no approval       |
-| `plan({ summary, steps })`           | Show plan, wait for approval |
-| `checklist({ create })`              | Tracked task list            |
-| `subagent({ prompt, output })`       | Spawn isolated sub-agent     |
+| Method                                   | What it does                 |
+| ---------------------------------------- | ---------------------------- |
+| `act.askUser({ type, question, ... })`   | Structured or open question  |
+| `act.confirm({ message, destructive? })` | Binary yes/no approval       |
+| `act.plan({ summary, steps })`           | Show plan, wait for approval |
+| `act.checklist({ create })`              | Tracked task list            |
+| `act.subagent({ prompt, output })`       | Spawn isolated sub-agent     |
 
 Prompt functions receive `act` and `system` via `PromptContext` for composable prompt vocabulary:
 
@@ -340,6 +340,7 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 ```typescript
 {
   prompt: string | PromptFn,                           // PromptFn returns string | PromptPiece | PromptPiece[]
+  act?: ActSegment,                                    // shorthand for single-primitive steps
   output: z.ZodType,
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
   render?: (ctx: PromptContext) => string,
@@ -349,7 +350,6 @@ skill-kit check <skill.ts>                          # Lint for portability issue
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  primitive?: PrimitiveConfig,                         // shorthand for single-primitive steps
 }
 ```
 
