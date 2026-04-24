@@ -139,8 +139,8 @@ Research found browser automation (3/13), memory (2/13), image generation (4/13)
 - [x] Build game-jam showcase skill with tests (3 tests, exercises all 5 primitives)
 - [x] Typecheck + test checkpoint (215 SDK + 18 examples = all pass)
 - [x] Create docs/hosts.md agent capability reference (13 agents, ~340 lines)
-- [ ] Update SPEC.md, docs/api.md, docs/architecture.md, docs-site MDX, README.md
-- [ ] Final typecheck + test + format check
+- [x] Update SPEC.md, docs/api.md, docs/architecture.md, docs-site MDX, README.md
+- [x] Final typecheck + test + format check (215 SDK + 18 examples, all pass)
 
 ## Notes
 
