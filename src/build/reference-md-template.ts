@@ -1,7 +1,7 @@
 import type { ReferenceDefinition } from '../types.js';
 
 export function generateReferenceMd(def: ReferenceDefinition): string {
-  const frontmatter = ['---', `name: ${def.name}`, `description: ${def.description}`];
+  const frontmatter = ['---', `name: ${def.name}`, `description: ${yamlDoubleQuoted(def.description)}`];
 
   if (def.version !== '0.0.0') {
     frontmatter.push(`metadata:`);
@@ -27,4 +27,8 @@ To list all available topics: \`<skill>/scripts/run\`
 `.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';
+}
+
+function yamlDoubleQuoted(value: string): string {
+  return JSON.stringify(value);
 }

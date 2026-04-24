@@ -8,11 +8,7 @@ Bash commands — do not \`cd\` into the skill directory.
 In the examples below, \`<skill>/scripts/run\` is a placeholder for this absolute path.`;
 
 export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol = 'session'): string {
-  const frontmatter = [
-    '---',
-    `name: ${skill.name}`,
-    `description: ${skill.description || `${skill.name} skill powered by @contentful/skill-kit.`}`,
-  ];
+  const frontmatter = ['---', `name: ${skill.name}`, `description: ${yamlDoubleQuoted(skill.description)}`];
 
   if (skill.version !== '0.0.0') {
     frontmatter.push(`metadata:`);
@@ -67,6 +63,10 @@ ${stepDescriptions}
 ${generateSubskillSection(skill, protocol)}${generateTopicSection(skill)}`.trim();
 
   return frontmatter.join('\n') + '\n\n' + body + '\n';
+}
+
+function yamlDoubleQuoted(value: string): string {
+  return JSON.stringify(value);
 }
 
 function generateSessionInstructions(): string {

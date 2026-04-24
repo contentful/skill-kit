@@ -6,9 +6,11 @@ import { generateNodeWrapper } from './node-wrapper-template.js';
 import { generateScriptsRun } from './scripts-run-template.js';
 import { generateNodeScriptsRun } from './node-scripts-run-template.js';
 import { generateSkillMd } from './skillmd-template.js';
+import { generateReferenceMd } from './reference-md-template.js';
 import { generatePackageJson } from './package-json-template.js';
 import { resolveTargets } from './targets.js';
 import { skill } from '../skill.js';
+import { reference } from '../reference.js';
 
 test('generateBunWrapper produces valid import for skill', () => {
   const result = generateBunWrapper('/abs/path/skill.ts', 'skill');
@@ -51,7 +53,7 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
   const result = generateSkillMd(s);
 
   assert.ok(result.startsWith('---\nname: test-skill'));
-  assert.ok(result.includes('description: A test skill for unit testing.'));
+  assert.ok(result.includes('description: "A test skill for unit testing."'));
   assert.ok(result.includes('version: "1.0.0"'));
   assert.ok(result.includes('scripts/run --context'));
   assert.ok(result.includes('scripts/run advance'));
@@ -59,13 +61,42 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
   assert.ok(result.includes('**start**: Begin the process.'));
 });
 
-test('generateSkillMd uses default description when none provided', () => {
+test('generateSkillMd uses empty description when none provided', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('minimal skill powered by @contentful/skill-kit'));
+  assert.ok(result.includes('description: ""'));
+});
+
+test('generateSkillMd double-quotes YAML description content', () => {
+  const s = skill({
+    name: 'quoted',
+    description: 'Trigger keywords: debug, fix and "repair".',
+    entry: 'start',
+  })
+    .step('start', {
+      prompt: 'Begin.',
+      output: z.object({ done: z.boolean() }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('description: "Trigger keywords: debug, fix and \\\"repair\\\"."'));
+});
+
+test('generateReferenceMd double-quotes YAML description content', () => {
+  const ref = reference({
+    name: 'docs-ref',
+    description: 'Reference topics: setup and "debug".',
+  })
+    .topic('setup', { label: 'Setup', content: () => 'Use setup docs.' })
+    .build();
+
+  const result = generateReferenceMd(ref);
+  assert.ok(result.includes('description: "Reference topics: setup and \\\"debug\\\"."'));
 });
 
 test('generateSkillMd with protocol=session omits stateless instructions', () => {
