@@ -121,7 +121,13 @@ export interface ActSegment {
   readonly primitive: PrimitiveConfig;
 }
 
-export type PromptSegment = SystemSegment | ActSegment;
+export interface ViewSegment {
+  readonly kind: 'view';
+  readonly label: string | undefined;
+  readonly text: string;
+}
+
+export type PromptSegment = SystemSegment | ActSegment | ViewSegment;
 export type PromptPiece = string | PromptSegment;
 export type PromptReturn = string | PromptPiece | PromptPiece[];
 

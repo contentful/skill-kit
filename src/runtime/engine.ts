@@ -299,6 +299,10 @@ export class WorkflowEngine {
         if (typeof piece === 'string') return `<prompt>\n${piece}\n</prompt>`;
         if (piece.kind === 'system') return `<system>${piece.text}</system>`;
         if (piece.kind === 'act') return renderPrimitive(piece.primitive, { skillName: this.skill.name });
+        if (piece.kind === 'view') {
+          const nameAttr = piece.label ? ` name="${piece.label}"` : '';
+          return `<rendered${nameAttr}>\n${piece.text}\n</rendered>`;
+        }
         return '';
       })
       .filter(Boolean)
