@@ -9,7 +9,7 @@ title: 'Examples'
 
 ## get-to-know-you (Workflow)
 
-A playful interview skill that asks the user a series of questions and produces a developer trading card. This example demonstrates the full workflow builder API: context, stash, fragments, `askUser` (both structured and open), `confirm`, dynamic branching based on role selection, render helpers for composing the final card, actions for side effects, loop guards on the hobby collection step, shared steps via `.extend()`, and observers for transition logging.
+A playful interview skill that asks the user a series of questions and produces a developer trading card. This example demonstrates the full workflow builder API: context, stash, fragments, `act.askUser` (both structured and open), `act.confirm`, dynamic branching based on role selection, render helpers for composing the final card, actions for side effects, loop guards on the hobby collection step, shared steps via `.extend()`, and observers for transition logging.
 
 [View full walkthrough](/examples/get-to-know-you)
 
@@ -25,6 +25,6 @@ A TypeScript patterns and idioms reference skill built with the `reference()` bu
 
 ## contentful-help (Composite)
 
-A composite skill that dispatches to doctor and setup sub-skills, or resolves FAQ topics directly. This example demonstrates the composite pattern: a dispatcher state machine with `askUser` for intent selection, `.subskill()` registration with context mapping, `.topic()` registration for reference content, actions for deterministic environment checks, `subskill:` and `topic:` routing from `next`, step name namespacing, and `runComposite` for testing.
+A composite skill that dispatches to doctor and setup sub-skills, or resolves FAQ topics directly. This example demonstrates the composite pattern: a dispatcher state machine with `act.askUser` for intent selection, `.subskill()` registration with context mapping, `.topic()` registration for reference content, actions for deterministic environment checks, `subskill:` and `topic:` routing from `next`, step name namespacing, and `runComposite` for testing.
 
 [View full walkthrough](/examples/contentful-help)

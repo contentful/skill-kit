@@ -19,7 +19,7 @@ A prose skill is a blob of markdown the agent reads all at once. That works unti
 skill-kit gives you two tools. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions. **Reference skills** are on-demand topic loaders — the agent reads the SKILL.md, then loads detailed content one topic at a time. Both bundle into self-contained packages that agents invoke via Bash.
 
 ```typescript
-import { skill, z } from '@contentful/skill-kit';
+import { skill, z, terminal } from '@contentful/skill-kit';
 
 export default skill({
   name: 'repo-doctor',
@@ -42,7 +42,8 @@ export default skill({
     /* fix failing checks */
   })
   .step('report', {
-    /* render results, terminal */
+    /* render results */
+    next: terminal,
   })
   .build();
 ```
@@ -58,7 +59,7 @@ pnpm add @contentful/skill-kit
 ### Define a skill
 
 ```typescript
-import { skill, z } from '@contentful/skill-kit';
+import { skill, z, terminal } from '@contentful/skill-kit';
 
 export default skill({
   name: 'greet',
@@ -72,7 +73,7 @@ export default skill({
   .step('welcome', {
     prompt: ({ prev }) => `Say hello to ${(prev as { name: string }).name}.`,
     output: z.object({ message: z.string() }),
-    next: { terminal: true },
+    next: terminal,
   })
   .build();
 ```
@@ -165,7 +166,7 @@ import setupSkill from './subskills/setup.js';
 
 skill({ name: 'contentful-help', entry: 'choose', system: 'You are a helpful Contentful support assistant.', ... })
   .step('choose', {
-    act: act.askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
+    prompt: act.askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
     output: z.object({ choice: z.string() }),
     next: ({ output }) => `subskill:${output.choice}`,
   })
@@ -206,9 +207,27 @@ The SDK renders primitive directives as XML tags. The preamble (sent on first re
 | `<confirm>`   | Binary yes/no confirmation                | `AskUserQuestion`          |
 | `<plan>`      | Plan presentation with steps              | `EnterPlanMode`            |
 | `<checklist>` | Tracked task list                         | `TaskCreate`               |
+| `<survey>`    | Batch multiple structured questions       | `AskUserQuestion`          |
 | `<subagent>`  | Sub-agent delegation (`no-recurse` guard) | `Agent`                    |
 
 No tool names in the XML. The preamble handles the mapping. Same skill, same XML, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full tag table and how the preamble is generated.
+
+### Step Lifecycle
+
+Each step follows a fixed lifecycle. Understanding the order matters when using actions and stash together:
+
+```
+prompt → model → validate(output) → action.input → action.run → action.stash → stash → next
+```
+
+1. **prompt** -- the CLI emits the step's prompt and schema to the agent
+2. **model** -- the agent reads the prompt, does the work, returns structured output
+3. **validate(output)** -- the CLI validates the output against the step's Zod schema
+4. **action.input** -- if the step has an action, `action.input` transforms the validated output into action input
+5. **action.run** -- the action executes CLI-side (file writes, API calls, etc.)
+6. **action.stash** -- `action.stash` persists action results to the stash
+7. **stash** -- the step-level `stash` callback runs, receiving both the output and action result
+8. **next** -- the transition function determines the next step (or terminal)
 
 ---
 
@@ -220,7 +239,7 @@ A playful interview that builds a developer trading card. Shows branching, `askU
 
 ```typescript
 .step('ask-role', {
-  act: act.askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: "What's your primary role?",
     options: [
@@ -274,6 +293,8 @@ A composite skill that dispatches to doctor and setup sub-skills, or resolves FA
 ### Workflow Builder
 
 ```typescript
+import { skill, z, act, view, terminal } from '@contentful/skill-kit';
+
 skill({ name, entry, system?, version?, resolveVersion?, package?, description?, triggers?, context?, stash?, observers?, finalOutput? })
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
@@ -293,7 +314,7 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 ### Primitives
 
-All primitive creation goes through the `act` namespace (`import { act } from '@contentful/skill-kit'`). Use via `act:` on the step config (single-primitive shorthand) or `act` methods in prompt functions (composable):
+All primitive creation goes through the `act` namespace (`import { act } from '@contentful/skill-kit'`). Pass act segments directly to `prompt:` (single-primitive shorthand) or compose them in prompt functions (arrays):
 
 | Method                                              | What it does                                          |
 | --------------------------------------------------- | ----------------------------------------------------- |
@@ -302,6 +323,23 @@ All primitive creation goes through the `act` namespace (`import { act } from '@
 | `act.plan({ summary, steps })`                      | Show plan, wait for approval                          |
 | `act.checklist({ create })`                         | Tracked task list                                     |
 | `act.subagent({ prompt, output, allowRecursion? })` | Spawn isolated sub-agent (recursion guard by default) |
+| `act.survey(questions)`                             | Batch multiple structured questions                   |
+
+Use `view()` to inject pre-rendered content into prompts:
+
+```typescript
+import { view } from '@contentful/skill-kit';
+
+prompt: ({ stash }) => [view('Trading Card', renderedCard), 'Present the card verbatim.'],
+```
+
+Use `terminal` as a shorthand for `{ terminal: true }`:
+
+```typescript
+import { terminal } from '@contentful/skill-kit';
+
+next: terminal,
+```
 
 Prompt functions receive `act` and `system` via `PromptContext` for composable prompt vocabulary:
 
@@ -341,21 +379,23 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 
 ```typescript
 {
-  prompt: string | PromptFn,                           // PromptFn returns string | PromptPiece | PromptPiece[]
-  act?: ActSegment,                                    // shorthand for single-primitive steps
+  prompt: string | PromptPiece | PromptPiece[] | PromptFn,  // accepts segments (ActSegment, ViewSegment, etc.) directly
   output: z.ZodType,
-  next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
-  render?: (ctx: PromptContext) => string,
-  action?: ActionDefinition,
-  actionInput?: (ctx: { output; stash }) => unknown,
-  stash?: (ctx: { output }) => Partial<TStash>,
-  afterAction?: (ctx: { output; action }) => Partial<TStash>,
+  next: 'step-name' | ((ctx) => 'step-name') | terminal,
+  action?: {
+    run: ActionDefinition,                                   // the action to execute
+    input?: (ctx: { output; stash }) => unknown,             // transform step output to action input
+    stash?: (ctx: { result }) => Partial<TStash>,            // stash action results
+  },
+  stash?: (ctx: { output; action? }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
 }
 ```
 
-`PromptContext` fields available in dynamic prompts and render functions:
+**Step lifecycle:** `prompt` -> `model` -> `validate(output)` -> `action.input` -> `action.run` -> `action.stash` -> `stash` -> `next`
+
+`PromptContext` fields available in dynamic prompts:
 
 | Field      | Description                                                       |
 | ---------- | ----------------------------------------------------------------- |
@@ -363,7 +403,6 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 | `history`  | All prior step results                                            |
 | `getStep`  | Typed accessor: `getStep<T>('name')?.output`                      |
 | `context`  | Global skill context (typed from `skill({ context: ... })`)       |
-| `rendered` | Output of this step's `render()`                                  |
 | `refs`     | Lazy loader for `references/` files                               |
 | `attempts` | How many times this step has been visited                         |
 | `host`     | Current host info                                                 |

@@ -78,11 +78,11 @@ export default skill({
 - A state machine implementation — the SDK provides it.
 - Host-specific tool invocations — the SDK's primitives emit XML tags mapped to tools via the preamble.
 - Parsing, validation, retry logic — handled at the boundary by schemas.
-- Formatting templates repeated across prompts — renderers and fragments cover that.
+- Formatting templates repeated across prompts — `view()`, renderers, and fragments cover that.
 
 ### Where to read next
 
-The sections below go in order: primitives (§1), prompts and fragments (§2), transitions (§3), rendering (§4), references (§5), modularization (§6), context and state including terminal-output for programmatic consumers (§7), side effects and observers (§8), testing (§9), the CLI invocation protocol (§10), build and distribution (§11), repo layout for skill authors (§12), opinionated decisions (§13), cross-host behavior (§14), and what's out of scope for v0.1 (§15).
+The sections below go in order: primitives (§1), prompts and fragments (§2), transitions (§3), views and rendering (§4), references (§5), modularization (§6), context and state including terminal-output for programmatic consumers (§7), side effects and observers (§8), testing (§9), the CLI invocation protocol (§10), build and distribution (§11), repo layout for skill authors (§12), opinionated decisions (§13), cross-host behavior (§14), and what's out of scope for v0.1 (§15).
 
 If you just want to see the whole shape at once, read §1 and §4, then skim §11–§14.
 
@@ -94,7 +94,7 @@ If you just want to see the whole shape at once, read §1 and §4, then skim §1
 2. **Prose stays prose.** The SDK structures _when_ prose is shown and _what contract_ it satisfies. It never replaces prose with code.
 3. **Typed boundaries, untyped interiors.** Step I/O is schema-enforced. What the model does inside a step is freeform.
 4. **Node-native, flexible distribution.** `npx tsx skill.ts` works in dev. `skill-kit build` bundles skills for distribution — either as lightweight Node.js bundles (`--mode node`, via esbuild) or standalone executables (`--mode bun`, via `bun build --compile`).
-5. **Composable.** Steps, schemas, fragments, and renderers are importable across skills.
+5. **Composable.** Steps, schemas, fragments, and render helpers are importable across skills.
 6. **One obvious way.** Opinionated where the cost of choice exceeds the benefit.
 
 ---
@@ -134,7 +134,7 @@ export default skill({
 
 ### `.step(name, config)` on the builder
 
-Adds a step inline. The prompt and render callbacks receive typed `context` and `stash` from the builder — no manual annotations.
+Adds a step inline. The prompt callbacks receive typed `context` and `stash` from the builder — no manual annotations.
 
 ```typescript
 .step("diagnose", {
@@ -217,7 +217,7 @@ step({
 
 ### Dynamic
 
-A function of the workflow context, returning `string | PromptPiece | PromptPiece[]`. Plain strings are instructions. `system` segments set persona/frame. `act` segments inject primitive directives (see [Composable prompt vocabulary](#composable-prompt-vocabulary) below).
+A function of the workflow context, returning `string | PromptPiece | PromptPiece[]`. Plain strings are instructions. `system` segments set persona/frame. `act` segments inject primitive directives (see [Composable prompt vocabulary](#composable-prompt-vocabulary) below). The `prompt` field also accepts a single `PromptPiece` or `PromptPiece[]` directly (not wrapped in a function), which is useful for steps that consist entirely of primitive directives.
 
 ```typescript
 step({
@@ -239,7 +239,6 @@ Fields available in the prompt function:
 | `prev`     | Typed output of the immediately preceding step             |
 | `history`  | All prior step results, typed                              |
 | `context`  | Global skill context (config defaults + runtime overrides) |
-| `rendered` | Output of this step's `render()`, if defined               |
 | `refs`     | Lazy loader for reference files (§5)                       |
 | `attempts` | How many times this step has been visited (for retries)    |
 | `act`      | Primitive directive builders (see §2.1)                    |
@@ -310,8 +309,6 @@ The `act` and `system` helpers are injected via `PromptContext`, not imported. A
 })
 ```
 
-**Convention:** When a step has both `prompt` and `act`, `prompt` should appear first in the object literal.
-
 ````
 
 **`system`** — creates a system segment for persona or framing. Used as a template tag (`system\`...\``) or called as a function (`system('...')`).
@@ -326,29 +323,31 @@ The `act` and `system` helpers are injected via `PromptContext`, not imported. A
 
 Each `act` method returns an `act` segment with the primitive's host-aware prose. The returned `PromptPiece` is opaque to authors — the SDK renders it during prompt assembly.
 
-**Assembly** — `resolvePromptValue` calls the prompt function, `normalizePieces` coerces the return to an array of `PromptPiece`, and `assemblePieces` renders each piece as XML: plain strings become `<prompt>` tags, system segments become `<system>` tags, act segments are rendered via `renderPrimitive()` into their respective XML tags (e.g., `<ask-user>`, `<plan>`), and rendered output is wrapped in `<rendered>` tags. All pieces are concatenated in author order.
+**Assembly** — `resolvePromptValue` calls the prompt function, `normalizePieces` coerces the return to an array of `PromptPiece`, and `assemblePieces` renders each piece as XML: plain strings become `<prompt>` tags, system segments become `<system>` tags, act segments are rendered via `renderPrimitive()` into their respective XML tags (e.g., `<ask-user>`, `<plan>`), and view segments are wrapped in `<rendered>` tags (with an optional `name` attribute). All pieces are concatenated in author order.
 
 The `PromptFn` return type is `PromptReturn` (= `string | PromptPiece | PromptPiece[]`).
 
 #### Simple single-primitive steps
 
-For steps that consist entirely of one primitive with no additional prose, the step-level `act` field provides a shorthand:
+Since `prompt` now accepts `PromptPiece` directly (including `ActSegment`), a step that consists entirely of one primitive needs no wrapper function:
 
 ```typescript
 .step('choose', {
-  act: act.askUser({ type: 'structured', question: '...', options: [...] }),
+  prompt: act.askUser({ type: 'structured', question: '...', options: [...] }),
   output: z.object({ choice: z.string() }),
   next: 'next-step',
 })
-````
+```
 
-The `act` field takes an `ActSegment` (from `act.askUser(...)`, `act.confirm(...)`, etc.) and replaces the old `ask`, `confirm`, `plan`, `checklist`, and `subagent` step-level fields. When `act` is set, no `prompt` is needed — the SDK generates the full prompt from the primitive config.
+The old step-level `act` field has been removed — `prompt` subsumes its role. Any `ActSegment` or `PromptPiece` can be passed directly to `prompt`.
 
 ---
 
 ## 3. Transitions
 
 ```typescript
+import { terminal } from '@contentful/skill-kit';
+
 // Static
 step({ next: 'report' });
 
@@ -359,11 +358,14 @@ step({
 
 // Conditional (action result-based)
 step({
-  action: apiAction,
+  action: { run: apiAction },
   next: ({ action }) => (action.status === 200 ? 'success' : 'retry'),
 });
 
-// Terminal
+// Terminal (constant shorthand)
+step({ next: terminal });
+
+// Terminal (object literal — equivalent)
 step({ next: { terminal: true } });
 
 // Bounded loop
@@ -374,6 +376,8 @@ step({
 });
 ```
 
+The `terminal` constant is exported from `@contentful/skill-kit` and is equivalent to `{ terminal: true }`. Use whichever form reads better.
+
 Cycles detected by the graph analyzer apply an implicit visit limit (10) at runtime. Declaring `maxVisits` + `onMaxVisits` provides explicit control: `onMaxVisits` redirects when the limit is hit, while `maxVisits` without `onMaxVisits` throws (fail-closed). Linear workflows with function-based `next` don't need cycle guards — the conservative graph analysis handles safety automatically.
 
 ---
@@ -382,26 +386,37 @@ Cycles detected by the graph analyzer apply an implicit visit limit (10) at runt
 
 The pattern that sold the PRD: structured model output → code-rendered artifact → model pastes verbatim.
 
+The `view()` helper wraps content in a `ViewSegment` that renders as a `<rendered>` XML tag. It is a prompt composition helper — use it inside prompt callbacks to inject pre-rendered content inline.
+
 ```typescript
-import { step, render, prompt } from '@contentful/skill-kit';
+import { step, view, render, prompt, terminal } from '@contentful/skill-kit';
 
 step({
-  prompt: ({ rendered }) => prompt`
-    Output the following report to the user exactly as shown,
-    with no preamble or trailing commentary:
-
-    ${rendered}
-  `,
-  render: ({ history }) => {
+  prompt: ({ history }) => {
     const diagnose = history.find((s) => s.step === 'diagnose')!.output;
-    return render.table(diagnose.checks, {
+    const table = render.table(diagnose.checks, {
       columns: ['name', 'status', 'detail'],
       statusIcons: { pass: '✅', fail: '❌', warn: '⚠️' },
     });
+    return [
+      view('report', table),
+      prompt`
+        Output the report above to the user exactly as shown,
+        with no preamble or trailing commentary.
+      `,
+    ];
   },
-  next: { terminal: true },
+  output: z.object({ delivered: z.boolean() }),
+  next: terminal,
 });
 ```
+
+The `view()` function has two signatures:
+
+- `view(content)` — wraps content in an unnamed `<rendered>` tag
+- `view(label, content)` — wraps content in a named `<rendered name="label">` tag
+
+Named views help the model reference specific rendered blocks when a prompt contains multiple views.
 
 ### Built-in renderers
 
@@ -415,23 +430,6 @@ A small, opinionated set. Authors can write their own any time.
 - `render.section(title, body)` — headers + body
 
 Custom renderers are just `(args) => string`. No registration; anything returning a string works.
-
-### Host-aware rendering
-
-For cases where a host can render something richer than markdown, the `render` function can inspect what the current host offers:
-
-```typescript
-step({
-  render: ({ host, history }) => {
-    if (host.toolsAvailable.includes('TodoWrite')) {
-      return render.checklist(items); // host supports task tracking
-    }
-    return render.table(rows); // markdown fallback
-  },
-});
-```
-
-The runtime resolves host info from the handshake (see §14). Authors don't detect models — they check what the host advertises. Most skills will never need this — the built-in renderers cover the common cases and the SDK's primitives handle host-aware prose for workflow steps. This is an escape hatch for rendered output where native hooks exist.
 
 ---
 
@@ -467,7 +465,7 @@ step({
 
 ### Asset references
 
-`refs.asset(path)` returns an absolute path for files the CLI or a render function needs on disk (schemas, templates, images).
+`refs.asset(path)` returns an absolute path for files the CLI or a prompt callback needs on disk (schemas, templates, images).
 
 ### Reference lints
 
@@ -666,7 +664,7 @@ skill({
 
 ### Per-step scratchpad
 
-Sometimes a step wants to stash something the model shouldn't see on the next turn, but that a later step or render function needs.
+Sometimes a step wants to stash something the model shouldn't see on the next turn, but that a later step needs.
 
 ```typescript
 step({
@@ -677,7 +675,12 @@ step({
 
 // later
 step({
-  render: ({ stash }) => render.timingsChart(stash.rawTimings),
+  prompt: ({ stash }) => [
+    view('timings', render.timingsChart(stash.rawTimings)),
+    `Present the timings chart above to the user.`,
+  ],
+  output: z.object({ delivered: z.boolean() }),
+  next: terminal,
 });
 ```
 
@@ -748,26 +751,30 @@ const writeReport = action({
 step({
   prompt: 'Decide where to write the report and what it should contain.',
   output: z.object({ path: z.string(), content: z.string() }),
-  action: writeReport, // runs CLI-side after validation, before transition
+  action: { run: writeReport }, // runs CLI-side after validation, before transition
   next: 'confirm',
 });
 ```
 
-**Decoupling action input from step output** — when the model's reasoning output doesn't match what the action needs, use `actionInput` to transform:
+**Decoupling action input from step output** — when the model's reasoning output doesn't match what the action needs, use `action.input` to transform. To stash action results, use `action.stash`:
 
 ```typescript
 step({
   output: z.object({ reasoning: z.string(), fileName: z.string(), body: z.string() }),
-  action: writeReport,
-  actionInput: ({ output, stash }) => ({ path: `${stash.outDir}/${output.fileName}`, content: output.body }),
-  afterAction: ({ action }) => ({ lastBytesWritten: action.bytesWritten }),
+  action: {
+    run: writeReport,
+    input: ({ output, stash }) => ({ path: `${stash.outDir}/${output.fileName}`, content: output.body }),
+    stash: ({ result }) => ({ lastBytesWritten: result.bytesWritten }),
+  },
   next: ({ action }) => (action.bytesWritten > 0 ? 'confirm' : 'retry'),
 });
 ```
 
-**Post-action stash** — `afterAction` runs after the action completes, allowing you to stash action results without type casts from history.
+**Post-action stash** — `action.stash` runs after the action completes, receiving `{ result }` (the action output). This replaces the old `afterAction` top-level field.
 
-The lifecycle of a step with an action: prompt emitted → model responds → CLI validates output → `stash` callback → `actionInput` mapping (or output directly) → action runs → `afterAction` callback → history append → `next` transition (receives action output).
+The top-level `stash` callback now receives `{ output, action? }` — the action result is available alongside the step output, so you can stash values from either source in one place.
+
+The lifecycle of a step with an action: prompt → model → validate(output) → action.input → action.run → action.stash → stash → next.
 
 Actions accept an `AbortSignal` so long-running operations can be cancelled cleanly when the skill is interrupted.
 
@@ -1253,7 +1260,7 @@ Author choices:
 - How many steps, how prose is decomposed, what schemas look like.
 - Whether to use fragments, references, sub-skills.
 - Tone, formatting, domain language.
-- Custom renderers beyond the built-ins.
+- Custom render helpers beyond the built-ins.
 
 ---
 
@@ -1304,15 +1311,16 @@ Step prompts use XML tags. Follow sections in the order they appear.
 | `<confirm>` | AskUserQuestion | Yes/no via the tool. Respect `default` attribute. ... |
 | `<plan>` | EnterPlanMode | Present summary + `<step>` children via the tool. ... |
 | `<checklist>` | TaskCreate | Register `<item>` children via the tool. ... |
+| `<survey>` | AskUserQuestion | Present `<question>` children sequentially via the tool. ... |
 | `<subagent>` | Agent | Spawn isolated agent for enclosed task via the tool. ... |
-| `<rendered>` | — | Pre-rendered output from the skill. Emit verbatim. |
+| `<rendered>` | — | Pre-rendered output from the skill. Emit verbatim. If `name` attr present, reference by name. |
 ```
 
 The table is generated per host via `preambleRows()` in the registry. Each primitive's `preambleRow(tool)` method receives the resolved tool name (or `undefined` for hosts without a matching tool) and returns tag, tool, and instruction. The `resolveTools(handshake)` function uses an either/or strategy at the whole-handshake level: if any explicit tools are reported (via `--tools`), those are authoritative for all primitives; if none are reported, the host registry is used.
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), the XML tags in per-step prose are self-describing enough that the model can act on them even without the preamble. Preambles optimize the common case; per-step XML guards correctness.
 
-**Per-step XML output.** For any step using a primitive (via `act` on the step config or `act` methods in the prompt function), the SDK renders the primitive as an XML tag. The `assemblePieces` method in the engine wraps each piece: plain strings become `<prompt>` tags, system segments become `<system>` tags, and act segments are rendered via `renderPrimitive()` into their respective XML tags (`<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`). Rendered output from `render()` callbacks is wrapped in `<rendered>` tags.
+**Per-step XML output.** For any step using a primitive (via `act` methods in the prompt function or by passing an `ActSegment` directly to `prompt`), the SDK renders the primitive as an XML tag. The `assemblePieces` method in the engine wraps each piece: plain strings become `<prompt>` tags, system segments become `<system>` tags, act segments are rendered via `renderPrimitive()` into their respective XML tags (`<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`, `<survey>`), and view segments (from the `view()` helper) are wrapped in `<rendered>` tags with an optional `name` attribute.
 
 On Claude Code, an `askUser` step emits:
 
@@ -1369,9 +1377,9 @@ Each primitive below is a `definePrimitive()` call exporting: `tag` (XML tag nam
 A single primitive with two modes, discriminated by `type`:
 
 ```typescript
-// Structured — presents fixed options via host-specific tool (simple shorthand)
+// Structured — presents fixed options via host-specific tool
 .step("choose-target", {
-  act: act.askUser({
+  prompt: act.askUser({
     type: "structured",
     question: "Which deployment target?",
     options: [
@@ -1403,6 +1411,35 @@ The SDK renders primitive directives as XML tags. An `askUser` step with `type: 
 </ask-user>
 ```
 
+Options can include a `preview` field, rendered as a `<preview>` child element:
+
+```xml
+<ask-user type="structured" question="Which theme?">
+  <option value="dark" label="Dark">
+    <preview>A dark color scheme with muted tones</preview>
+  </option>
+  <option value="light" label="Light">
+    <preview>A bright, high-contrast color scheme</preview>
+  </option>
+</ask-user>
+```
+
+Structured questions also support a `header` field (max 12 characters) displayed above the options:
+
+```typescript
+act.askUser({
+  type: 'structured',
+  question: 'Pick a color',
+  header: 'Colors',
+  options: [
+    { value: 'red', label: 'Red', preview: 'A warm, vibrant hue' },
+    { value: 'blue', label: 'Blue', preview: 'A cool, calming hue' },
+  ],
+});
+```
+
+**Validation:** `header` must be at most 12 characters. Structured questions must have 2 to 4 options.
+
 An `askUser` step with `type: 'open'` emits:
 
 ```xml
@@ -1417,7 +1454,7 @@ The `output` schema is the contract regardless of host or mode. Downstream steps
 
 ```typescript
 step({
-  act: act.confirm({
+  prompt: act.confirm({
     message: 'This will delete 47 files in .cache/. Continue?',
     destructive: true,
     defaultAnswer: 'no',
@@ -1441,7 +1478,7 @@ Distinct from `askUser` because destructive-op confirmation needs stronger defau
 
 ```typescript
 step({
-  act: act.plan({
+  prompt: act.plan({
     summary: 'Migrate auth from session cookies to JWTs',
     steps: [
       'Add JWT signing and verification helpers',
@@ -1474,9 +1511,10 @@ The preamble maps `<plan>` to the host's tool (e.g., `EnterPlanMode` on Claude C
 
 ```typescript
 step({
-  act: act.checklist({
+  prompt: act.checklist({
     create: prev.remediations.map((r) => ({ title: r.action, status: 'pending' })),
   }),
+  output: z.object({ completed: z.boolean() }),
   next: 'execute-tasks',
 });
 ```
@@ -1494,16 +1532,17 @@ The preamble maps `<checklist>` to the host's tool (e.g., `TaskCreate` on Claude
 
 #### `deliverable` — terminal rendered output
 
-Already covered by `render` + verbatim-paste in §4. Sits in the capability system because future hosts may expose richer structured output (interactive tables, collapsible sections) that `render` can dispatch to via host introspection. For now, the SDK emits "output the following verbatim" prose with host-specific emphasis on what verbatim means for that model.
+Already covered by `view()` + verbatim-paste in §4. Sits in the capability system because future hosts may expose richer structured output (interactive tables, collapsible sections) that view segments can dispatch to via host introspection. For now, the SDK emits "output the following verbatim" prose with host-specific emphasis on what verbatim means for that model.
 
 #### `subagent` — spawn an isolated sub-agent
 
 ```typescript
 step({
-  act: act.subagent({
+  prompt: act.subagent({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
   }),
+  output: ResearchSummary,
   next: 'incorporate-findings',
 });
 ```
@@ -1527,6 +1566,40 @@ act.subagent({ prompt: 'Write a README', output: schema });
 act.subagent({ prompt: 'Run the doctor sub-skill', output: schema, allowRecursion: true });
 // → <subagent>Run the doctor sub-skill</subagent>
 ```
+
+#### `survey` — batched multi-question
+
+For steps that need answers to multiple questions in one turn, `act.survey(questions)` batches them:
+
+```typescript
+.step('gather-info', {
+  prompt: act.survey([
+    { type: 'open', question: 'What is your project name?' },
+    { type: 'structured', question: 'What language?', options: [
+      { value: 'ts', label: 'TypeScript' },
+      { value: 'py', label: 'Python' },
+    ]},
+    { type: 'open', question: 'Describe your use case.' },
+  ]),
+  output: z.object({ projectName: z.string(), language: z.string(), useCase: z.string() }),
+  next: 'configure',
+})
+```
+
+The SDK emits:
+
+```xml
+<survey>
+  <question type="open" question="What is your project name?" />
+  <question type="structured" question="What language?">
+    <option value="ts" label="TypeScript" />
+    <option value="py" label="Python" />
+  </question>
+  <question type="open" question="Describe your use case." />
+</survey>
+```
+
+The preamble maps `<survey>` to the host's tool (e.g., `AskUserQuestion` on Claude Code — presented as sequential questions). On hosts without a structured-question tool, the model presents a numbered questionnaire and collects all answers.
 
 ### What we do _not_ abstract
 
@@ -1617,7 +1690,8 @@ Author writes:
 
 ```typescript
 step({
-  act: act.askUser({
+  prompt: act.askUser({
+    type: 'structured',
     question: 'Which deployment target?',
     options: [
       { value: 'production', label: 'Production' },
@@ -1678,3 +1752,4 @@ The CLI can only emit text. The SDK's value is that it emits structured XML tags
 4. **Shared-step versioning.** When `gatherRepoFacts` changes its output schema, how do consuming skills pin?
 5. **Model-agnosticism.** Does the SDK assume anything about the model, or strictly harness-agnostic?
 6. **Skill vs. skill-bundle.** If related skills want to share fragments and actions, is that a monorepo convention or a first-class concept?
+````

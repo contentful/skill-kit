@@ -3,17 +3,20 @@ layout: ../../layouts/DocsLayout.astro
 title: 'Primitives'
 ---
 
-Primitives are host-aware prose generators. They let you express intent — "ask the user a question," "present a plan for approval" — and the SDK produces prose calibrated for whichever agent host is running the skill. On Claude Code, that means naming `AskUserQuestion`. On Codex, it means a prose fallback with option lists. Same skill, same contract, different prose.
+Primitives are host-aware interactive building blocks rendered as XML tags. They let you express intent — "ask the user a question," "present a plan for approval" — and the SDK produces XML calibrated for whichever agent host is running the skill. On Claude Code, the preamble maps `<ask-user>` to `AskUserQuestion`. On hosts without a matching tool, generic fallback instructions apply. Same skill, same XML, every host.
 
 The CLI can only emit text. Primitives are the mechanism that makes that text reliable across hosts, and the place where prompt-engineering effort compounds across the ecosystem.
 
 ## How primitives work
 
-When a step declares a primitive (via `ask`, `confirm`, `plan`, `tasks`, or `subtask`), the engine generates host-specific prose and prepends it to the step's prompt. The `output` schema is the contract regardless of host — downstream steps never know how the answer was obtained.
+Primitives can be used two ways:
 
-At session start, the engine also emits a **preamble** that maps abstract verbs (`ASK_STRUCTURED`, `PRESENT_PLAN`, etc.) to host-specific behavior. This sets conventions once so that per-step prose can be shorter and more focused.
+1. **Directly in the `prompt` field** — pass `act.askUser(...)` (or any primitive) straight to `prompt` for steps that consist entirely of one primitive with no additional prose.
+2. **`act` methods in prompt functions** — composable directives mixed with other prompt pieces.
 
-## `askUser()` — structured and open questions
+When a step uses a primitive, the SDK renders it as an XML tag (e.g., `<ask-user>`, `<plan>`, `<checklist>`). The preamble (sent once at session start) maps each tag to the host's tools via a markdown table. The `output` schema is the contract regardless of host — downstream steps never know how the answer was obtained.
+
+## `act.askUser()` — structured and open questions
 
 A single primitive with two modes, discriminated by `type`.
 
@@ -22,10 +25,11 @@ A single primitive with two modes, discriminated by `type`.
 Presents fixed options via the host's structured question tool (if available) or via a prose option list.
 
 ```typescript
-import { askUser, z } from '@contentful/skill-kit';
+import { act, z } from '@contentful/skill-kit';
 
+// Single-primitive step — passed directly to prompt
 .step('choose-target', {
-  ask: askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: 'Which deployment target?',
     options: [
@@ -37,14 +41,34 @@ import { askUser, z } from '@contentful/skill-kit';
   output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
   next: ({ output }) => `deploy-${output.target}`,
 })
+
+// Or composed with other prompt pieces
+.step('choose-target', {
+  prompt: ({ act }) => [
+    act.askUser({
+      type: 'structured',
+      question: 'Which deployment target?',
+      options: [
+        { value: 'production', label: 'Production', description: 'Live, customer-facing' },
+        { value: 'staging', label: 'Staging' },
+        { value: 'local', label: 'Local' },
+      ],
+    }),
+    `Explain what each environment is used for before asking.`,
+  ],
+  output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
+  next: ({ output }) => `deploy-${output.target}`,
+})
 ```
 
-| Field         | Type              | Required | Description                                           |
-| ------------- | ----------------- | -------- | ----------------------------------------------------- |
-| `type`        | `'structured'`    | Yes      | Discriminant for structured mode.                     |
-| `question`    | `string`          | Yes      | The question text shown to the user.                  |
-| `options`     | `AskUserOption[]` | Yes      | Array of `{ value, label, description? }` objects.    |
-| `multiSelect` | `boolean`         | No       | Allow multiple selections. Defaults to single-select. |
+| Field         | Type              | Required | Description                                                   |
+| ------------- | ----------------- | -------- | ------------------------------------------------------------- |
+| `type`        | `'structured'`    | Yes      | Discriminant for structured mode.                             |
+| `question`    | `string`          | Yes      | The question text shown to the user.                          |
+| `options`     | `AskUserOption[]` | Yes      | Array of `{ value, label, description?, preview?, header? }`. |
+| `multiSelect` | `boolean`         | No       | Allow multiple selections. Defaults to single-select.         |
+
+Options support optional `preview` and `header` fields on the structured config for richer presentation.
 
 ### Open mode
 
@@ -52,8 +76,7 @@ Free-text conversation. Never uses a structured question tool — the agent asks
 
 ```typescript
 .step('ask-stack', {
-  ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-  prompt: 'Ask about their stack — get specific, not generic.',
+  prompt: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
   output: z.object({ answer: z.string() }),
   next: 'done',
 })
@@ -64,17 +87,15 @@ Free-text conversation. Never uses a structured question tool — the agent asks
 | `type`     | `'open'` | Yes      | Discriminant for open mode. |
 | `question` | `string` | Yes      | The question text.          |
 
-When both `ask` and `prompt` are set, the primitive prose is prepended to the prompt text.
-
-## `confirm()` — binary approval
+## `act.confirm()` — binary approval
 
 Binary yes/no confirmation with support for destructive-operation warnings and default answers.
 
 ```typescript
-import { confirm, z } from '@contentful/skill-kit';
+import { act, z } from '@contentful/skill-kit';
 
 .step('confirm-delete', {
-  confirm: confirm({
+  prompt: act.confirm({
     message: 'This will delete 47 files in .cache/. Continue?',
     destructive: true,
     defaultAnswer: 'no',
@@ -92,15 +113,15 @@ import { confirm, z } from '@contentful/skill-kit';
 
 The `confirm` primitive is distinct from `askUser` because destructive-op confirmation needs stronger defaults and warning framing that differs from a neutral question.
 
-## `plan()` — present a plan for approval
+## `act.plan()` — present a plan for approval
 
 Shows a structured plan (summary + ordered steps) and asks the user whether to proceed.
 
 ```typescript
-import { plan, z } from '@contentful/skill-kit';
+import { act, z } from '@contentful/skill-kit';
 
 .step('review-plan', {
-  plan: plan({
+  prompt: act.plan({
     summary: 'Migrate auth from session cookies to JWTs',
     steps: [
       'Add JWT signing and verification helpers',
@@ -122,15 +143,15 @@ import { plan, z } from '@contentful/skill-kit';
 
 On Claude Code, this maps to `EnterPlanMode`/`ExitPlanMode` for a first-class plan UI. On other hosts, it renders as a numbered list with an explicit approval prompt.
 
-## `tasks()` — create a task list
+## `act.checklist()` — tracked task list
 
 Creates a tracked list of tasks the agent should work through.
 
 ```typescript
-import { tasks, z } from '@contentful/skill-kit';
+import { act, z } from '@contentful/skill-kit';
 
 .step('create-tasks', {
-  tasks: tasks({
+  prompt: act.checklist({
     create: [
       { title: 'Fix CI configuration', status: 'pending' },
       { title: 'Update dependencies', status: 'pending' },
@@ -146,12 +167,12 @@ import { tasks, z } from '@contentful/skill-kit';
 | -------- | ------------------------------------------ | -------- | -------------------------------------------------------- |
 | `create` | `Array<{ title: string; status: string }>` | Yes      | Tasks to register, each with a title and initial status. |
 
-## `subtask()` — spawn an isolated sub-agent
+## `act.subagent()` — spawn an isolated sub-agent
 
 Delegates a focused piece of work to a sub-agent with its own context window. The sub-agent works independently and returns structured output.
 
 ```typescript
-import { subtask, z } from '@contentful/skill-kit';
+import { act, z } from '@contentful/skill-kit';
 
 const ResearchSummary = z.object({
   findings: z.array(z.object({
@@ -162,7 +183,7 @@ const ResearchSummary = z.object({
 });
 
 .step('research', {
-  subtask: subtask({
+  prompt: act.subagent({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
   }),
@@ -171,26 +192,55 @@ const ResearchSummary = z.object({
 })
 ```
 
-| Field    | Type        | Required | Description                                   |
-| -------- | ----------- | -------- | --------------------------------------------- |
-| `prompt` | `string`    | Yes      | Instructions for the sub-agent.               |
-| `output` | `z.ZodType` | Yes      | Zod schema the sub-agent's result must match. |
+| Field            | Type        | Required | Description                                                                                                                                                                                     |
+| ---------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | `string`    | Yes      | Instructions for the sub-agent.                                                                                                                                                                 |
+| `output`         | `z.ZodType` | Yes      | Zod schema the sub-agent's result must match.                                                                                                                                                   |
+| `allowRecursion` | `boolean`   | No       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
 
 On hosts without real agent isolation (no `Agent` tool), the prose fallback still produces correct output but doesn't get the isolated context-window benefit.
 
-## Host-aware verb mapping
+## `act.survey()` — batched questions
 
-The SDK uses abstract verbs in step prose. The preamble (sent once at session start) maps these verbs to host-specific behavior. Here is the complete mapping:
+Collects answers to multiple questions in a single step, presented as a batch:
 
-| Verb             | Claude Code                               | Codex                                               | OpenCode                                            | Generic                                             |
-| ---------------- | ----------------------------------------- | --------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool with exact options | Prose with numbered option list, re-ask on mismatch | Prose with numbered option list, re-ask on mismatch | Prose with numbered option list, re-ask on mismatch |
-| `ASK_FREEFORM`   | Plain text conversation, no tool          | Plain text conversation                             | Plain text conversation                             | Plain text conversation                             |
-| `PRESENT_PLAN`   | `EnterPlanMode`/`ExitPlanMode`            | `update_plan` + explicit ask                        | `todowrite` + explicit ask                          | Numbered list + explicit ask                        |
-| `CREATE_TASKS`   | `TaskCreate`/`TaskUpdate`                 | `update_plan` checklist                             | `todowrite`/`todoread`                              | Visible checklist in output                         |
-| `SPAWN_SUBTASK`  | `Agent` tool with isolated context        | Subagent (if available)                             | `task` tool                                         | Focus on subtask inline, then return                |
+```typescript
+import { act, z } from '@contentful/skill-kit';
 
-The resolution logic checks which tools the host advertises. If `AskUserQuestion` is in the tool list, the Claude Code prose generator is used. If `apply_patch` and `update_plan` are present, Codex. If `multiedit` is present, OpenCode. Otherwise, the generic fallback.
+.step('gather-preferences', {
+  prompt: act.survey({
+    questions: [
+      { key: 'language', question: 'Preferred programming language?' },
+      { key: 'editor', question: 'Preferred editor or IDE?' },
+      { key: 'os', question: 'Primary operating system?' },
+    ],
+  }),
+  output: z.object({
+    language: z.string(),
+    editor: z.string(),
+    os: z.string(),
+  }),
+  next: 'done',
+})
+```
+
+## XML output format and host mapping
+
+The SDK renders all prompt segments as XML tags. The preamble (sent once at session start) maps each tag to the host's tool via a markdown table:
+
+| Tag           | Description                                   | Example tool (Claude Code) |
+| ------------- | --------------------------------------------- | -------------------------- |
+| `<system>`    | Behavioral directives (persona, tone)         | ---                        |
+| `<prompt>`    | Task instructions (plain strings get wrapped) | ---                        |
+| `<ask-user>`  | Structured or open question                   | `AskUserQuestion`          |
+| `<confirm>`   | Binary yes/no confirmation                    | `AskUserQuestion`          |
+| `<plan>`      | Plan presentation with steps                  | `EnterPlanMode`            |
+| `<checklist>` | Tracked task list                             | `TaskCreate`               |
+| `<subagent>`  | Sub-agent delegation (`no-recurse` guard)     | `Agent`                    |
+
+No tool names appear in the XML itself. The preamble table maps tags to tools. On hosts without a matching tool, the instruction column provides generic fallback behavior (e.g., present a numbered list for `<ask-user>`).
+
+Same skill, same XML, every host. The preamble handles the translation.
 
 ## Fragments and prompts
 

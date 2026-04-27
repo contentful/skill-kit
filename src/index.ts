@@ -6,6 +6,8 @@ export { system } from './system.js';
 export { act } from './act.js';
 export { action } from './action.js';
 export { render } from './render/index.js';
+export { view } from './view.js';
+export { terminal } from './terminal.js';
 export { module } from './module.js';
 export { reference } from './reference.js';
 export { SkillBuilder } from './skill-builder.js';
@@ -39,9 +41,12 @@ export type {
   PlanConfig,
   ChecklistConfig,
   SubagentConfig,
+  SurveyQuestion,
+  SurveyConfig,
   PrimitiveConfig,
   SystemSegment,
   ActSegment,
+  ViewSegment,
   PromptSegment,
   PromptPiece,
   PromptReturn,

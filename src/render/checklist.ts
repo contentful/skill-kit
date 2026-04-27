@@ -4,5 +4,5 @@ export interface ChecklistItem {
 }
 
 export function checklist(items: ChecklistItem[]): string {
-  return items.map((item) => `- [${item.done ? 'x' : ' '}] ${item.text}`).join('\n');
+  return items.map((item) => `${item.done ? '✅' : '☐'} ${item.text}`).join('\n');
 }

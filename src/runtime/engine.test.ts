@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
+import { view } from '../view.js';
 import { WorkflowEngine } from './engine.js';
 import type { Handshake, PromptResult, DoneResult, ValidationErrorResult, RedirectResult } from '../types.js';
 
@@ -157,7 +158,7 @@ test('engine runs action after validation, before transition', async () => {
     .step('a', {
       prompt: 'Write something',
       output: z.object({ content: z.string() }),
-      action: writeAction,
+      action: { run: writeAction },
       next: { terminal: true },
     })
     .build();
@@ -244,8 +245,10 @@ test('actionInput mapping decouples step output from action input', async () => 
     .step('a', {
       prompt: 'Decide',
       output: z.object({ fileName: z.string(), body: z.string() }),
-      action: writeAction,
-      actionInput: ({ output }) => ({ path: `/out/${output.fileName}`, content: output.body }),
+      action: {
+        run: writeAction,
+        input: ({ output }) => ({ path: `/out/${output.fileName}`, content: output.body }),
+      },
       next: { terminal: true },
     })
     .build();
@@ -269,19 +272,27 @@ test('actionInput receives current stash', async () => {
     },
   });
 
-  const s = skill({ name: 'stash-map', entry: 'a', stash: z.object({ prefix: z.string() }) })
+  const s = skill({ name: 'stash-map', entry: 'setup', stash: z.object({ prefix: z.string() }) })
+    .step('setup', {
+      prompt: 'Setup',
+      output: z.object({}),
+      stash: () => ({ prefix: 'pre' }),
+      next: 'a',
+    })
     .step('a', {
       prompt: 'Go',
       output: z.object({ val: z.string() }),
-      stash: () => ({ prefix: 'pre' }),
-      action: myAction,
-      actionInput: ({ output, stash }) => ({ prefix: stash.prefix, val: output.val }),
+      action: {
+        run: myAction,
+        input: ({ output, stash }) => ({ prefix: stash.prefix, val: output.val }),
+      },
       next: { terminal: true },
     })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
+  await engine.advance('setup', {});
   await engine.advance('a', { val: 'test' });
   assert.deepEqual(receivedInput, { prefix: 'pre', val: 'test' });
 });
@@ -298,8 +309,8 @@ test('action output is passed to transition function', async () => {
     .step('call', {
       prompt: 'Call the API',
       output: z.object({ url: z.string() }),
-      action: apiAction,
-      next: ({ action }) => (action.status === 200 ? 'success' : 'failure'),
+      action: { run: apiAction },
+      next: ({ action }) => ((action as { status: number }).status === 200 ? 'success' : 'failure'),
     })
     .step('success', { prompt: 'OK', output: z.object({}), next: { terminal: true } })
     .step('failure', { prompt: 'Fail', output: z.object({}), next: { terminal: true } })
@@ -346,8 +357,10 @@ test('afterAction stashes action result', async () => {
     .step('call', {
       prompt: 'Call API',
       output: z.object({ url: z.string() }),
-      action: apiAction,
-      afterAction: ({ action }) => ({ lastCode: action.responseCode }),
+      action: {
+        run: apiAction,
+        stash: ({ result }) => ({ lastCode: result.responseCode }),
+      },
       next: 'report',
     })
     .step('report', {
@@ -383,8 +396,10 @@ test('afterAction is replayed correctly from history', () => {
         return 'Call';
       },
       output: z.object({ url: z.string() }),
-      action: apiAction,
-      afterAction: ({ action }) => ({ code: action.code }),
+      action: {
+        run: apiAction,
+        stash: ({ result }) => ({ code: result.code }),
+      },
       next: 'report',
     })
     .step('report', {
@@ -548,15 +563,20 @@ test('engine preserves author order — system between acts', () => {
   assert.equal(lines[2], '<prompt>\nBuild everything.\n</prompt>');
 });
 
-test('engine prepends step-level act before array prompt pieces', () => {
-  const s = skill({ name: 'act-prepend', entry: 'a' })
+test('engine renders act segment in prompt array', () => {
+  const s = skill({ name: 'act-in-prompt', entry: 'a' })
     .step('a', {
-      act: act.askUser({
-        type: 'structured',
-        question: 'Pick one',
-        options: [{ value: 'a', label: 'A', description: 'Option A' }],
-      }),
-      prompt: 'Additional context.',
+      prompt: [
+        act.askUser({
+          type: 'structured',
+          question: 'Pick one',
+          options: [
+            { value: 'a', label: 'A', description: 'Option A' },
+            { value: 'b', label: 'B', description: 'Option B' },
+          ],
+        }),
+        'Additional context.',
+      ],
       output: z.object({}),
       next: { terminal: true },
     })
@@ -574,7 +594,7 @@ test('engine prepends step-level act before array prompt pieces', () => {
 test('engine renders subagent with no-recurse attribute', () => {
   const s = skill({ name: 'recurse-test', entry: 'a' })
     .step('a', {
-      act: act.subagent({
+      prompt: act.subagent({
         prompt: 'Do research.',
         output: z.object({ result: z.string() }),
       }),
@@ -593,7 +613,7 @@ test('engine renders subagent with no-recurse attribute', () => {
 test('engine renders subagent without no-recurse when allowRecursion is true', () => {
   const s = skill({ name: 'recurse-allowed', entry: 'a' })
     .step('a', {
-      act: act.subagent({
+      prompt: act.subagent({
         prompt: 'Run the sub-skill.',
         output: z.object({ result: z.string() }),
         allowRecursion: true,
@@ -610,11 +630,10 @@ test('engine renders subagent without no-recurse when allowRecursion is true', (
   assert.ok(result.prompt.includes('<subagent>Run the sub-skill.</subagent>'));
 });
 
-test('engine appends rendered output as <rendered> tag', () => {
-  const s = skill({ name: 'render-test', entry: 'a' })
+test('engine renders view segment as <rendered> tag', () => {
+  const s = skill({ name: 'view-test', entry: 'a' })
     .step('a', {
-      render: () => '# Hello World',
-      prompt: 'Show the card.',
+      prompt: [view('# Hello World'), 'Show the card.'],
       output: z.object({}),
       next: { terminal: true },
     })
@@ -625,6 +644,21 @@ test('engine appends rendered output as <rendered> tag', () => {
 
   assert.ok(result.prompt.includes('<rendered>\n# Hello World\n</rendered>'));
   assert.ok(result.prompt.includes('<prompt>\nShow the card.\n</prompt>'));
+});
+
+test('engine renders named view segment with name attribute', () => {
+  const s = skill({ name: 'named-view-test', entry: 'a' })
+    .step('a', {
+      prompt: [view('stats', '# Stats'), 'Show the stats.'],
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  assert.ok(result.prompt.includes('<rendered name="stats">\n# Stats\n</rendered>'));
 });
 
 test('engine injects skill-level system into preamble', () => {

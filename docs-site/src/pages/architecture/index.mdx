@@ -109,7 +109,7 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 | `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                   |
 | `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                 |
 | `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                       |
-| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic`                                                                                                               |
+| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`, `generic`                                              |
 | `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). Only needed on `start` — session mode stores tools in the session header and reads them back on `advance` |
 | `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                                  |
 | `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                      |
@@ -147,7 +147,7 @@ The preamble is generated per host — different tools in the Tool column, same 
 
 Preambles are best-effort — the model may forget them under context pressure. The XML tags themselves are self-describing, which helps even without preamble context. Preambles optimize the common case; the tag structure guards correctness.
 
-**Per-step XML rendering.** For any step using a primitive (via the `act` field or `act.*` in a prompt function), the SDK renders the primitive as an XML tag. An `askUser` step emits:
+**Per-step XML rendering.** For any step using a primitive (passed to `prompt` directly or composed via `act.*` in a prompt function), the SDK renders the primitive as an XML tag. An `askUser` step emits:
 
 ```xml
 <ask-user type="structured" question="Which target?">
@@ -191,19 +191,17 @@ To add a new primitive, define it with `definePrimitive()` and add it to the `AL
 
 When the engine builds a step's prompt, it follows this sequence:
 
-1. **`resolvePromptValue`** — Evaluates the step's `prompt` config. If it's a function, calls it with `PromptContext` (which includes `act` and `system` builders). If it's a string or array, uses it directly. Returns `PromptReturn`.
+1. **`resolvePromptValue`** — Evaluates the step's `prompt` config. If it's a function, calls it with `PromptContext` (which includes `act` and `system` builders). If it's a string, array, or single segment, uses it directly. Returns `PromptReturn`.
 2. **`normalizePieces`** — Wraps the result in an array of `PromptPiece` values. A single string or segment becomes a one-element array.
-3. **Prepend `act`** — If the step config has an `act` field, the `ActSegment` is unshifted to the front of the pieces array. This means declarative primitives always appear before prompt content.
-4. **`assemblePieces`** — Walks the array in author order, wrapping each piece in its XML tag:
+3. **`assemblePieces`** — Walks the array in author order, wrapping each piece in its XML tag:
    - Plain strings become `<prompt>\n...\n</prompt>`.
    - `SystemSegment` (`{ kind: 'system' }`) becomes `<system>...</system>`.
    - `ActSegment` (`{ kind: 'act' }`) is rendered via `renderPrimitive()` to its XML tag (e.g., `<ask-user>`, `<checklist>`, `<subagent>`).
+   - `ViewSegment` (`{ kind: 'view' }`) becomes `<rendered>...</rendered>` (with optional `name` attribute).
 
    Non-empty results are joined with double newlines.
 
-5. **Append `<rendered>`** — If the step has a `render()` function, its output is appended as `<rendered>\n...\n</rendered>`.
-
-This pipeline means the author controls ordering. A prompt function returning `[system`...`, act.checklist(...), 'Build the game.']` produces `<system>...</system>`, then `<checklist>...</checklist>`, then `<prompt>Build the game.</prompt>` in the final output. The `act` field is a convenience that always prepends; use `act.*` in a prompt function when ordering matters.
+The author controls ordering. A prompt function returning `[system\`...\`, act.checklist(...), 'Build the game.']`produces`<system>...</system>`, then `<checklist>...</checklist>`, then `<prompt>Build the game.</prompt>` in the final output.
 
 ### Why primitives matter
 
@@ -232,11 +230,19 @@ The lint rule `no-host-tool-names` enforces that raw tool names only appear insi
 
 ### Known host tool inventories
 
-**Claude Code:** AskUserQuestion, EnterPlanMode, ExitPlanMode, TaskCreate, TaskUpdate, TaskList, TaskGet, Agent, Skill, Read, Edit, Write, Bash, Glob, Grep, WebFetch, WebSearch, TodoWrite, and others.
+**Claude Code:** AskUserQuestion, EnterPlanMode, ExitPlanMode, TaskCreate, TaskUpdate, TaskList, TaskGet, Agent, Skill, Read, Edit, Write, Bash, Glob, Grep, WebFetch, WebSearch, TodoWrite, SendMessage, Monitor, LSP, NotebookEdit, EnterWorktree, ExitWorktree.
 
-**Codex CLI:** shell, apply_patch, update_plan, web_search, view_image, request_permissions, exec_command, write_stdin.
+**Codex CLI:** shell, apply_patch, update_plan, web_search, view_image, exec_command, write_stdin, ToolRequestUserInput, CollabAgent.
 
-**OpenCode:** bash, read, write, edit, apply_patch, multiedit, glob, grep, list, webfetch, task, todowrite, todoread, skill, optional lsp.
+**OpenCode:** bash, read, write, edit, apply_patch, glob, grep, codesearch, lsp, webfetch, websearch, question, todo, task, plan, skill.
+
+**Gemini CLI:** shell, read-file, write-file, edit, glob, grep, web-search, web-fetch, ask-user, enter-plan-mode, exit-plan-mode, write-todos, agent, tracker-create-task, tracker-update-task, memory, activate-skill, complete-task.
+
+**Cline / Roo Code / Kilo Code:** execute_command, read_file, write_to_file, edit_file, apply_diff, apply_patch, search_files, list_files, codebase_search, ask_followup_question, attempt_completion, new_task, switch_mode, update_todo_list, and host-specific additions.
+
+**Cursor:** codebase_search, read_file, edit_file, run_terminal_command, file_search, grep_search, list_dir.
+
+**Amp:** shell, read, write, edit.
 
 ---
 
@@ -255,7 +261,7 @@ The `--mode` flag selects the bundling strategy:
 
 1. **Load** — Import the entry file, extract the default export (must be a `SkillDefinition` or `ReferenceDefinition`).
 2. **Validate** — Run lint checks (cycle guards, schema consistency).
-3. **Generate wrapper** — Create a temporary entry point that imports the skill and calls `main()` from `@contentful/skill-kit/cli`.
+3. **Generate wrapper** — Create a temporary entry point that imports the skill and calls `main()` (or `compositeMain()` if the skill has subskills) from `@contentful/skill-kit/cli`.
 4. **Bundle** — Mode-dependent:
    - **Bun mode:** For each target platform, run `bun build --compile --target bun-<platform>`. Individual target failures don't halt the pipeline; zero successful targets does.
    - **Node mode:** Run esbuild to produce a single `.mjs` bundle with all dependencies inlined.
@@ -359,18 +365,20 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 
 1. **Validate** output against step's Zod schema via `safeParse()`.
 2. If invalid: fire `onStepValidationFailed`, return `ValidationErrorResult` with `retry: true`.
-3. **Merge stash** via the step's `stash()` callback (if present). Shallow merge into accumulator.
-4. **Execute action** (if configured). Action receives typed input and AbortSignal. Result recorded in history.
-5. **Freeze** the output object.
-6. **Append** to history.
-7. Fire `onStepComplete`.
-8. **Resolve next step:**
-   - `{ terminal: true }` — fire `onSkillComplete`, return `DoneResult`.
-   - Function — call with `{ output, attempts }`, get step name.
-   - `'self'` — rewrite to current step name.
-   - Apply `maxVisits` / `onMaxVisits` throttle.
-9. Fire `onTransition`.
-10. Return next step's `PromptResult`.
+3. **action.input** — if the step has `action.input`, transform the output into action input.
+4. **action.run** — execute the action (if configured). Action receives typed input and AbortSignal. Result recorded in history.
+5. **action.stash** — if the step has `action.stash`, merge action results into the stash.
+6. **Merge stash** via the step's `stash()` callback (if present). Receives `{ output, action? }`. Shallow merge into accumulator.
+7. **Freeze** the output object.
+8. **Append** to history.
+9. Fire `onStepComplete`.
+10. **Resolve next step:**
+    - `{ terminal: true }` — fire `onSkillComplete`, return `DoneResult`.
+    - Function — call with `{ output, attempts }`, get step name.
+    - `'self'` — rewrite to current step name.
+    - Apply `maxVisits` / `onMaxVisits` throttle.
+11. Fire `onTransition`.
+12. Return next step's `PromptResult`.
 
 ### History replay
 
@@ -383,6 +391,17 @@ Merge-only accumulator. Each `stash()` callback returns a partial stash object t
 ### Observer dispatch
 
 Observers fire sequentially and are awaited (they can be async), but failures are caught and logged — they never block workflow execution. Observers receive read-only snapshots of engine state.
+
+### Composite skill routing
+
+When a composite skill's step returns a `next` target that doesn't exist in the local step map (e.g., `'subskill:doctor'`), the engine returns a `RedirectResult` instead of throwing. The composite entry point (`compositeMain`) intercepts this:
+
+1. **`subskill:X`** — looks up the sub-skill registration, calls `contextMap(output, stash)` to produce context, creates a new `WorkflowEngine` for the sub-skill, and returns its first `PromptResult` with the step name prefixed (`doctor/diagnose`).
+2. **`topic:X`** — loads the topic content via `ReferenceLoader` and returns a `DoneResult`.
+
+On subsequent `advance` calls, the composite entry checks whether the step name contains `/`. If it does, it routes to the corresponding sub-skill engine (with history filtered and unprefixed). The engines themselves are unaware of the composite layer — each operates on its own `SkillDefinition` with unprefixed step names.
+
+Direct sub-skill access (`scripts/run doctor --context '{}'`) bypasses the dispatcher entirely and creates the sub-skill engine directly.
 
 ---
 
@@ -413,6 +432,12 @@ interface LintDiagnostic {
 **`unknown-tool-names`** (warning) — `host.toolsAvailable.includes()` calls that reference tool names not in the known registry (40+ tools across Claude Code, Codex, and OpenCode).
 
 **`host-branching-density`** (warning) — Multiple steps branching on `host.toolsAvailable.includes()`. Suggests a missing SDK primitive — if several steps need host-specific logic, the pattern should probably be elevated to a primitive.
+
+**`composite-step-name`** (error) — Dispatcher step names containing `/`, which conflicts with sub-skill step namespacing.
+
+**`composite-duplicate-subskill`** / **`composite-duplicate-topic`** (error) — Duplicate names in sub-skill or topic registrations.
+
+For composite skills, `checkSkill` recursively lints each registered sub-skill. Diagnostics from sub-skills are prefixed with `[subskill:<name>]` for clarity.
 
 ---
 

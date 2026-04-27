@@ -67,11 +67,11 @@ Each step merges into the stash via its `stash` callback. Types flow automatical
 
 ### Structured askUser with branching
 
-The `ask-role` step uses `askUser` with structured options. The SDK generates host-appropriate prose (an `AskUserQuestion` tool call on Claude Code, a prose option list elsewhere). The step then branches dynamically based on the role:
+The `ask-role` step uses `act.askUser` with structured options. The SDK generates host-appropriate XML (mapped to `AskUserQuestion` on Claude Code, a prose option list elsewhere). The step then branches dynamically based on the role:
 
 ```typescript
 .step('ask-role', {
-  ask: askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: "What's your primary role?",
     options: [
@@ -105,18 +105,19 @@ const openQuestionStep = step({
 });
 ```
 
-Each variant extends it with specific prompt and ask config:
+Each variant extends it with specific prompt using `act.askUser` from PromptContext:
 
 ```typescript
 .extend('ask-stack', openQuestionStep, {
-  ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-  prompt: ({ stash }) =>
+  prompt: ({ stash, act }) => [
+    act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     prompt`
       ${playfulTone}
 
       ${stash.name} is a developer — nice!
       Ask what their go-to tech stack is. Languages, frameworks, the works.
     `,
+  ],
   next: 'ask-hobby',
 })
 ```
@@ -145,16 +146,15 @@ After 2 visits, the skill automatically redirects to `confirm-profile` instead o
 
 ### Confirm with bounce-back
 
-The `confirm-profile` step uses the `confirm` primitive. If the user declines, they bounce back to add another hobby:
+The `confirm-profile` step uses the `act.confirm` primitive. If the user declines, they bounce back to add another hobby:
 
 ```typescript
 .step('confirm-profile', {
-  confirm: {
-    kind: 'confirm',
+  prompt: act.confirm({
     message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
     destructive: false,
     defaultAnswer: 'yes',
-  },
+  }),
   output: z.object({ approved: z.boolean() }),
   next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
   maxVisits: 3,
@@ -164,10 +164,10 @@ The `confirm-profile` step uses the `confirm` primitive. If the user declines, t
 
 ### Render helpers for the trading card
 
-The terminal `profile-card` step uses a `render` function to compose the card from accumulated data. It pulls from stash, history, and even `refs.load()` for fun facts:
+The terminal `profile-card` step uses the `render` utilities in its prompt to compose the card from accumulated data. It pulls from stash, history, and even `refs.load()` for fun facts:
 
 ```typescript
-render: ({ history, getStep, refs, stash }) => {
+prompt: ({ history, getStep, refs, stash }) => {
   const name = stash.name ?? 'Mystery Person';
   const role = stash.role ?? 'Enigma';
 
@@ -221,7 +221,7 @@ const writeProfile = action({
 // Attached via:
 .step('profile-card', {
   // ...
-  action: writeProfile,
+  action: { run: writeProfile },
   next: { terminal: true },
 })
 ```

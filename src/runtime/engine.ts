@@ -103,25 +103,23 @@ export class WorkflowEngine {
 
     const output = Object.freeze(validation.data);
 
-    if (stepDef.config.stash) {
-      this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
-    }
-
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
-      const rawActionInput = stepDef.config.actionInput
-        ? stepDef.config.actionInput({ output, stash: this.stash.all() })
-        : output;
-      const actionInput = stepDef.config.action.input.parse(rawActionInput);
-      actionOutput = await stepDef.config.action.run({
+      const { run: actionDef, input: inputFn, stash: actionStash } = stepDef.config.action;
+      const rawActionInput = inputFn ? inputFn({ output, stash: this.stash.all() }) : output;
+      const actionInput = actionDef.input.parse(rawActionInput);
+      actionOutput = await actionDef.run({
         input: actionInput,
         signal: this.abortController.signal,
       });
       actionOutput = Object.freeze(actionOutput);
+      if (actionStash) {
+        this.stash.merge(actionStash({ result: actionOutput }) as Record<string, unknown>);
+      }
     }
 
-    if (stepDef.config.afterAction && actionOutput !== undefined) {
-      this.stash.merge(stepDef.config.afterAction({ output, action: actionOutput }) as Record<string, unknown>);
+    if (stepDef.config.stash) {
+      this.stash.merge(stepDef.config.stash({ output, action: actionOutput }) as Record<string, unknown>);
     }
 
     this.history.append(stepName, output, actionOutput);
@@ -168,12 +166,12 @@ export class WorkflowEngine {
       const validation = validateOutput(stepDef.config.output, entry.output);
       const output = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.output);
 
-      if (stepDef.config.stash) {
-        this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
+      if (stepDef.config.action?.stash && entry.action !== undefined) {
+        this.stash.merge(stepDef.config.action.stash({ result: entry.action }) as Record<string, unknown>);
       }
 
-      if (stepDef.config.afterAction && entry.action !== undefined) {
-        this.stash.merge(stepDef.config.afterAction({ output, action: entry.action }) as Record<string, unknown>);
+      if (stepDef.config.stash) {
+        this.stash.merge(stepDef.config.stash({ output, action: entry.action }) as Record<string, unknown>);
       }
 
       this.history.append(entry.step, output, entry.action);
@@ -238,7 +236,6 @@ export class WorkflowEngine {
       history: this.history.all(),
       getStep: <TOutput = unknown, TAction = unknown>(name: string) => this.history.get<TOutput, TAction>(name),
       context: this.skillContext,
-      rendered: undefined,
       refs: this.refs,
       attempts: this.history.visitCount(stepName),
       host: this.handshake,
@@ -247,22 +244,10 @@ export class WorkflowEngine {
       system,
     };
 
-    if (stepDef.config.render) {
-      (promptCtx as { rendered: string | undefined }).rendered = stepDef.config.render(promptCtx);
-    }
-
     const raw = this.resolvePromptValue(stepDef, promptCtx);
     const pieces = normalizePieces(raw);
 
-    if (stepDef.config.act) {
-      pieces.unshift(stepDef.config.act);
-    }
-
-    let promptText = this.assemblePieces(pieces);
-
-    if (promptCtx.rendered) {
-      promptText += `\n\n<rendered>\n${promptCtx.rendered}\n</rendered>`;
-    }
+    const promptText = this.assemblePieces(pieces);
 
     let schema: unknown = null;
     try {
@@ -290,6 +275,7 @@ export class WorkflowEngine {
     if (typeof promptConfig === 'function') return promptConfig(ctx);
     if (typeof promptConfig === 'string') return promptConfig;
     if (Array.isArray(promptConfig)) return promptConfig;
+    if (promptConfig && typeof promptConfig === 'object' && 'kind' in promptConfig) return promptConfig;
     return '';
   }
 
@@ -299,6 +285,10 @@ export class WorkflowEngine {
         if (typeof piece === 'string') return `<prompt>\n${piece}\n</prompt>`;
         if (piece.kind === 'system') return `<system>${piece.text}</system>`;
         if (piece.kind === 'act') return renderPrimitive(piece.primitive, { skillName: this.skill.name });
+        if (piece.kind === 'view') {
+          const nameAttr = piece.label ? ` name="${piece.label}"` : '';
+          return `<rendered${nameAttr}>\n${piece.text}\n</rendered>`;
+        }
         return '';
       })
       .filter(Boolean)

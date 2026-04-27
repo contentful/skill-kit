@@ -44,12 +44,14 @@ export interface AskUserOption {
   value: string;
   label: string;
   description?: string;
+  preview?: string;
 }
 
 export interface AskStructuredConfig {
   readonly kind: 'askUser';
   readonly type: 'structured';
   question: string;
+  header?: string;
   options: AskUserOption[];
   multiSelect?: boolean;
 }
@@ -87,7 +89,25 @@ export interface SubagentConfig {
   allowRecursion?: boolean;
 }
 
-export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | ChecklistConfig | SubagentConfig;
+export interface SurveyQuestion {
+  question: string;
+  header?: string;
+  options: AskUserOption[];
+  multiSelect?: boolean;
+}
+
+export interface SurveyConfig {
+  readonly kind: 'survey';
+  readonly questions: SurveyQuestion[];
+}
+
+export type PrimitiveConfig =
+  | AskUserConfig
+  | ConfirmConfig
+  | PlanConfig
+  | ChecklistConfig
+  | SubagentConfig
+  | SurveyConfig;
 
 // --- Prompt segments ---
 
@@ -101,17 +121,30 @@ export interface ActSegment {
   readonly primitive: PrimitiveConfig;
 }
 
-export type PromptSegment = SystemSegment | ActSegment;
+export interface ViewSegment {
+  readonly kind: 'view';
+  readonly label: string | undefined;
+  readonly text: string;
+}
+
+export type PromptSegment = SystemSegment | ActSegment | ViewSegment;
 export type PromptPiece = string | PromptSegment;
 export type PromptReturn = string | PromptPiece | PromptPiece[];
 
 export interface ActBuilder {
-  askUser(input: { type: 'structured'; question: string; options: AskUserOption[]; multiSelect?: boolean }): ActSegment;
+  askUser(input: {
+    type: 'structured';
+    question: string;
+    header?: string;
+    options: AskUserOption[];
+    multiSelect?: boolean;
+  }): ActSegment;
   askUser(input: { type: 'open'; question: string }): ActSegment;
   confirm(input: { message: string; destructive?: boolean; defaultAnswer?: 'yes' | 'no' }): ActSegment;
   plan(input: { summary: string; steps: string[] }): ActSegment;
   checklist(input: { create: Array<{ title: string; status: string }> }): ActSegment;
   subagent(input: { prompt: string; output: z.ZodType; allowRecursion?: boolean }): ActSegment;
+  survey(questions: SurveyQuestion[]): ActSegment;
 }
 
 export type SystemBuilder = {
@@ -138,7 +171,6 @@ export interface PromptContext<TContext = any, TStash = any> {
   history: readonly StepResult[];
   getStep: <TOutput = unknown, TAction = unknown>(stepName: string) => { output: TOutput; action: TAction } | undefined;
   context: TContext;
-  rendered: string | undefined;
   refs: ReferenceLoader;
   attempts: number;
   host: Handshake;
@@ -156,6 +188,9 @@ export type TransitionFn<TOutput = unknown, TActionOutput = unknown> = (ctx: {
   action: TActionOutput;
 }) => string;
 
+/**
+ * Lifecycle: prompt → model → validate(output) → action.input → action.run → action.stash → stash → next
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepConfig<
   TOutput extends z.ZodType = z.ZodType,
@@ -163,17 +198,17 @@ export interface StepConfig<
   TStash = any,
   TActionOutput = unknown,
 > {
-  prompt?: string | PromptPiece[] | PromptFn<TContext, TStash>;
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TContext, TStash>;
   output: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
-  render?: (ctx: PromptContext<TContext, TStash>) => string;
-  action?: ActionDefinition;
-  actionInput?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
-  stash?: (ctx: { output: z.infer<TOutput> }) => Partial<TStash>;
-  afterAction?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
+  action?: {
+    run: ActionDefinition;
+    input?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
+    stash?: (ctx: { result: TActionOutput }) => Partial<TStash>;
+  };
+  stash?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
-  act?: ActSegment;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

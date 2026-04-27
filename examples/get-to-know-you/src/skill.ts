@@ -1,4 +1,4 @@
-import { skill, step, z, action, prompt, render, act } from '@contentful/skill-kit';
+import { skill, step, z, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
@@ -76,7 +76,7 @@ export default skill({
   })
 
   .step('ask-role', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: "What's your primary role?",
       options: [
@@ -103,39 +103,48 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
-    prompt: ({ stash }) => prompt`
-      ${stash.name} is a developer — nice!
-      Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
-      "TypeScript + Bun + Zod" is a personality.
-    `,
-    act: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+    prompt: ({ stash }) => [
+      prompt`
+        ${stash.name} is a developer — nice!
+        Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
+        "TypeScript + Bun + Zod" is a personality.
+      `,
+      act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+    ],
     next: 'ask-hobby',
   })
 
   .extend('ask-tools', openQuestionStep, {
-    prompt: 'A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?',
-    act: act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
+    prompt: [
+      'A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?',
+      act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
+    ],
     next: 'ask-hobby',
   })
 
   .extend('ask-team-size', openQuestionStep, {
-    prompt: 'A manager! Ask about their team — how big, what they work on.',
-    act: act.askUser({ type: 'open', question: 'Tell me about your team.' }),
+    prompt: [
+      'A manager! Ask about their team — how big, what they work on.',
+      act.askUser({ type: 'open', question: 'Tell me about your team.' }),
+    ],
     next: 'ask-hobby',
   })
 
   .extend('ask-specialty', openQuestionStep, {
-    prompt: 'Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.',
-    act: act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
+    prompt: [
+      'Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.',
+      act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
+    ],
     next: 'ask-hobby',
   })
 
   .step('ask-hobby', {
-    prompt: ({ attempts }) =>
+    prompt: ({ attempts }) => [
       attempts === 0
         ? 'Now for the important stuff. Ask about hobbies, side projects, or weird talents.'
         : 'Ask if they have another hobby they want on their card, or if they are done.',
-    act: act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
+      act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
+    ],
     output: z.object({
       hobby: z.string(),
       wantsMore: z.boolean(),
@@ -147,7 +156,7 @@ export default skill({
   })
 
   .step('confirm-profile', {
-    act: act.confirm({
+    prompt: act.confirm({
       message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
       defaultAnswer: 'yes',
     }),
@@ -158,7 +167,7 @@ export default skill({
   })
 
   .step('profile-card', {
-    render: ({ history, getStep, refs, stash }) => {
+    prompt: ({ history, getStep, refs, stash }) => {
       const name = stash.name ?? 'Mystery Person';
       const role = stash.role ?? 'Enigma';
 
@@ -196,20 +205,21 @@ export default skill({
 
       const hobbyList = render.checklist(hobbies.map((h) => ({ text: h, done: true })));
 
-      return [
+      const card = [
         render.section(`🃏 ${name}'s Trading Card`, stats),
         '',
         render.section('🎯 Hobbies & Interests', hobbyList || '(none listed)'),
         '',
         `> *${funFact}*`,
       ].join('\n');
+
+      return [view(card), 'Present the rendered trading card verbatim.'];
     },
-    prompt: 'Present the rendered trading card verbatim.',
     output: z.object({
       card: z.string(),
       profile: ProfileSchema,
     }),
-    action: writeProfile,
+    action: { run: writeProfile },
     next: { terminal: true },
   })
 

@@ -6,8 +6,16 @@ import { confirmPrimitive } from './confirm.js';
 import { planPrimitive } from './plan.js';
 import { checklistPrimitive } from './checklist.js';
 import { subagentPrimitive } from './subagent.js';
+import { surveyPrimitive } from './survey.js';
 
-const ALL_PRIMITIVES = [askUserPrimitive, confirmPrimitive, planPrimitive, checklistPrimitive, subagentPrimitive];
+const ALL_PRIMITIVES = [
+  askUserPrimitive,
+  confirmPrimitive,
+  planPrimitive,
+  checklistPrimitive,
+  subagentPrimitive,
+  surveyPrimitive,
+];
 
 const RENDERERS: Record<string, (config: never, ctx?: RenderContext) => string> = {
   askUser: askUserPrimitive.render as (config: never, ctx?: RenderContext) => string,
@@ -15,6 +23,7 @@ const RENDERERS: Record<string, (config: never, ctx?: RenderContext) => string> 
   plan: planPrimitive.render as (config: never, ctx?: RenderContext) => string,
   checklist: checklistPrimitive.render as (config: never, ctx?: RenderContext) => string,
   subagent: subagentPrimitive.render as (config: never, ctx?: RenderContext) => string,
+  survey: surveyPrimitive.render as (config: never, ctx?: RenderContext) => string,
 };
 
 export function renderPrimitive(config: PrimitiveConfig, ctx?: RenderContext): string {

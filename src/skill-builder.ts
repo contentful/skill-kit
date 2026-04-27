@@ -29,7 +29,13 @@ export class SkillBuilder<TContext, TStash> {
           StepConfig<TOutput, TContext, TStash, A extends ActionDefinition ? InferActionOutput<A> : undefined>,
           'action'
         > & {
-          action?: A;
+          action?: A extends ActionDefinition
+            ? {
+                run: A;
+                input?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
+                stash?: (ctx: { result: InferActionOutput<A> }) => Partial<TStash>;
+              }
+            : undefined;
         })
       | StepDefinition,
   ): SkillBuilder<TContext, TStash> {

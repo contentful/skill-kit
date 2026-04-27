@@ -25,11 +25,13 @@ export default skill({
   .step('check-env', {
     prompt: 'Acknowledge the environment check results and proceed.',
     output: z.object({ acknowledged: z.boolean() }),
-    action: checkEnv,
-    afterAction: ({ action: result }) => ({
-      hasSpaceId: result.hasSpaceId,
-      hasToken: result.hasToken,
-    }),
+    action: {
+      run: checkEnv,
+      stash: ({ result }) => ({
+        hasSpaceId: result.hasSpaceId,
+        hasToken: result.hasToken,
+      }),
+    },
     next: ({ action: result }) => (result.hasSpaceId && result.hasToken ? 'configure' : 'guide-env'),
   })
 
@@ -49,7 +51,7 @@ export default skill({
   })
 
   .step('configure', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'What would you like to configure?',
       options: [
