@@ -39,6 +39,8 @@ export type {
   PlanConfig,
   ChecklistConfig,
   SubagentConfig,
+  SurveyQuestion,
+  SurveyConfig,
   PrimitiveConfig,
   SystemSegment,
   ActSegment,

@@ -3,6 +3,7 @@
 ## Scope
 
 **In:**
+
 - Rename `StepConfig.prompt` → `instruct`; `prompt` tagged template keeps its name
 - Remove `StepConfig.act` field — interactions go through `instruct` (accepts segments directly)
 - Remove `StepConfig.render` / `PromptContext.rendered` — replaced by `view()` helper in `instruct`
@@ -22,6 +23,7 @@
 - Update all docs (SPEC.md, docs/api.md, docs/architecture.md, docs-site MDX, README)
 
 **Out:**
+
 - Renaming the `prompt` tagged template (stays as `prompt`)
 - Renaming `act` builder namespace or `PromptContext.act` (stays)
 - Wire protocol changes beyond view/survey XML additions
@@ -30,6 +32,7 @@
 ## Context
 
 User feedback (single internal user) flagged naming collisions and ergonomic friction in the v0.6 API:
+
 - `act: act.askUser()` stutter
 - `prompt: prompt\`...\`` double-prompt
 - `render`/`rendered` asymmetry

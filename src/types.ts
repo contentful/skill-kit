@@ -89,7 +89,25 @@ export interface SubagentConfig {
   allowRecursion?: boolean;
 }
 
-export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | ChecklistConfig | SubagentConfig;
+export interface SurveyQuestion {
+  question: string;
+  header?: string;
+  options: AskUserOption[];
+  multiSelect?: boolean;
+}
+
+export interface SurveyConfig {
+  readonly kind: 'survey';
+  readonly questions: SurveyQuestion[];
+}
+
+export type PrimitiveConfig =
+  | AskUserConfig
+  | ConfirmConfig
+  | PlanConfig
+  | ChecklistConfig
+  | SubagentConfig
+  | SurveyConfig;
 
 // --- Prompt segments ---
 
@@ -120,6 +138,7 @@ export interface ActBuilder {
   plan(input: { summary: string; steps: string[] }): ActSegment;
   checklist(input: { create: Array<{ title: string; status: string }> }): ActSegment;
   subagent(input: { prompt: string; output: z.ZodType; allowRecursion?: boolean }): ActSegment;
+  survey(questions: SurveyQuestion[]): ActSegment;
 }
 
 export type SystemBuilder = {
