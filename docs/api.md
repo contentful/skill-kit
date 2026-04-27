@@ -9,7 +9,7 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
+skill({ name, entry, system?, context?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -18,20 +18,21 @@ skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
 
 ### `skill()` config
 
-| Field            | Type                                           | Required | Description                                                                             |
-| ---------------- | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `name`           | `string`                                       | yes      | Skill identifier                                                                        |
-| `entry`          | `string`                                       | yes      | Name of the first step                                                                  |
-| `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
-| `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
-| `description`    | `string`                                       | no       | Used in generated SKILL.md                                                              |
-| `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                              |
-| `context`        | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                                             |
-| `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                 |
-| `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                   |
-| `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                           |
-| `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                       |
-| `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))     |
+| Field            | Type                                           | Required | Description                                                                                                         |
+| ---------------- | ---------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `name`           | `string`                                       | yes      | Skill identifier                                                                                                    |
+| `entry`          | `string`                                       | yes      | Name of the first step                                                                                              |
+| `system`         | `string`                                       | no       | System-level persona prepended to the preamble. Steps inherit it; steps can override with `system` in array prompts |
+| `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                                                     |
+| `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`                             |
+| `description`    | `string`                                       | no       | Used in generated SKILL.md                                                                                          |
+| `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                                                          |
+| `context`        | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                                                                         |
+| `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                                             |
+| `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                                               |
+| `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                                                       |
+| `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                                                   |
+| `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                 |
 
 Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
@@ -53,8 +54,10 @@ const openQuestion = step({
 
 // In the builder:
 .extend('ask-stack', openQuestion, {
-  ask: askUser({ type: 'open', question: "What's your tech stack?" }),
-  prompt: ({ stash }) => `Ask ${stash.name} about their tech stack.`,
+  prompt: ({ stash, act }) => [
+    act.askUser({ type: 'open', question: "What's your tech stack?" }),
+    `Ask ${stash.name} about their tech stack.`,
+  ],
   next: 'ask-hobby',
 })
 ```
@@ -75,7 +78,8 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 ```typescript
 {
-  prompt: string | (ctx: PromptContext) => string,
+  prompt: string | PromptFn,                               // string, or function returning PromptReturn
+  act?: ActSegment,                                        // shorthand for single-primitive steps
   output: z.ZodType,                                      // required
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },  // required
   render?: (ctx: PromptContext) => string,
@@ -85,29 +89,40 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  ask?: AskUserConfig,
-  confirm?: ConfirmConfig,
-  plan?: PlanConfig,
-  tasks?: TasksConfig,
-  subtask?: SubtaskConfig,
 }
 ```
+
+`PromptFn` is `(ctx: PromptContext) => PromptReturn`, where `PromptReturn = string | PromptPiece | PromptPiece[]`.
+
+A `PromptPiece` is one of:
+
+- A plain `string` — instructions
+- A `system` segment — persona/frame, created via the `system` template tag or `system(text)` function from PromptContext
+- An `act` segment — primitive directive, created via `act.askUser()`, `act.confirm()`, `act.plan()`, `act.checklist()`, `act.subagent()` from PromptContext
+
+When a prompt function returns an array, pieces are assembled in **author order**.
+
+**Convention:** When a step has both `prompt` and `act`, `prompt` should appear first in the object literal.
+
+The `act` field takes an `ActSegment` (from `act.askUser(...)`, `act.confirm(...)`, etc.) and provides a shorthand for steps that consist entirely of one primitive with no additional prose. When set, no `prompt` is needed — the SDK generates the full prompt from the primitive config. This replaces the old `ask`, `confirm`, `plan`, `checklist`, `subagent`, and `primitive` step-level fields.
 
 ### PromptContext
 
 Available in dynamic `prompt` and `render` functions:
 
-| Field      | Type                                                    | Description                                    |
-| ---------- | ------------------------------------------------------- | ---------------------------------------------- |
-| `prev`     | `unknown`                                               | Output of the previous step                    |
-| `history`  | `readonly StepResult[]`                                 | All prior step results                         |
-| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result       |
-| `context`  | `TContext`                                              | Immutable skill context (typed from builder)   |
-| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present   |
-| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                 |
-| `attempts` | `number`                                                | How many times this step has been visited      |
-| `host`     | `Handshake`                                             | Current host info and available tools          |
-| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen) |
+| Field      | Type                                                    | Description                                                      |
+| ---------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
+| `prev`     | `unknown`                                               | Output of the previous step                                      |
+| `history`  | `readonly StepResult[]`                                 | All prior step results                                           |
+| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result                         |
+| `context`  | `TContext`                                              | Immutable skill context (typed from builder)                     |
+| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present                     |
+| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                                   |
+| `attempts` | `number`                                                | How many times this step has been visited                        |
+| `host`     | `Handshake`                                             | Current host info and available tools                            |
+| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen)                   |
+| `act`      | `ActContext`                                            | Primitive directive builders: `askUser`, `confirm`, `plan`, etc. |
+| `system`   | `SystemTag`                                             | System segment tag/function for persona/frame                    |
 
 ### Transitions
 
@@ -404,93 +419,175 @@ The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string
 
 ## Primitives
 
-Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions.
+Interactive building blocks that render as XML tags with host-aware tool mappings via the preamble. Authors describe intent; the SDK renders XML and maps tags to host-specific tools. All primitive creation goes through the `act` namespace. Primitives can be used two ways:
 
-### `askUser` — structured or open
+1. **Step-level `act` field** — shorthand for steps that consist entirely of one primitive with no additional prose.
+2. **`act` methods in prompt functions** — composable directives mixed with other prompt pieces.
+
+### `act.askUser` — structured or open
 
 ```typescript
-import { askUser } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-// Structured — fixed options, host uses best available tool
-ask: askUser({
-  type: 'structured',
-  question: 'Which environment?',
-  options: [
-    { value: 'production', label: 'Production', description: 'Live traffic' },
-    { value: 'staging', label: 'Staging' },
+// Step-level shorthand — simple single-primitive step
+.step('choose-env', {
+  act: act.askUser({
+    type: 'structured',
+    question: 'Which environment?',
+    options: [
+      { value: 'production', label: 'Production', description: 'Live traffic' },
+      { value: 'staging', label: 'Staging' },
+    ],
+    multiSelect: false, // optional, defaults to false
+  }),
+  output: z.object({ env: z.enum(['production', 'staging']) }),
+  next: 'deploy',
+})
+
+// Composed with other prompt pieces via act (from PromptContext)
+.step('ask-stack', {
+  prompt: ({ act }) => [
+    act.askUser({ type: 'open', question: "What's your tech stack?" }),
+    `Get specific — frameworks, build tools, deployment targets.`,
   ],
-  multiSelect: false, // optional, defaults to false
-});
-
-// Open — free-text conversation, never a structured tool
-ask: askUser({
-  type: 'open',
-  question: "What's your tech stack?",
-});
+  output: z.object({ answer: z.string() }),
+  next: 'done',
+})
 ```
 
-### `confirm` — binary approval
+### `act.confirm` — binary approval
 
 ```typescript
-import { confirm } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-confirm: confirm({
+// Step-level shorthand
+act: act.confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
   destructive: true, // optional — adds warning in prose
   defaultAnswer: 'no', // optional — 'yes' or 'no'
-});
+}),
+
+// Or via act in a prompt function
+prompt: ({ act }) => [
+  act.confirm({ message: 'Delete .cache/?', destructive: true }),
+  `Explain what will happen before confirming.`,
+],
 ```
 
 Step output should include `{ approved: z.boolean() }`.
 
-### `plan` — present and approve
+### `act.plan` — present and approve
 
 ```typescript
-import { plan } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-plan: plan({
+// Step-level shorthand
+act: act.plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
-});
+}),
+
+// Or via act in a prompt function
+prompt: ({ act }) => act.plan({ summary: '...', steps: [...] }),
 ```
 
-### `tasks` — tracked task list
+### `act.checklist` — tracked task list
 
 ```typescript
-import { tasks } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-tasks: tasks({
+// Step-level shorthand
+act: act.checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
   ],
-});
+}),
+
+// Or via act in a prompt function
+prompt: ({ stash, act }) => [
+  act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+  `Work through each task. Update the checklist as you go.`,
+],
 ```
 
-### `subtask` — spawn isolated sub-agent
+### `act.subagent` — spawn isolated sub-agent
 
 ```typescript
-import { subtask } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-subtask: subtask({
+// Step-level shorthand
+act: act.subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
-});
+}),
+
+// Or via act in a prompt function
+prompt: ({ act }) => act.subagent({ prompt: 'Review the PR.', output: FindingsSchema }),
 ```
 
-### Host-aware verb mapping
+#### `SubagentConfig`
 
-The SDK uses an abstract verb system. Step prose contains verbs; the preamble (sent once at session start) maps them to host-specific behavior:
+| Field            | Type        | Required | Description                                                                                                                                                                                     |
+| ---------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | `string`    | yes      | Task description for the sub-agent                                                                                                                                                              |
+| `output`         | `z.ZodType` | yes      | Schema the sub-agent's result must satisfy                                                                                                                                                      |
+| `allowRecursion` | `boolean`   | no       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
 
-| Verb             | Claude Code                      | Codex                   | OpenCode                | Generic                 |
-| ---------------- | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool           | Prose with option list  | Prose with option list  | Prose with option list  |
-| `ASK_FREEFORM`   | Plain text conversation          | Plain text conversation | Plain text conversation | Plain text conversation |
-| `PRESENT_PLAN`   | `EnterPlanMode` / `ExitPlanMode` | `update_plan`           | Numbered list           | Numbered list           |
-| `CREATE_TASKS`   | `TaskCreate` / `TaskUpdate`      | `update_plan` checklist | `todowrite`             | Markdown checklist      |
-| `SPAWN_SUBTASK`  | `Agent` tool                     | Focus locally           | `task` tool             | Focus locally           |
+Default (recursion blocked):
 
-Same skill, every host. The preamble handles the translation.
+```xml
+<subagent no-recurse="my-skill">Review the PR for security issues.</subagent>
+```
+
+With `allowRecursion: true`:
+
+```xml
+<subagent>Run the doctor sub-skill.</subagent>
+```
+
+The preamble instruction for `<subagent>` tells the model: if `no-recurse` is set, the subagent must not invoke the skill named in the attribute.
+
+### Composable prompt vocabulary
+
+Prompt functions can return `string | PromptPiece | PromptPiece[]`. When returning an array, pieces are assembled in author order:
+
+```typescript
+.step('build', {
+  prompt: ({ stash, act, system }) => [
+    system`You are a game dev mentor. Be methodical.`,
+    act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+    prompt`Build the game. Update the checklist as you go.`,
+  ],
+  output: z.object({ filesCreated: z.array(z.string()) }),
+  next: 'done',
+})
+```
+
+- **`system`** (from PromptContext) — creates a system segment for persona/frame. Template tag or function call.
+- **`act`** (from PromptContext) — provides `.askUser()`, `.confirm()`, `.plan()`, `.checklist()`, `.subagent()` methods that return act segments.
+- **plain strings** — instructions, including the existing `prompt` template tag.
+
+### XML output format
+
+The SDK renders all prompt segments as XML tags. The preamble (sent once at session start) maps each tag to the host's tool via a markdown table:
+
+| Tag           | Description                                   | Example tool (Claude Code) |
+| ------------- | --------------------------------------------- | -------------------------- |
+| `<system>`    | Behavioral directives (persona, tone)         | —                          |
+| `<prompt>`    | Task instructions (plain strings get wrapped) | —                          |
+| `<ask-user>`  | Structured or open question                   | `AskUserQuestion`          |
+| `<confirm>`   | Binary yes/no confirmation                    | `AskUserQuestion`          |
+| `<plan>`      | Plan presentation with steps                  | `EnterPlanMode`            |
+| `<checklist>` | Tracked task list                             | `TaskCreate`               |
+| `<subagent>`  | Sub-agent delegation (`no-recurse` guard)     | `Agent`                    |
+| `<rendered>`  | Pre-rendered verbatim output                  | —                          |
+
+No tool names appear in the XML itself. The preamble table maps tags to tools. On hosts without a matching tool, the instruction column provides generic fallback behavior (e.g., present a numbered list for `<ask-user>`). The `<subagent>` tag may include a `no-recurse` attribute naming the skill that the subagent must not invoke (see [`allowRecursion`](#subagentconfig) above).
+
+The preamble is generated by `preambleRows()` in the registry, which calls each primitive's `preambleRow(tool)` method with the resolved tool name (or `undefined`). Tool resolution is either/or at the whole-handshake level via `resolveTools(handshake)`: if the agent reports any explicit tools (via `--tools`), those are authoritative for all primitives with no registry fallback; if no tools are reported, the host registry is used.
+
+Same skill, same XML, every host. The preamble table handles the translation.
 
 ---
 
@@ -775,8 +872,22 @@ skill-kit build <entry.ts> -o <dir> --single                # current platform o
 | `-o, --out`  | yes      | Output directory                                                                |
 | `--mode`     | no       | `bun` (default, platform-specific executables) or `node` (single `.mjs` bundle) |
 | `--protocol` | no       | `session` (default) or `stateless`. Controls SKILL.md invocation instructions   |
-| `--targets`  | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only. |
-| `--single`   | no       | Build only for current platform. Bun mode only.                                 |
+| `--targets`  | no       | Comma-separated platforms. Defaults to `darwin-arm64,linux-x64`. Bun mode only  |
+| `--single`   | no       | Build only for current platform. Bun mode only                                  |
+
+### Runtime flags
+
+| Flag            | Required     | Description                                                                                                                                                                                                                                                                       |
+| --------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                                                                                                                          |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                                                                                                                        |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                                                                                                                      |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                                                                                                                            |
+| `--host`        | Optional     | Host identifier for tool resolution: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. Defaults to `generic`                                                                                                                   |
+| `--tools`       | Optional     | Comma-separated list of available tools, overrides host registry for more accurate preamble generation. E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`. Only needed on `start` — session mode stores tools in the session header and reads them back on `advance` |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                                                                                                                                       |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                                                                                                                           |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                                                                                                                                          |
 
 Output (bun mode):
 
@@ -872,7 +983,7 @@ for (const d of diagnostics) {
 A complete skill showing context, stash, `askUser`, branching, and terminal steps:
 
 ```typescript
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 
 export default skill({
   name: 'deploy-check',
@@ -881,7 +992,7 @@ export default skill({
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'Which environment?',
       options: [
@@ -913,7 +1024,7 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `askUser` structured to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `act: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
 
 2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
 

@@ -9,14 +9,24 @@ import type {
   CliResult,
   PromptContext,
   ReferenceLoader,
+  PromptPiece,
+  PromptReturn,
 } from '../types.js';
+import { renderPrimitive } from '../primitives/registry.js';
 import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
 import { History } from './history.js';
 import { StashStore } from './stash.js';
 import { ObserverDispatcher } from './observer-dispatch.js';
-import { resolveProseGenerator, type ProseGenerator } from '../primitives/prose/index.js';
 import { generatePreamble } from './preamble.js';
+import { act } from '../act.js';
+import { system } from '../system.js';
+
+function normalizePieces(raw: PromptReturn): PromptPiece[] {
+  if (typeof raw === 'string') return [raw];
+  if (Array.isArray(raw)) return [...raw];
+  return [raw];
+}
 
 const NOOP_REFS: ReferenceLoader = {
   load: () => '',
@@ -30,7 +40,6 @@ export class WorkflowEngine {
   private readonly history: History;
   private readonly stash: StashStore;
   private readonly refs: ReferenceLoader;
-  private readonly prose: ProseGenerator;
   private readonly observers: ObserverDispatcher;
   private readonly abortController: AbortController;
   private startTime: number = 0;
@@ -41,7 +50,6 @@ export class WorkflowEngine {
     this.skill = skill;
     this.handshake = handshake;
     this.refs = refs ?? NOOP_REFS;
-    this.prose = resolveProseGenerator(handshake);
     this.observers = new ObserverDispatcher(skill.observers ?? {});
     this.abortController = new AbortController();
     this.history = new History();
@@ -64,7 +72,8 @@ export class WorkflowEngine {
     this.validateParentSentinels();
     this.cycleGuard = validateCycleGuards(this.skill.steps);
     const prompt = this.buildPrompt(this.currentStep);
-    prompt.preamble = generatePreamble(this.handshake);
+    const preamble = generatePreamble(this.handshake);
+    prompt.preamble = this.skill.system ? `${this.skill.system}\n\n${preamble}` : preamble;
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
     return prompt;
   }
@@ -234,25 +243,25 @@ export class WorkflowEngine {
       attempts: this.history.visitCount(stepName),
       host: this.handshake,
       stash: this.stash.all(),
+      act,
+      system,
     };
 
     if (stepDef.config.render) {
       (promptCtx as { rendered: string | undefined }).rendered = stepDef.config.render(promptCtx);
     }
 
-    let promptText: string;
-    const { prompt: promptConfig } = stepDef.config;
-    if (typeof promptConfig === 'function') {
-      promptText = promptConfig(promptCtx);
-    } else if (typeof promptConfig === 'string') {
-      promptText = promptConfig;
-    } else {
-      promptText = '';
+    const raw = this.resolvePromptValue(stepDef, promptCtx);
+    const pieces = normalizePieces(raw);
+
+    if (stepDef.config.act) {
+      pieces.unshift(stepDef.config.act);
     }
 
-    const primitiveProse = this.buildPrimitiveProse(stepDef);
-    if (primitiveProse) {
-      promptText = primitiveProse + (promptText ? '\n\n' + promptText : '');
+    let promptText = this.assemblePieces(pieces);
+
+    if (promptCtx.rendered) {
+      promptText += `\n\n<rendered>\n${promptCtx.rendered}\n</rendered>`;
     }
 
     let schema: unknown = null;
@@ -276,14 +285,24 @@ export class WorkflowEngine {
     }
   }
 
-  private buildPrimitiveProse(stepDef: StepDefinition): string | null {
-    const { ask, confirm, plan: planConfig, tasks: tasksConfig, subtask: subtaskConfig } = stepDef.config;
-    if (ask) return this.prose.askUser(ask);
-    if (confirm) return this.prose.confirm(confirm);
-    if (planConfig) return this.prose.plan(planConfig);
-    if (tasksConfig) return this.prose.tasks(tasksConfig);
-    if (subtaskConfig) return this.prose.subtask(subtaskConfig);
-    return null;
+  private resolvePromptValue(stepDef: StepDefinition, ctx: PromptContext): PromptReturn {
+    const { prompt: promptConfig } = stepDef.config;
+    if (typeof promptConfig === 'function') return promptConfig(ctx);
+    if (typeof promptConfig === 'string') return promptConfig;
+    if (Array.isArray(promptConfig)) return promptConfig;
+    return '';
+  }
+
+  private assemblePieces(pieces: PromptPiece[]): string {
+    return pieces
+      .map((piece) => {
+        if (typeof piece === 'string') return `<prompt>\n${piece}\n</prompt>`;
+        if (piece.kind === 'system') return `<system>${piece.text}</system>`;
+        if (piece.kind === 'act') return renderPrimitive(piece.primitive, { skillName: this.skill.name });
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
   }
 
   private buildDone(): DoneResult {

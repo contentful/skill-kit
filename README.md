@@ -163,9 +163,9 @@ When related skills share references and overlap in scope, combine them into a s
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
-skill({ name: 'contentful-help', entry: 'choose', ... })
+skill({ name: 'contentful-help', entry: 'choose', system: 'You are a helpful Contentful support assistant.', ... })
   .step('choose', {
-    ask: askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
+    act: act.askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
     output: z.object({ choice: z.string() }),
     next: ({ output }) => `subskill:${output.choice}`,
   })
@@ -198,15 +198,17 @@ The SDK supports two invocation modes. **Session mode** (recommended) writes pro
 
 ### Host-aware primitives
 
-The SDK uses an abstract verb system. The preamble (sent on first response) maps verbs to host-specific tools:
+The SDK renders primitive directives as XML tags. The preamble (sent on first response) maps each tag to the host's tool via a markdown table:
 
-| Verb             | Claude Code            | Codex / OpenCode        | Generic                |
-| ---------------- | ---------------------- | ----------------------- | ---------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool | Prose with option list  | Prose with option list |
-| `PRESENT_PLAN`   | `EnterPlanMode`        | `update_plan`           | Numbered list          |
-| `CREATE_TASKS`   | `TaskCreate`           | Checklist / `todowrite` | Markdown checklist     |
+| Tag           | Description                               | Example tool (Claude Code) |
+| ------------- | ----------------------------------------- | -------------------------- |
+| `<ask-user>`  | Structured or open question               | `AskUserQuestion`          |
+| `<confirm>`   | Binary yes/no confirmation                | `AskUserQuestion`          |
+| `<plan>`      | Plan presentation with steps              | `EnterPlanMode`            |
+| `<checklist>` | Tracked task list                         | `TaskCreate`               |
+| `<subagent>`  | Sub-agent delegation (`no-recurse` guard) | `Agent`                    |
 
-Same skill, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full verb table and how prose generation works.
+No tool names in the XML. The preamble handles the mapping. Same skill, same XML, every host. See the [architecture doc](./docs/architecture.md#the-host-aware-prose-system) for the full tag table and how the preamble is generated.
 
 ---
 
@@ -218,7 +220,7 @@ A playful interview that builds a developer trading card. Shows branching, `askU
 
 ```typescript
 .step('ask-role', {
-  ask: askUser({
+  act: act.askUser({
     type: 'structured',
     question: "What's your primary role?",
     options: [
@@ -272,7 +274,7 @@ A composite skill that dispatches to doctor and setup sub-skills, or resolves FA
 ### Workflow Builder
 
 ```typescript
-skill({ name, entry, version?, resolveVersion?, package?, description?, triggers?, context?, stash?, observers?, finalOutput? })
+skill({ name, entry, system?, version?, resolveVersion?, package?, description?, triggers?, context?, stash?, observers?, finalOutput? })
   .step(name, config)              // inline step — context/stash types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
   .register(module, { next })      // merge module steps, widen stash type
@@ -291,13 +293,25 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 ### Primitives
 
-| Export                               | What it does                 |
-| ------------------------------------ | ---------------------------- |
-| `askUser({ type, question, ... })`   | Structured or open question  |
-| `confirm({ message, destructive? })` | Binary yes/no approval       |
-| `plan({ summary, steps })`           | Show plan, wait for approval |
-| `tasks({ create })`                  | Tracked subtask list         |
-| `subtask({ prompt, output })`        | Spawn isolated sub-agent     |
+All primitive creation goes through the `act` namespace (`import { act } from '@contentful/skill-kit'`). Use via `act:` on the step config (single-primitive shorthand) or `act` methods in prompt functions (composable):
+
+| Method                                              | What it does                                          |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `act.askUser({ type, question, ... })`              | Structured or open question                           |
+| `act.confirm({ message, destructive? })`            | Binary yes/no approval                                |
+| `act.plan({ summary, steps })`                      | Show plan, wait for approval                          |
+| `act.checklist({ create })`                         | Tracked task list                                     |
+| `act.subagent({ prompt, output, allowRecursion? })` | Spawn isolated sub-agent (recursion guard by default) |
+
+Prompt functions receive `act` and `system` via `PromptContext` for composable prompt vocabulary:
+
+```typescript
+prompt: ({ stash, act, system }) => [
+  system`You are a game dev mentor.`,
+  act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+  prompt`Build the game. Update the checklist as you go.`,
+],
+```
 
 ### Testing
 
@@ -327,7 +341,8 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 
 ```typescript
 {
-  prompt: string | (ctx: PromptContext) => string,
+  prompt: string | PromptFn,                           // PromptFn returns string | PromptPiece | PromptPiece[]
+  act?: ActSegment,                                    // shorthand for single-primitive steps
   output: z.ZodType,
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },
   render?: (ctx: PromptContext) => string,
@@ -337,27 +352,24 @@ skill-kit check <skill.ts>                          # Lint for portability issue
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  ask?: AskUserConfig,
-  confirm?: ConfirmConfig,
-  plan?: PlanConfig,
-  tasks?: TasksConfig,
-  subtask?: SubtaskConfig,
 }
 ```
 
 `PromptContext` fields available in dynamic prompts and render functions:
 
-| Field      | Description                                                 |
-| ---------- | ----------------------------------------------------------- |
-| `prev`     | Output of the previous step                                 |
-| `history`  | All prior step results                                      |
-| `getStep`  | Typed accessor: `getStep<T>('name')?.output`                |
-| `context`  | Global skill context (typed from `skill({ context: ... })`) |
-| `rendered` | Output of this step's `render()`                            |
-| `refs`     | Lazy loader for `references/` files                         |
-| `attempts` | How many times this step has been visited                   |
-| `host`     | Current host info                                           |
-| `stash`    | Accumulated stash data (typed from `skill({ stash: ... })`) |
+| Field      | Description                                                       |
+| ---------- | ----------------------------------------------------------------- |
+| `prev`     | Output of the previous step                                       |
+| `history`  | All prior step results                                            |
+| `getStep`  | Typed accessor: `getStep<T>('name')?.output`                      |
+| `context`  | Global skill context (typed from `skill({ context: ... })`)       |
+| `rendered` | Output of this step's `render()`                                  |
+| `refs`     | Lazy loader for `references/` files                               |
+| `attempts` | How many times this step has been visited                         |
+| `host`     | Current host info                                                 |
+| `stash`    | Accumulated stash data (typed from `skill({ stash: ... })`)       |
+| `act`      | Primitive directive builders (`askUser`, `confirm`, `plan`, etc.) |
+| `system`   | System segment tag/function for persona/frame                     |
 
 </details>
 
@@ -367,7 +379,7 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 
 - **Builder pattern.** `skill()` returns a builder. `.step()` callbacks get typed context/stash via contextual inference — no annotations.
 - **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
-- **Abstract verb system.** Step prose uses verbs (`ASK_STRUCTURED`, `ASK_FREEFORM`). The preamble maps them to host-specific tools.
+- **XML output format.** Primitives render as XML tags (`<ask-user>`, `<plan>`, `<checklist>`, etc.). The preamble maps tags to host-specific tools via a markdown table.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.
 - **Three skill patterns, one build pipeline.** Workflow skills for state machines, reference skills for progressive disclosure, and composite skills that combine sub-skills and topics under a single dispatcher. All build to the same agentskills.io directory structure.
 

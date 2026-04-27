@@ -1,34 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveProseGenerator } from './prose/index.js';
 import { askUser } from './ask-user.js';
-import type { Handshake } from '../types.js';
 
-const config = askUser({
-  type: 'structured',
-  question: 'Which deployment target?',
-  options: [
-    { value: 'production', label: 'Production' },
-    { value: 'staging', label: 'Staging' },
-    { value: 'local', label: 'Local' },
-  ],
+test('askUser structured returns frozen AskStructuredConfig', () => {
+  const config = askUser({
+    type: 'structured',
+    question: 'Which target?',
+    options: [
+      { value: 'production', label: 'Production' },
+      { value: 'staging', label: 'Staging' },
+    ],
+  });
+  assert.equal(config.kind, 'askUser');
+  assert.equal(config.type, 'structured');
+  assert.equal(config.question, 'Which target?');
+  assert.equal(config.options.length, 2);
+  assert.ok(Object.isFrozen(config));
 });
 
-test('askUser produces ASK_STRUCTURED verb with question and options', () => {
-  const host: Handshake = { host: 'claude-code', toolsAvailable: ['AskUserQuestion'] };
-  const prose = resolveProseGenerator(host);
-  const result = prose.askUser(config);
-
-  assert.ok(result.includes('ASK_STRUCTURED'));
-  assert.ok(result.includes('Which deployment target?'));
-  assert.ok(result.includes('Production'));
-});
-
-test('askUser uses same verb on generic host', () => {
-  const host: Handshake = { host: 'generic', toolsAvailable: [] };
-  const prose = resolveProseGenerator(host);
-  const result = prose.askUser(config);
-
-  assert.ok(result.includes('ASK_STRUCTURED'));
-  assert.ok(result.includes('Production'));
+test('askUser open returns frozen AskOpenConfig', () => {
+  const config = askUser({ type: 'open', question: 'Tell me more' });
+  assert.equal(config.kind, 'askUser');
+  assert.equal(config.type, 'open');
+  assert.equal(config.question, 'Tell me more');
+  assert.ok(Object.isFrozen(config));
 });

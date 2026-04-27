@@ -2,17 +2,38 @@ import type { SkillDefinition } from '../../types.js';
 import type { LintDiagnostic } from '../types.js';
 
 const HOST_TOOL_NAMES = [
+  // Claude Code
   'AskUserQuestion',
   'EnterPlanMode',
   'ExitPlanMode',
   'TaskCreate',
   'TaskUpdate',
   'TodoWrite',
+  'Agent',
+  // Codex
   'apply_patch',
   'update_plan',
-  'multiedit',
-  'todowrite',
-  'todoread',
+  'ToolRequestUserInput',
+  'CollabAgent',
+  // OpenCode
+  'question',
+  'todo',
+  'task',
+  'plan',
+  // Gemini CLI
+  'ask-user',
+  'enter-plan-mode',
+  'exit-plan-mode',
+  'write-todos',
+  'tracker-create-task',
+  'tracker-update-task',
+  // Cline / Roo Code / Kilo Code
+  'ask_followup_question',
+  'update_todo_list',
+  'PLAN_MODE',
+  'ACT_MODE',
+  'USE_SUBAGENTS',
+  'new_task',
 ];
 
 const GUARD_PATTERN = /host\.toolsAvailable\.includes\s*\(\s*['"](\w+)['"]\s*\)/g;

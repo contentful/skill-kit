@@ -116,7 +116,7 @@ test('engine provides dynamic prompt context', async () => {
   const p = await engine.advance('a', { val: 42 });
 
   assert.ok(capturedCtx);
-  assert.ok((p as PromptResult).prompt.includes('42'));
+  assert.equal((p as PromptResult).prompt, '<prompt>\nPrevious: {"val":42}\n</prompt>');
 });
 
 test('engine replays history for single-invocation mode', () => {
@@ -490,4 +490,155 @@ test('engine still routes normally when next target is a local step', async () =
   const result = await engine.advance('a', {});
 
   assert.equal((result as PromptResult).step, 'b');
+});
+
+// --- Array prompt composition tests ---
+
+import { act } from '../act.js';
+
+test('engine assembles array prompt in author order with XML tags', () => {
+  const s = skill({ name: 'array-test', entry: 'a' })
+    .step('a', {
+      prompt: ({ act, system }) => [
+        system`Be precise.`,
+        act.checklist({
+          create: [
+            { title: 'Item one', status: 'pending' },
+            { title: 'Item two', status: 'done' },
+          ],
+        }),
+        'Do the work.',
+      ],
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  const lines = result.prompt.split('\n\n');
+  assert.equal(lines[0], '<system>Be precise.</system>');
+  assert.ok(lines[1]!.startsWith('<checklist>'));
+  assert.ok(lines[1]!.includes('<item status="pending">Item one</item>'));
+  assert.ok(lines[1]!.includes('<item status="done">Item two</item>'));
+  assert.ok(lines[1]!.endsWith('</checklist>'));
+  assert.equal(lines[2], '<prompt>\nDo the work.\n</prompt>');
+});
+
+test('engine preserves author order — system between acts', () => {
+  const s = skill({ name: 'order-test', entry: 'a' })
+    .step('a', {
+      prompt: ({ act, system }) => [
+        act.confirm({ message: 'Ready?', defaultAnswer: 'yes' }),
+        system`Now be thorough.`,
+        'Build everything.',
+      ],
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  const lines = result.prompt.split('\n\n');
+  assert.ok(lines[0]!.startsWith('<confirm'));
+  assert.equal(lines[1], '<system>Now be thorough.</system>');
+  assert.equal(lines[2], '<prompt>\nBuild everything.\n</prompt>');
+});
+
+test('engine prepends step-level act before array prompt pieces', () => {
+  const s = skill({ name: 'act-prepend', entry: 'a' })
+    .step('a', {
+      act: act.askUser({
+        type: 'structured',
+        question: 'Pick one',
+        options: [{ value: 'a', label: 'A', description: 'Option A' }],
+      }),
+      prompt: 'Additional context.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  const lines = result.prompt.split('\n\n');
+  assert.ok(lines[0]!.startsWith('<ask-user'));
+  assert.ok(lines[0]!.includes('question="Pick one"'));
+  assert.equal(lines[1], '<prompt>\nAdditional context.\n</prompt>');
+});
+
+test('engine renders subagent with no-recurse attribute', () => {
+  const s = skill({ name: 'recurse-test', entry: 'a' })
+    .step('a', {
+      act: act.subagent({
+        prompt: 'Do research.',
+        output: z.object({ result: z.string() }),
+      }),
+      output: z.object({ result: z.string() }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  assert.ok(result.prompt.includes('no-recurse="recurse-test"'));
+  assert.ok(result.prompt.includes('Do research.'));
+});
+
+test('engine renders subagent without no-recurse when allowRecursion is true', () => {
+  const s = skill({ name: 'recurse-allowed', entry: 'a' })
+    .step('a', {
+      act: act.subagent({
+        prompt: 'Run the sub-skill.',
+        output: z.object({ result: z.string() }),
+        allowRecursion: true,
+      }),
+      output: z.object({ result: z.string() }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  assert.ok(!result.prompt.includes('no-recurse'));
+  assert.ok(result.prompt.includes('<subagent>Run the sub-skill.</subagent>'));
+});
+
+test('engine appends rendered output as <rendered> tag', () => {
+  const s = skill({ name: 'render-test', entry: 'a' })
+    .step('a', {
+      render: () => '# Hello World',
+      prompt: 'Show the card.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  assert.ok(result.prompt.includes('<rendered>\n# Hello World\n</rendered>'));
+  assert.ok(result.prompt.includes('<prompt>\nShow the card.\n</prompt>'));
+});
+
+test('engine injects skill-level system into preamble', () => {
+  const s = skill({ name: 'system-test', entry: 'a', system: 'You are helpful.' })
+    .step('a', {
+      prompt: 'Do something.',
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  assert.ok(result.preamble!.startsWith('You are helpful.'));
+  assert.ok(result.preamble!.includes('| Tag |'));
 });

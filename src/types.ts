@@ -75,18 +75,49 @@ export interface PlanConfig {
   steps: string[];
 }
 
-export interface TasksConfig {
-  readonly kind: 'tasks';
+export interface ChecklistConfig {
+  readonly kind: 'checklist';
   create: Array<{ title: string; status: string }>;
 }
 
-export interface SubtaskConfig {
-  readonly kind: 'subtask';
+export interface SubagentConfig {
+  readonly kind: 'subagent';
   prompt: string;
   output: z.ZodType;
+  allowRecursion?: boolean;
 }
 
-export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | TasksConfig | SubtaskConfig;
+export type PrimitiveConfig = AskUserConfig | ConfirmConfig | PlanConfig | ChecklistConfig | SubagentConfig;
+
+// --- Prompt segments ---
+
+export interface SystemSegment {
+  readonly kind: 'system';
+  readonly text: string;
+}
+
+export interface ActSegment {
+  readonly kind: 'act';
+  readonly primitive: PrimitiveConfig;
+}
+
+export type PromptSegment = SystemSegment | ActSegment;
+export type PromptPiece = string | PromptSegment;
+export type PromptReturn = string | PromptPiece | PromptPiece[];
+
+export interface ActBuilder {
+  askUser(input: { type: 'structured'; question: string; options: AskUserOption[]; multiSelect?: boolean }): ActSegment;
+  askUser(input: { type: 'open'; question: string }): ActSegment;
+  confirm(input: { message: string; destructive?: boolean; defaultAnswer?: 'yes' | 'no' }): ActSegment;
+  plan(input: { summary: string; steps: string[] }): ActSegment;
+  checklist(input: { create: Array<{ title: string; status: string }> }): ActSegment;
+  subagent(input: { prompt: string; output: z.ZodType; allowRecursion?: boolean }): ActSegment;
+}
+
+export type SystemBuilder = {
+  (strings: TemplateStringsArray, ...values: unknown[]): SystemSegment;
+  (text: string): SystemSegment;
+};
 
 // --- Type helpers ---
 
@@ -112,10 +143,12 @@ export interface PromptContext<TContext = any, TStash = any> {
   attempts: number;
   host: Handshake;
   stash: Readonly<TStash>;
+  act: ActBuilder;
+  system: SystemBuilder;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PromptFn<TContext = any, TStash = any> = (ctx: PromptContext<TContext, TStash>) => string;
+export type PromptFn<TContext = any, TStash = any> = (ctx: PromptContext<TContext, TStash>) => PromptReturn;
 
 export type TransitionFn<TOutput = unknown, TActionOutput = unknown> = (ctx: {
   output: TOutput;
@@ -130,7 +163,7 @@ export interface StepConfig<
   TStash = any,
   TActionOutput = unknown,
 > {
-  prompt?: string | PromptFn<TContext, TStash>;
+  prompt?: string | PromptPiece[] | PromptFn<TContext, TStash>;
   output: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
   render?: (ctx: PromptContext<TContext, TStash>) => string;
@@ -140,11 +173,7 @@ export interface StepConfig<
   afterAction?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
-  ask?: AskUserConfig;
-  confirm?: ConfirmConfig;
-  plan?: PlanConfig;
-  tasks?: TasksConfig;
-  subtask?: SubtaskConfig;
+  act?: ActSegment;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,6 +224,7 @@ export type SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash ex
   description?: string;
   triggers?: string[];
   entry: string;
+  system?: string;
   context?: TContext;
   stash?: TStash;
   observers?: ObserverMap;
@@ -212,6 +242,7 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly resolveVersion: boolean;
   readonly description: string;
   readonly entry: string;
+  readonly system: string | undefined;
   readonly context: TContext | undefined;
   readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;
@@ -305,6 +336,7 @@ export interface SessionHeader {
   sessionId: string;
   skill: string;
   host: string;
+  tools?: string[];
   context: unknown;
   createdAt: string;
   outputMode: SessionOutputMode;

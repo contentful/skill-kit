@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from '../skill.js';
-import { askUser } from '../primitives/ask-user.js';
+import { act } from '../act.js';
 import { checkSkill } from './index.js';
 
 test('no-host-tool-names flags direct tool reference', () => {
@@ -42,7 +42,7 @@ test('no-host-tool-names does not flag guarded reference', () => {
 test('primitive-schema-mismatch flags mismatched askUser options', () => {
   const s = skill({ name: 'mismatch', entry: 'a' })
     .step('a', {
-      ask: askUser({
+      act: act.askUser({
         type: 'structured',
         question: 'Pick one',
         options: [

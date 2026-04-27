@@ -92,7 +92,7 @@ test('composite: dispatcher start returns first step prompt', async () => {
   const { stdout } = await run('--context', '{}');
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'classify');
-  assert.equal(result.prompt, 'Classify intent.');
+  assert.equal(result.prompt, '<prompt>\nClassify intent.\n</prompt>');
   assert.ok(result.schema);
 });
 
@@ -100,7 +100,7 @@ test('composite: dispatcher advance with subskill redirect starts sub-skill', as
   const { stdout } = await run('advance', '--step', 'classify', '--output', '{"intent":"doctor"}', '--history', '[]');
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'doctor/diagnose');
-  assert.equal(result.prompt, 'Diagnose the issue.');
+  assert.equal(result.prompt, '<prompt>\nDiagnose the issue.\n</prompt>');
   assert.ok(result.completed);
   assert.equal(result.completed.step, 'classify');
 });
@@ -136,7 +136,7 @@ test('composite: direct sub-skill start bypasses dispatcher', async () => {
   const { stdout } = await run('doctor', '--context', '{}');
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'doctor/diagnose');
-  assert.equal(result.prompt, 'Diagnose the issue.');
+  assert.equal(result.prompt, '<prompt>\nDiagnose the issue.\n</prompt>');
 });
 
 test('composite: direct sub-skill advance', async () => {

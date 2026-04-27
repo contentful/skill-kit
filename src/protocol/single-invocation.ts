@@ -8,8 +8,9 @@ export async function handleStart(
   context: unknown,
   hostName?: string,
   session?: SessionFile,
+  tools?: string[],
 ): Promise<void> {
-  const handshake = resolveHost(hostName);
+  const handshake = resolveHost(hostName, tools);
   const engine = new WorkflowEngine(skill, handshake, context);
   const result = engine.start();
 
@@ -28,8 +29,9 @@ export async function handleAdvance(
   history: Array<{ step: string; output: unknown; action?: unknown }>,
   hostName?: string,
   session?: SessionFile,
+  tools?: string[],
 ): Promise<void> {
-  const handshake = resolveHost(hostName);
+  const handshake = resolveHost(hostName, tools);
   const engine = new WorkflowEngine(skill, handshake, {});
 
   if (history.length > 0) {
@@ -66,7 +68,8 @@ function printHelp(skillName: string): void {
     '  --step         Name of the step whose output is being submitted. (advance only)',
     '  --output       JSON string. The agent response for the step. (advance only)',
     '  --history      JSON array of {step, output, action?} objects. (advance only)',
-    '  --host         Host identifier for prose generation. Default: generic.',
+    '  --host         Host identifier for tool resolution. Default: generic.',
+    '  --tools        Comma-separated list of available tools (overrides host registry).',
     '  --session      "new" to create a session (start), or session ID (advance).',
     '  --session-dir  Directory for session files. Default: OS temp directory.',
     '  --output-mode  "file" (default) or "flag". How the agent passes step output.',

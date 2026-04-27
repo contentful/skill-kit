@@ -66,7 +66,7 @@ Returns a `PromptResult`:
 }
 ```
 
-The preamble is emitted once. It establishes session-wide conventions (verb mappings, rendering rules) so that later step prompts can be shorter.
+The preamble is emitted once. It establishes session-wide conventions (XML tag-to-tool mappings, rendering rules) so that later step prompts can be shorter.
 
 **2. Advance** — Agent submits output, gets next step:
 
@@ -103,16 +103,17 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 ### CLI Flags
 
-| Flag            | Required     | Description                                                                  |
-| --------------- | ------------ | ---------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                     |
-| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode   |
-| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`       |
-| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic`               |
-| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                  |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                      |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode     |
+| Flag            | Required     | Description                                                                                                                                                                  |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                     |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                   |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                 |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                       |
+| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `generic`                                                                                                               |
+| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). Only needed on `start` — session mode stores tools in the session header and reads them back on `advance` |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                                  |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                      |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                                     |
 
 ### Why stateless is still supported
 
@@ -122,64 +123,93 @@ History replay is cheap. The engine reconstructs state (stash, visit counts) fro
 
 ---
 
-## The Host-Aware Prose System
+## The Host-Aware Primitive System
 
 ### The architectural constraint
 
 The skill CLI cannot call tools. It cannot invoke MCP methods. It cannot cause the host to render UI. Only the model can do those things, and only in response to prose it reads.
 
-When the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can do is return prose that names the tool and describes how to use it. The model reads the prose, decides to call the tool, and passes the answer back on the next invocation. The answer shape is still enforced by the step's Zod schema.
+When the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can do is return XML that the preamble has mapped to that tool. The model reads the XML tag, consults the preamble's tag-to-tool table, calls the tool, and passes the answer back on the next invocation. The answer shape is still enforced by the step's Zod schema.
 
-Everything in the host-aware system is downstream of this constraint. Primitives are prose generators with host-aware variants. The "capability system" is a lookup table that picks which variant to emit.
+Everything in the host-aware system is downstream of this constraint. Primitives render XML tags; the preamble maps each tag to the host's tools. The "capability system" is a lookup table that picks which tool to advertise per tag.
 
 ### Two mechanisms
 
-**Preamble at session start.** Generated once per skill invocation. Establishes session conventions:
+**Preamble at session start.** Generated once per skill invocation. The preamble is a markdown table mapping XML tags to host-specific tools:
 
-> _When a step says "ASK_STRUCTURED", use the AskUserQuestion tool with exact options. When a step provides a "Rendered output" block, emit it verbatim. When a step says "SPAWN_SUBTASK", use the Agent tool._
+> | Tag           | Tool            | How to use                                             |
+> | ------------- | --------------- | ------------------------------------------------------ |
+> | `<ask-user>`  | AskUserQuestion | Present `<option>` children as choices via the tool... |
+> | `<checklist>` | TaskCreate      | Register `<item>` children via the tool...             |
+> | `<subagent>`  | Agent           | Spawn isolated agent for enclosed task via the tool... |
 
-The preamble is generated per host — different tool names, different emphasis, same semantics. Later step prompts can be shorter because the preamble has set the context.
+The preamble is generated per host — different tools in the Tool column, same tags and semantics. `resolveTools(handshake)` matches each primitive's tool list against the host's available tools to populate the table. Later step prompts can be shorter because the preamble has set the context.
 
-Preambles are best-effort — the model may forget them under context pressure. For critical primitives, per-step prose also names the tool explicitly. Preambles optimize the common case; per-step prose guards correctness.
+Preambles are best-effort — the model may forget them under context pressure. The XML tags themselves are self-describing, which helps even without preamble context. Preambles optimize the common case; the tag structure guards correctness.
 
-**Per-step prose generation.** For any step using a primitive (`ask`, `confirm`, `plan`, `tasks`, `subtask`), the SDK generates prose calibrated to the current host. On Claude Code, an `askUser` step emits:
+**Per-step XML rendering.** For any step using a primitive (via the `act` field or `act.*` in a prompt function), the SDK renders the primitive as an XML tag. An `askUser` step emits:
 
-> _Use the AskUserQuestion tool to ask: "Which target?" Options (pass exactly these values): "production", "staging". Do not modify option text._
+```xml
+<ask-user type="structured" question="Which target?">
+  <option value="production" label="Production"></option>
+  <option value="staging" label="Staging"></option>
+</ask-user>
+```
 
-On a host without a structured-question tool:
+The preamble tells the model how to handle `<ask-user>` — on Claude Code, use the `AskUserQuestion` tool; on a host without a structured-question tool, present as a numbered list. No tool names appear in the XML itself.
 
-> _Ask the user: "Which target?" Present these options and no others: production, staging. Accept only a single answer matching one of those exact strings._
+### Primitive registry and tool resolution
 
-### Prose generator resolution
-
-`resolveProseGenerator(handshake)` picks the generator by checking `handshake.toolsAvailable` for host-identifying tools. Falls back to the `handshake.host` name, then to `generic`.
-
-Each generator implements the `ProseGenerator` interface:
+Each primitive is defined with `definePrimitive()` (`src/primitives/primitive.ts`):
 
 ```typescript
-interface ProseGenerator {
-  askUser(config: AskUserConfig): string;
-  confirm(config: ConfirmConfig): string;
-  plan(config: PlanConfig): string;
-  tasks(config: TasksConfig): string;
-  subtask(config: SubtaskConfig): string;
+interface RenderContext {
+  skillName?: string;
+}
+
+interface Primitive<TInput, TConfig, TTools> {
+  readonly tag: string; // XML tag name (e.g., 'ask-user')
+  readonly tools: TTools; // tool names to match against host
+  create(input: TInput): TConfig;
+  render(config: TConfig, ctx?: RenderContext): string;
+  preambleRow(tool: string | undefined): PreambleRow;
 }
 ```
 
-A shared default implementation (`prose/default.ts`) covers all five methods. The registry maps host names to generators — currently all point to the default. To add host-specific prose, spread the default and override individual methods:
+The `render` method accepts an optional `RenderContext`. The engine passes `{ skillName }` when calling `renderPrimitive`, allowing primitives like `subagent` to emit the skill name in the `no-recurse` attribute.
 
-```typescript
-const generators = {
-  'claude-code': { ...defaultGenerator, askUser: claudeCodeAskUser },
-  // others fall through to defaultGenerator
-};
-```
+The registry (`src/primitives/registry.ts`) manages all five primitives and exposes two functions:
+
+- **`renderPrimitive(config, ctx?)`** — dispatches to the correct primitive's `render()` method by `config.kind`, forwarding an optional `RenderContext` (e.g., `{ skillName }`). Returns the XML string.
+- **`resolveTools(handshake)`** — either/or resolution at the whole-handshake level: if the agent reports any explicit tools (via `--tools`), those are authoritative for all primitives (no registry merge); if no tools are reported, the host registry provides the tool list. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
+
+Tool resolution is either/or at the whole-handshake level: if the agent reports any explicit tools (via `--tools`), those are the authoritative tool list for all primitives — no registry fallback. If no explicit tools are reported, the `HOST_REGISTRY` for the given host name provides the tool list. This prevents subagents (which report a subset of tools but still identify as a known host) from being told to use tools they don't actually have.
+
+To add a new primitive, define it with `definePrimitive()` and add it to the `ALL_PRIMITIVES` array in the registry.
+
+### Prompt assembly pipeline
+
+When the engine builds a step's prompt, it follows this sequence:
+
+1. **`resolvePromptValue`** — Evaluates the step's `prompt` config. If it's a function, calls it with `PromptContext` (which includes `act` and `system` builders). If it's a string or array, uses it directly. Returns `PromptReturn`.
+2. **`normalizePieces`** — Wraps the result in an array of `PromptPiece` values. A single string or segment becomes a one-element array.
+3. **Prepend `act`** — If the step config has an `act` field, the `ActSegment` is unshifted to the front of the pieces array. This means declarative primitives always appear before prompt content.
+4. **`assemblePieces`** — Walks the array in author order, wrapping each piece in its XML tag:
+   - Plain strings become `<prompt>\n...\n</prompt>`.
+   - `SystemSegment` (`{ kind: 'system' }`) becomes `<system>...</system>`.
+   - `ActSegment` (`{ kind: 'act' }`) is rendered via `renderPrimitive()` to its XML tag (e.g., `<ask-user>`, `<checklist>`, `<subagent>`).
+
+   Non-empty results are joined with double newlines.
+
+5. **Append `<rendered>`** — If the step has a `render()` function, its output is appended as `<rendered>\n...\n</rendered>`.
+
+This pipeline means the author controls ordering. A prompt function returning `[system`...`, act.checklist(...), 'Build the game.']` produces `<system>...</system>`, then `<checklist>...</checklist>`, then `<prompt>Build the game.</prompt>` in the final output. The `act` field is a convenience that always prepends; use `act.*` in a prompt function when ordering matters.
 
 ### Why primitives matter
 
 Three reasons, all load-bearing:
 
-1. **Centralized tuning.** The SDK owns the prose that produces reliable behavior per host. One tuning pass benefits every skill.
+1. **Centralized tuning.** The SDK owns the XML rendering and preamble mappings that produce reliable behavior per host. One tuning pass benefits every skill.
 2. **Host portability.** Authors write intent once; the SDK translates per host. No hardcoded tool names to break on a different agent.
 3. **SDK improvements propagate.** Better phrasing for Codex six months from now ships as an SDK update. Every skill using primitives gets it for free.
 
@@ -321,7 +351,7 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 
 ### Lifecycle
 
-**Constructor** — Takes a `SkillDefinition`, `Handshake`, context, and optional `ReferenceLoader`. Initializes the stash store and prose generator.
+**Constructor** — Takes a `SkillDefinition`, `Handshake`, context, and optional `ReferenceLoader`. Initializes the stash store and tool resolver.
 
 **`start()`** — Validates the skill structure (parent sentinels resolved, cycle guards present). Generates the preamble. Fires `onStepStart`. Returns the first step's `PromptResult`.
 

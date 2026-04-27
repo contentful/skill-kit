@@ -1,4 +1,4 @@
-import { skill, z, action, askUser } from '@contentful/skill-kit';
+import { skill, z, action, act } from '@contentful/skill-kit';
 
 const checkEnv = action({
   name: 'check-env',
@@ -26,11 +26,11 @@ export default skill({
     prompt: 'Acknowledge the environment check results and proceed.',
     output: z.object({ acknowledged: z.boolean() }),
     action: checkEnv,
-    afterAction: ({ action: act }) => ({
-      hasSpaceId: act.hasSpaceId,
-      hasToken: act.hasToken,
+    afterAction: ({ action: result }) => ({
+      hasSpaceId: result.hasSpaceId,
+      hasToken: result.hasToken,
     }),
-    next: ({ action: act }) => (act.hasSpaceId && act.hasToken ? 'configure' : 'guide-env'),
+    next: ({ action: result }) => (result.hasSpaceId && result.hasToken ? 'configure' : 'guide-env'),
   })
 
   .step('guide-env', {
@@ -49,7 +49,7 @@ export default skill({
   })
 
   .step('configure', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'What would you like to configure?',
       options: [

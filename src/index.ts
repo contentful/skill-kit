@@ -1,14 +1,11 @@
 export { z } from 'zod';
 export { skill } from './skill.js';
 export { step } from './step.js';
-export { fragment, prompt } from './fragment.js';
+export { fragment, prompt, resolveTemplate } from './fragment.js';
+export { system } from './system.js';
+export { act } from './act.js';
 export { action } from './action.js';
 export { render } from './render/index.js';
-export { askUser } from './primitives/ask-user.js';
-export { confirm } from './primitives/confirm.js';
-export { plan } from './primitives/plan.js';
-export { tasks } from './primitives/tasks.js';
-export { subtask } from './primitives/subtask.js';
 export { module } from './module.js';
 export { reference } from './reference.js';
 export { SkillBuilder } from './skill-builder.js';
@@ -40,9 +37,14 @@ export type {
   AskUserOption,
   ConfirmConfig,
   PlanConfig,
-  TasksConfig,
-  SubtaskConfig,
+  ChecklistConfig,
+  SubagentConfig,
   PrimitiveConfig,
+  SystemSegment,
+  ActSegment,
+  PromptSegment,
+  PromptPiece,
+  PromptReturn,
   CliResult,
   PromptResult,
   DoneResult,

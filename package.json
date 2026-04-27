@@ -50,14 +50,16 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "update-licenses": "node ./scripts/update-licenses.mjs",
-    "build:examples": "pnpm run build:examples:get-to-know-you && pnpm run build:examples:ts-patterns && pnpm run build:examples:contentful-help",
+    "build:examples": "pnpm run build:examples:get-to-know-you && pnpm run build:examples:ts-patterns && pnpm run build:examples:contentful-help && pnpm run build:examples:game-jam",
     "build:examples:get-to-know-you": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill --mode node",
     "build:examples:ts-patterns": "node --import tsx/esm bin/skill-kit.js build examples/ts-patterns/src/skill.ts -o examples/ts-patterns/skill --mode node",
     "build:examples:contentful-help": "node --import tsx/esm bin/skill-kit.js build examples/contentful-help/src/skill.ts -o examples/contentful-help/skill --mode node",
-    "build:examples:bun": "pnpm run build:examples:get-to-know-you:bun && pnpm run build:examples:ts-patterns:bun && pnpm run build:examples:contentful-help:bun",
+    "build:examples:game-jam": "node --import tsx/esm bin/skill-kit.js build examples/game-jam/src/skill.ts -o examples/game-jam/skill --mode node",
+    "build:examples:bun": "pnpm run build:examples:get-to-know-you:bun && pnpm run build:examples:ts-patterns:bun && pnpm run build:examples:contentful-help:bun && pnpm run build:examples:game-jam:bun",
     "build:examples:get-to-know-you:bun": "node --import tsx/esm bin/skill-kit.js build examples/get-to-know-you/src/skill.ts -o examples/get-to-know-you/skill",
     "build:examples:ts-patterns:bun": "node --import tsx/esm bin/skill-kit.js build examples/ts-patterns/src/skill.ts -o examples/ts-patterns/skill",
-    "build:examples:contentful-help:bun": "node --import tsx/esm bin/skill-kit.js build examples/contentful-help/src/skill.ts -o examples/contentful-help/skill"
+    "build:examples:contentful-help:bun": "node --import tsx/esm bin/skill-kit.js build examples/contentful-help/src/skill.ts -o examples/contentful-help/skill",
+    "build:examples:game-jam:bun": "node --import tsx/esm bin/skill-kit.js build examples/game-jam/src/skill.ts -o examples/game-jam/skill"
   },
   "dependencies": {
     "esbuild": "^0.28.0",

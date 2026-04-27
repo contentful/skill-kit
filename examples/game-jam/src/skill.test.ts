@@ -1,0 +1,78 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { runSkill, mockModel } from '@contentful/skill-kit/test';
+import skill from './skill.js';
+
+test('happy path: classic + canvas, approve plan, no polish', async () => {
+  const result = await runSkill(skill, {
+    context: { difficulty: 'beginner' },
+    model: mockModel({
+      'choose-variant': { variant: 'classic' },
+      'name-game': { name: 'RetroBlocks' },
+      'choose-renderer': { renderer: 'canvas' },
+      'design-review': { approved: true },
+      'research-renderer': { summary: 'Use requestAnimationFrame for smooth rendering' },
+      'implementation-plan': { approved: true },
+      build: { filesCreated: ['index.html', 'game.js', 'style.css'], summary: 'Game built!' },
+      'generate-readme': { readme: '# RetroBlocks\nA classic Tetris game.' },
+      'final-review': { approved: false },
+      summary: { summary: 'RetroBlocks is complete!' },
+    }),
+  });
+
+  assert.deepEqual(result.path, [
+    'choose-variant',
+    'name-game',
+    'choose-renderer',
+    'design-review',
+    'research-renderer',
+    'implementation-plan',
+    'build',
+    'generate-readme',
+    'final-review',
+    'summary',
+  ]);
+});
+
+test('modern + dom, revise plan once, one polish pass', async () => {
+  const result = await runSkill(skill, {
+    model: mockModel({
+      'choose-variant': { variant: 'modern' },
+      'name-game': { name: 'NeonDrop' },
+      'choose-renderer': { renderer: 'dom' },
+      'design-review': { approved: true },
+      'research-renderer': { summary: 'Use CSS Grid for the board layout' },
+      'implementation-plan': [{ approved: false, modifications: 'Add hold-piece support first' }, { approved: true }],
+      'revise-plan': { answer: 'Add hold-piece as step 2, shift everything else down' },
+      build: { filesCreated: ['index.html', 'game.ts'], summary: 'Built with hold-piece' },
+      'generate-readme': { readme: '# NeonDrop\nA modern Tetris game.' },
+      'final-review': [{ approved: true }, { approved: false }],
+      polish: { answer: 'Add a neon glow effect to the active piece' },
+      summary: { summary: 'NeonDrop with glow effects!' },
+    }),
+  });
+
+  assert.ok(result.path.includes('revise-plan'));
+  assert.ok(result.path.includes('polish'));
+  assert.equal(result.path[result.path.length - 1], 'summary');
+});
+
+test('design-review rejection loops back to choose-variant', async () => {
+  const result = await runSkill(skill, {
+    model: mockModel({
+      'choose-variant': [{ variant: 'puzzle' }, { variant: 'classic' }],
+      'name-game': [{ name: 'PuzzleTris' }, { name: 'ClassicFall' }],
+      'choose-renderer': [{ renderer: 'webgl' }, { renderer: 'canvas' }],
+      'design-review': [{ approved: false }, { approved: true }],
+      'research-renderer': { summary: 'Canvas is straightforward' },
+      'implementation-plan': { approved: true },
+      build: { filesCreated: ['game.js'], summary: 'Done' },
+      'generate-readme': { readme: '# ClassicFall' },
+      'final-review': { approved: false },
+      summary: { summary: 'ClassicFall built!' },
+    }),
+  });
+
+  const variantVisits = result.path.filter((s: string) => s === 'choose-variant');
+  assert.equal(variantVisits.length, 2);
+});

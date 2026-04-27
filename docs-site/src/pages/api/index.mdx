@@ -12,7 +12,7 @@ Full reference for `@contentful/skill-kit`. Start with the [Getting Started](/ge
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
+skill({ name, entry, system?, context?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -25,6 +25,7 @@ skill({ name, entry, context?, stash?, observers?, finalOutput?, skillMd? })
 | ---------------- | ---------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
 | `name`           | `string`                                       | yes      | Skill identifier                                                                        |
 | `entry`          | `string`                                       | yes      | Name of the first step                                                                  |
+| `system`         | `string`                                       | no       | System-level directive prepended to the preamble (persona, constraints, tone)           |
 | `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
 | `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
 | `description`    | `string`                                       | no       | Used in generated SKILL.md                                                              |
@@ -47,7 +48,7 @@ Adds a step. Returns the builder for chaining. See [Step Config](#step-config) f
 Inherits a shared step definition and overrides specific fields. The base step's config is shallow-merged with overrides (overrides win).
 
 ```typescript
-import { step, z } from '@contentful/skill-kit';
+import { step, z, act } from '@contentful/skill-kit';
 
 const openQuestion = step({
   output: z.object({ answer: z.string() }),
@@ -56,8 +57,8 @@ const openQuestion = step({
 
 // In the builder:
 .extend('ask-stack', openQuestion, {
-  ask: askUser({ type: 'open', question: "What's your tech stack?" }),
   prompt: ({ stash }) => `Ask ${stash.name} about their tech stack.`,
+  act: act.askUser({ type: 'open', question: "What's your tech stack?" }),
   next: 'ask-hobby',
 })
 ```
@@ -78,8 +79,9 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 ```typescript
 {
-  prompt: string | (ctx: PromptContext) => string,
-  output: z.ZodType,                                      // required
+  prompt?: string | PromptPiece[] | PromptFn,
+  act?: ActSegment,                                        // from act.askUser(...), act.confirm(...), etc.
+  output: z.ZodType,                                       // required
   next: 'step-name' | ((ctx) => 'step-name') | { terminal: true },  // required
   render?: (ctx: PromptContext) => string,
   action?: ActionDefinition,
@@ -88,29 +90,41 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   afterAction?: (ctx: { output; action }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
-  ask?: AskUserConfig,
-  confirm?: ConfirmConfig,
-  plan?: PlanConfig,
-  tasks?: TasksConfig,
-  subtask?: SubtaskConfig,
 }
 ```
+
+`prompt` accepts three forms: a static string, an array of `PromptPiece` values, or a `PromptFn` callback that receives `PromptContext` and returns `PromptReturn` (`string | PromptPiece | PromptPiece[]`). When using a function, the `act` and `system` builders on `PromptContext` let you compose primitives and system directives inline — see [Composable Prompt Vocabulary](#composable-prompt-vocabulary).
+
+`act` is the declarative alternative: set it to an `ActSegment` (returned by `act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`) and the SDK prepends the rendered XML tag automatically. For dynamic primitive composition (e.g., a `plan()` whose steps depend on stash), use `act.*` inside a prompt function instead. Convention: place `prompt` before `act` in the step config object.
 
 ### PromptContext
 
 Available in dynamic `prompt` and `render` functions:
 
-| Field      | Type                                                    | Description                                    |
-| ---------- | ------------------------------------------------------- | ---------------------------------------------- |
-| `prev`     | `unknown`                                               | Output of the previous step                    |
-| `history`  | `readonly StepResult[]`                                 | All prior step results                         |
-| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result       |
-| `context`  | `TContext`                                              | Immutable skill context (typed from builder)   |
-| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present   |
-| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                 |
-| `attempts` | `number`                                                | How many times this step has been visited      |
-| `host`     | `Handshake`                                             | Current host info and available tools          |
-| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen) |
+| Field      | Type                                                    | Description                                                                                             |
+| ---------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `prev`     | `unknown`                                               | Output of the previous step                                                                             |
+| `history`  | `readonly StepResult[]`                                 | All prior step results                                                                                  |
+| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result                                                                |
+| `context`  | `TContext`                                              | Immutable skill context (typed from builder)                                                            |
+| `rendered` | `string \| undefined`                                   | Output of this step's `render()`, if present                                                            |
+| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                                                                          |
+| `attempts` | `number`                                                | How many times this step has been visited                                                               |
+| `host`     | `Handshake`                                             | Current host info and available tools                                                                   |
+| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen)                                                          |
+| `act`      | `ActBuilder`                                            | Factory for primitive segments — see [Composable Prompt Vocabulary](#composable-prompt-vocabulary)      |
+| `system`   | `SystemBuilder`                                         | Factory for system-level directives — see [Composable Prompt Vocabulary](#composable-prompt-vocabulary) |
+
+### Prompt Types
+
+| Type            | Definition                                    | Description                                                         |
+| --------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| `PromptPiece`   | `string \| PromptSegment`                     | A single element: plain text, a `SystemSegment`, or an `ActSegment` |
+| `PromptReturn`  | `string \| PromptPiece \| PromptPiece[]`      | What a prompt function may return                                   |
+| `PromptFn`      | `(ctx: PromptContext) => PromptReturn`        | Callback signature for dynamic prompts                              |
+| `PromptSegment` | `SystemSegment \| ActSegment`                 | Tagged union of segment kinds                                       |
+| `SystemSegment` | `{ kind: 'system'; text: string }`            | A system-level directive injected via `system`                      |
+| `ActSegment`    | `{ kind: 'act'; primitive: PrimitiveConfig }` | A primitive action injected via `act.*`                             |
 
 ### Transitions
 
@@ -407,15 +421,22 @@ The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string
 
 ## Primitives
 
-Interactive building blocks that generate host-aware prose. Authors describe intent; the SDK translates to host-specific tool instructions.
+Interactive building blocks rendered as XML tags. Authors describe intent; the preamble maps each tag to the host's tools.
+
+There are two ways to attach a primitive to a step:
+
+1. **`act` field** (declarative) — set `act: act.askUser(...)` on the step config. The SDK prepends the rendered XML tag before the step's `<prompt>`.
+2. **`act.*` in a prompt function** (composable) — call `act.askUser(...)` etc. inside the prompt callback to control exactly where the primitive XML tag appears, mix primitives with system segments, or derive primitive config from stash/context.
+
+Both approaches produce identical XML output. Use the `act` field for static configs; use `act.*` in a prompt function when you need composition or dynamic values.
 
 ### `askUser` — structured or open
 
 ```typescript
-import { askUser } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
 // Structured — fixed options, host uses best available tool
-ask: askUser({
+act: act.askUser({
   type: 'structured',
   question: 'Which environment?',
   options: [
@@ -423,25 +444,25 @@ ask: askUser({
     { value: 'staging', label: 'Staging' },
   ],
   multiSelect: false, // optional, defaults to false
-});
+}),
 
 // Open — free-text conversation, never a structured tool
-ask: askUser({
+act: act.askUser({
   type: 'open',
   question: "What's your tech stack?",
-});
+}),
 ```
 
 ### `confirm` — binary approval
 
 ```typescript
-import { confirm } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-confirm: confirm({
+act: act.confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
   destructive: true, // optional — adds warning in prose
   defaultAnswer: 'no', // optional — 'yes' or 'no'
-});
+}),
 ```
 
 Step output should include `{ approved: z.boolean() }`.
@@ -449,51 +470,140 @@ Step output should include `{ approved: z.boolean() }`.
 ### `plan` — present and approve
 
 ```typescript
-import { plan } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-plan: plan({
+act: act.plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
-});
+}),
 ```
 
-### `tasks` — tracked task list
+### `checklist` — tracked task list
 
 ```typescript
-import { tasks } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-tasks: tasks({
+act: act.checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
   ],
-});
+}),
 ```
 
-### `subtask` — spawn isolated sub-agent
+### `subagent` — spawn isolated sub-agent
 
 ```typescript
-import { subtask } from '@contentful/skill-kit';
+import { act } from '@contentful/skill-kit';
 
-subtask: subtask({
+act: act.subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
+}),
+```
+
+#### `SubagentConfig`
+
+| Field            | Type        | Required | Description                                                                                                                                                                                     |
+| ---------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | `string`    | yes      | Task description for the sub-agent                                                                                                                                                              |
+| `output`         | `z.ZodType` | yes      | Schema the sub-agent's result must satisfy                                                                                                                                                      |
+| `allowRecursion` | `boolean`   | no       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
+
+Default (recursion blocked):
+
+```xml
+<subagent no-recurse="my-skill">Review the PR for security issues.</subagent>
+```
+
+With `allowRecursion: true`:
+
+```xml
+<subagent>Run the doctor sub-skill.</subagent>
+```
+
+The preamble instruction for `<subagent>` tells the model: if `no-recurse` is set, the subagent must not invoke the skill named in the attribute.
+
+### Composable Prompt Vocabulary
+
+When a prompt function needs to mix primitives with other content or derive primitive config dynamically, use the `act` and `system` builders available on `PromptContext`:
+
+```typescript
+.step('build', {
+  prompt: ({ stash, act, system }) => [
+    system`You are a methodical build mentor. Complete each item before moving on.`,
+
+    act.checklist({
+      create: [
+        { title: 'Board data structure', status: 'pending' },
+        { title: `${stash.renderer} renderer`, status: 'pending' },
+      ],
+    }),
+
+    `Build the ${stash.variant} game "${stash.name}" using ${stash.renderer} rendering.`,
+  ],
+  output: z.object({ filesCreated: z.array(z.string()) }),
+  next: 'review',
+})
+```
+
+The prompt function returns `PromptReturn` — a string, a single `PromptPiece`, or an array of `PromptPiece` values. Each piece is one of:
+
+- **Plain string** — included as-is.
+- **`system` tagged template or function call** — a `SystemSegment` with directives for the model. Supports tagged template literals (with fragment interpolation) and plain string calls.
+- **`act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`** — an `ActSegment` that the engine renders to its XML tag at runtime via `renderPrimitive()`.
+
+The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` wraps each piece in its XML tag (`<prompt>` for strings, `<system>` for system segments, primitive-specific tags like `<ask-user>` or `<checklist>` for act segments) and joins with double newlines. If an `act` field is also set on the step, it is prepended as the first piece.
+
+### XML output format
+
+All prompt segments are emitted as XML tags in the output: `<system>`, `<prompt>`, `<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<subagent>`, `<rendered>`. No tool names appear in the XML. The `<subagent>` tag may include a `no-recurse` attribute naming the skill that the subagent must not invoke (see [`allowRecursion`](#subagentconfig) above). The preamble (sent once at session start) maps tags to host-specific tools.
+
+The preamble is a markdown table with columns: **Tag**, **Tool**, **How to use**. Each primitive's `preambleRow()` method generates its row, with the tool column populated by `resolveTools()` which uses either/or resolution: if the agent reports any explicit tools (via `--tools`), those are authoritative for all primitives; otherwise the host registry provides the tool list.
+
+Example preamble table (Claude Code):
+
+| Tag           | Tool            | How to use                                                                                                                                    |
+| ------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<system>`    | —               | Behavioral directives. Follow as persona/tone guidelines.                                                                                     |
+| `<prompt>`    | —               | Task instructions. The work to perform.                                                                                                       |
+| `<ask-user>`  | AskUserQuestion | Present `<option>` children as choices via the tool. For type="open", ask conversationally. Return selected value(s) verbatim.                |
+| `<confirm>`   | AskUserQuestion | Yes/no via the tool. Respect `default` attribute. If `destructive`, emphasize consequences.                                                   |
+| `<plan>`      | EnterPlanMode   | Present summary + `<step>` children via the tool. Wait for approval.                                                                          |
+| `<checklist>` | TaskCreate      | Register `<item>` children via the tool. Update status as each completes.                                                                     |
+| `<subagent>`  | Agent           | Spawn isolated agent for enclosed task via the tool. If `no-recurse` is set, the subagent must not invoke the named skill. Return its output. |
+| `<rendered>`  | —               | Pre-rendered output from the skill. Emit verbatim — no edits, no commentary.                                                                  |
+
+When no matching tool is available, the tool column is `—` and the instruction falls back to prose-only behavior (e.g., numbered lists for `<plan>`, markdown checklists for `<checklist>`).
+
+Same skill, every host. The preamble handles the translation.
+
+### Primitive type contract
+
+Each primitive is defined with `definePrimitive()`:
+
+```typescript
+import { definePrimitive } from './primitive.js';
+
+interface RenderContext {
+  skillName?: string;
+}
+
+definePrimitive({
+  tag: string,                                    // XML tag name (e.g., 'ask-user')
+  tools: readonly string[],                       // tool names to match against host inventory
+  create: (input: TInput) => TConfig,             // normalize author input to frozen config
+  render: (config: TConfig, ctx?: RenderContext) => string,  // produce XML output
+  preambleRow: (tool: string | undefined) => PreambleRow,    // generate preamble table row
 });
 ```
 
-### Host-aware verb mapping
+The `render` method accepts an optional `RenderContext`. The engine passes `{ skillName }` when calling `renderPrimitive`, allowing primitives like `subagent` to emit the skill name in the `no-recurse` attribute.
 
-The SDK uses an abstract verb system. Step prose contains verbs; the preamble (sent once at session start) maps them to host-specific behavior:
+The registry (`src/primitives/registry.ts`) exposes two functions:
 
-| Verb             | Claude Code                      | Codex                   | OpenCode                | Generic                 |
-| ---------------- | -------------------------------- | ----------------------- | ----------------------- | ----------------------- |
-| `ASK_STRUCTURED` | `AskUserQuestion` tool           | Prose with option list  | Prose with option list  | Prose with option list  |
-| `ASK_FREEFORM`   | Plain text conversation          | Plain text conversation | Plain text conversation | Plain text conversation |
-| `PRESENT_PLAN`   | `EnterPlanMode` / `ExitPlanMode` | `update_plan`           | Numbered list           | Numbered list           |
-| `CREATE_TASKS`   | `TaskCreate` / `TaskUpdate`      | `update_plan` checklist | `todowrite`             | Markdown checklist      |
-| `SPAWN_SUBTASK`  | `Agent` tool                     | Focus locally           | `task` tool             | Focus locally           |
-
-Same skill, every host. The preamble handles the translation.
+- **`renderPrimitive(config, ctx?)`** — renders any `PrimitiveConfig` to its XML tag output, forwarding an optional `RenderContext` (e.g., `{ skillName }`).
+- **`resolveTools(handshake)`** — either/or resolution at the whole-handshake level: if the agent reports any explicit tools, they are authoritative for all primitives (no registry merge); otherwise the host registry provides the tool list. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
 ---
 
@@ -885,7 +995,7 @@ for (const d of diagnostics) {
 A complete skill showing context, stash, `askUser`, branching, and terminal steps:
 
 ```typescript
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 
 export default skill({
   name: 'deploy-check',
@@ -894,7 +1004,8 @@ export default skill({
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
-    ask: askUser({
+    prompt: 'Ask which environment to deploy to.',
+    act: act.askUser({
       type: 'structured',
       question: 'Which environment?',
       options: [
@@ -929,7 +1040,7 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `askUser` structured to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `act: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
 
 2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
 

@@ -1,4 +1,4 @@
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 
 export default skill({
   name: 'doctor',
@@ -31,7 +31,7 @@ export default skill({
   })
 
   .step('confirm-fix', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'Apply the suggested fixes?',
       options: [

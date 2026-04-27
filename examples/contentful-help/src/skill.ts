@@ -1,4 +1,4 @@
-import { skill, z, askUser } from '@contentful/skill-kit';
+import { skill, z, act } from '@contentful/skill-kit';
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
@@ -11,7 +11,7 @@ export default skill({
   stash: z.object({ intent: z.string(), spaceId: z.string() }),
 })
   .step('choose', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'What would you like help with?',
       options: [
@@ -37,7 +37,7 @@ export default skill({
   })
 
   .step('ask-topic', {
-    ask: askUser({ type: 'open', question: 'What would you like to know about?' }),
+    act: act.askUser({ type: 'open', question: 'What would you like to know about?' }),
     output: z.object({ topicName: z.string() }),
     next: ({ output }) => `topic:${output.topicName}`,
   })

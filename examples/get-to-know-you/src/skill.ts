@@ -1,12 +1,4 @@
-import { skill, step, z, action, fragment, prompt, render, askUser } from '@contentful/skill-kit';
-
-// --- Fragments ---
-
-const playfulTone = fragment(
-  'playful-tone',
-  `Keep it light and fun. Use casual language. Throw in the occasional
-   joke or pun if it fits. You're a friendly interviewer, not a form.`,
-);
+import { skill, step, z, action, prompt, render, act } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
@@ -32,7 +24,7 @@ const writeProfile = action({
   },
 });
 
-// --- Reusable open-ended question step (shared, no context/stash types) ---
+// --- Reusable open-ended question step ---
 
 const openQuestionStep = step({
   output: z.object({ answer: z.string() }),
@@ -49,6 +41,8 @@ export default skill({
     'Use when the user wants to introduce themselves or when you want to break the ice.',
   triggers: ['introduce myself', 'trading card', 'get to know me', 'ice breaker'],
   entry: 'greet',
+  system:
+    "Keep it light and fun. Use casual language. Throw in the occasional joke or pun if it fits. You're a friendly interviewer, not a form.",
 
   context: z.object({
     greeting: z.string().default('Hey there!'),
@@ -72,21 +66,17 @@ export default skill({
   },
 })
   .step('greet', {
-    prompt: ({ context }) =>
-      prompt`
-        ${playfulTone}
-
-        ${context.greeting} You're about to interview the user
-        to build their developer trading card. Start by asking their name. Be warm and
-        enthusiastic — first impressions matter!
-      `,
+    prompt: ({ context }) => prompt`
+      ${context.greeting} You're about to interview the user to build their developer trading card.
+      Start by asking their name. Be warm and enthusiastic — first impressions matter!
+    `,
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
     next: 'ask-role',
   })
 
   .step('ask-role', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: "What's your primary role?",
       options: [
@@ -113,62 +103,39 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
-    ask: askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-    prompt: ({ stash }) =>
-      prompt`
-        ${playfulTone}
-
-        ${stash.name} is a developer — nice!
-        Ask what their go-to tech stack is. Languages, frameworks, the works.
-        Get specific — "JavaScript" is boring, "TypeScript + Bun + Zod" is a personality.
-      `,
+    prompt: ({ stash }) => prompt`
+      ${stash.name} is a developer — nice!
+      Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
+      "TypeScript + Bun + Zod" is a personality.
+    `,
+    act: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     next: 'ask-hobby',
   })
 
   .extend('ask-tools', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'What design tools do you live in?' }),
-    prompt: () =>
-      prompt`
-        ${playfulTone}
-
-        A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?
-        Bonus points if you can get them to admit to a guilty-pleasure tool.
-      `,
+    prompt: 'A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?',
+    act: act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
     next: 'ask-hobby',
   })
 
   .extend('ask-team-size', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'Tell me about your team.' }),
-    prompt: () =>
-      prompt`
-        ${playfulTone}
-
-        A manager! Ask about their team — how big, what they work on, and
-        what's the weirdest thing that's happened in a standup.
-      `,
+    prompt: 'A manager! Ask about their team — how big, what they work on.',
+    act: act.askUser({ type: 'open', question: 'Tell me about your team.' }),
     next: 'ask-hobby',
   })
 
   .extend('ask-specialty', openQuestionStep, {
-    ask: askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
-    prompt: () =>
-      prompt`
-        ${playfulTone}
-
-        Someone who defies categories — intriguing. Ask them to describe
-        what they do in exactly one sentence. Dare them to make it interesting.
-      `,
+    prompt: 'Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.',
+    act: act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     next: 'ask-hobby',
   })
 
   .step('ask-hobby', {
-    ask: askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     prompt: ({ attempts }) =>
-      prompt`
-        ${playfulTone}
-
-        ${attempts === 0 ? "Now for the important stuff. Ask about hobbies, side projects, or weird talents. The stuff that doesn't go on a résumé." : "Nice! Ask if they have another hobby or interest they want on their card. (Or they can say they're done.)"}
-      `,
+      attempts === 0
+        ? 'Now for the important stuff. Ask about hobbies, side projects, or weird talents.'
+        : 'Ask if they have another hobby they want on their card, or if they are done.',
+    act: act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     output: z.object({
       hobby: z.string(),
       wantsMore: z.boolean(),
@@ -180,12 +147,10 @@ export default skill({
   })
 
   .step('confirm-profile', {
-    confirm: {
-      kind: 'confirm',
+    act: act.confirm({
       message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
-      destructive: false,
       defaultAnswer: 'yes',
-    },
+    }),
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
     maxVisits: 3,
@@ -193,17 +158,6 @@ export default skill({
   })
 
   .step('profile-card', {
-    prompt: ({ rendered }) =>
-      prompt`
-        Output the following profile card to the user exactly as shown,
-        with no preamble or trailing commentary:
-
-        ${rendered ?? ''}
-      `,
-    output: z.object({
-      card: z.string(),
-      profile: ProfileSchema,
-    }),
     render: ({ history, getStep, refs, stash }) => {
       const name = stash.name ?? 'Mystery Person';
       const role = stash.role ?? 'Enigma';
@@ -242,16 +196,19 @@ export default skill({
 
       const hobbyList = render.checklist(hobbies.map((h) => ({ text: h, done: true })));
 
-      const card = [
+      return [
         render.section(`🃏 ${name}'s Trading Card`, stats),
         '',
         render.section('🎯 Hobbies & Interests', hobbyList || '(none listed)'),
         '',
         `> *${funFact}*`,
       ].join('\n');
-
-      return card;
     },
+    prompt: 'Present the rendered trading card verbatim.',
+    output: z.object({
+      card: z.string(),
+      profile: ProfileSchema,
+    }),
     action: writeProfile,
     next: { terminal: true },
   })
