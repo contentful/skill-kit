@@ -1,4 +1,4 @@
-import { skill, step, z, action, prompt, render, act } from '@contentful/skill-kit';
+import { skill, step, z, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
@@ -167,7 +167,7 @@ export default skill({
   })
 
   .step('profile-card', {
-    render: ({ history, getStep, refs, stash }) => {
+    prompt: ({ history, getStep, refs, stash }) => {
       const name = stash.name ?? 'Mystery Person';
       const role = stash.role ?? 'Enigma';
 
@@ -205,15 +205,16 @@ export default skill({
 
       const hobbyList = render.checklist(hobbies.map((h) => ({ text: h, done: true })));
 
-      return [
+      const card = [
         render.section(`🃏 ${name}'s Trading Card`, stats),
         '',
         render.section('🎯 Hobbies & Interests', hobbyList || '(none listed)'),
         '',
         `> *${funFact}*`,
       ].join('\n');
+
+      return [view(card), 'Present the rendered trading card verbatim.'];
     },
-    prompt: 'Present the rendered trading card verbatim.',
     output: z.object({
       card: z.string(),
       profile: ProfileSchema,

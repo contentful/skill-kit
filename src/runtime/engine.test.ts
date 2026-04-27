@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
+import { view } from '../view.js';
 import { WorkflowEngine } from './engine.js';
 import type { Handshake, PromptResult, DoneResult, ValidationErrorResult, RedirectResult } from '../types.js';
 
@@ -615,11 +616,10 @@ test('engine renders subagent without no-recurse when allowRecursion is true', (
   assert.ok(result.prompt.includes('<subagent>Run the sub-skill.</subagent>'));
 });
 
-test('engine appends rendered output as <rendered> tag', () => {
-  const s = skill({ name: 'render-test', entry: 'a' })
+test('engine renders view segment as <rendered> tag', () => {
+  const s = skill({ name: 'view-test', entry: 'a' })
     .step('a', {
-      render: () => '# Hello World',
-      prompt: 'Show the card.',
+      prompt: [view('# Hello World'), 'Show the card.'],
       output: z.object({}),
       next: { terminal: true },
     })
@@ -630,6 +630,21 @@ test('engine appends rendered output as <rendered> tag', () => {
 
   assert.ok(result.prompt.includes('<rendered>\n# Hello World\n</rendered>'));
   assert.ok(result.prompt.includes('<prompt>\nShow the card.\n</prompt>'));
+});
+
+test('engine renders named view segment with name attribute', () => {
+  const s = skill({ name: 'named-view-test', entry: 'a' })
+    .step('a', {
+      prompt: [view('stats', '# Stats'), 'Show the stats.'],
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+
+  assert.ok(result.prompt.includes('<rendered name="stats">\n# Stats\n</rendered>'));
 });
 
 test('engine injects skill-level system into preamble', () => {

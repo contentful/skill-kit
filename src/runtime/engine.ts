@@ -238,7 +238,6 @@ export class WorkflowEngine {
       history: this.history.all(),
       getStep: <TOutput = unknown, TAction = unknown>(name: string) => this.history.get<TOutput, TAction>(name),
       context: this.skillContext,
-      rendered: undefined,
       refs: this.refs,
       attempts: this.history.visitCount(stepName),
       host: this.handshake,
@@ -247,18 +246,10 @@ export class WorkflowEngine {
       system,
     };
 
-    if (stepDef.config.render) {
-      (promptCtx as { rendered: string | undefined }).rendered = stepDef.config.render(promptCtx);
-    }
-
     const raw = this.resolvePromptValue(stepDef, promptCtx);
     const pieces = normalizePieces(raw);
 
-    let promptText = this.assemblePieces(pieces);
-
-    if (promptCtx.rendered) {
-      promptText += `\n\n<rendered>\n${promptCtx.rendered}\n</rendered>`;
-    }
+    const promptText = this.assemblePieces(pieces);
 
     let schema: unknown = null;
     try {

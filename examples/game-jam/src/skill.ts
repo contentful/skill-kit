@@ -1,4 +1,4 @@
-import { skill, step, z, action, prompt, render, act } from '@contentful/skill-kit';
+import { skill, step, z, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
@@ -215,27 +215,30 @@ export default skill({
 
   // --- Summary card (terminal) ---
   .step('summary', {
-    render: ({ stash }) =>
-      render.section(
-        'Game Jam Complete!',
-        [
-          render.kv({
-            Game: stash.name,
-            Variant: stash.variant,
-            Renderer: stash.renderer,
-          }),
-          '',
-          render.checklist([
-            { text: 'Board data structure', done: true },
-            { text: 'Piece system', done: true },
-            { text: 'Keyboard controls', done: true },
-            { text: 'Scoring and levels', done: true },
-            { text: 'Renderer and game loop', done: true },
-            { text: 'README', done: true },
-          ]),
-        ].join('\n'),
+    prompt: ({ stash }) => [
+      view(
+        render.section(
+          'Game Jam Complete!',
+          [
+            render.kv({
+              Game: stash.name,
+              Variant: stash.variant,
+              Renderer: stash.renderer,
+            }),
+            '',
+            render.checklist([
+              { text: 'Board data structure', done: true },
+              { text: 'Piece system', done: true },
+              { text: 'Keyboard controls', done: true },
+              { text: 'Scoring and levels', done: true },
+              { text: 'Renderer and game loop', done: true },
+              { text: 'README', done: true },
+            ]),
+          ].join('\n'),
+        ),
       ),
-    prompt: 'Present the rendered summary card verbatim.',
+      'Present the rendered summary card verbatim.',
+    ],
     output: z.object({ summary: z.string() }),
     action: saveGameConfig,
     actionInput: ({ stash }) => ({

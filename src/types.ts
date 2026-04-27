@@ -171,7 +171,6 @@ export interface PromptContext<TContext = any, TStash = any> {
   history: readonly StepResult[];
   getStep: <TOutput = unknown, TAction = unknown>(stepName: string) => { output: TOutput; action: TAction } | undefined;
   context: TContext;
-  rendered: string | undefined;
   refs: ReferenceLoader;
   attempts: number;
   host: Handshake;
@@ -199,7 +198,6 @@ export interface StepConfig<
   prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TContext, TStash>;
   output: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
-  render?: (ctx: PromptContext<TContext, TStash>) => string;
   action?: ActionDefinition;
   actionInput?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
   stash?: (ctx: { output: z.infer<TOutput> }) => Partial<TStash>;
