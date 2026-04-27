@@ -254,10 +254,6 @@ export class WorkflowEngine {
     const raw = this.resolvePromptValue(stepDef, promptCtx);
     const pieces = normalizePieces(raw);
 
-    if (stepDef.config.act) {
-      pieces.unshift(stepDef.config.act);
-    }
-
     let promptText = this.assemblePieces(pieces);
 
     if (promptCtx.rendered) {
@@ -290,6 +286,7 @@ export class WorkflowEngine {
     if (typeof promptConfig === 'function') return promptConfig(ctx);
     if (typeof promptConfig === 'string') return promptConfig;
     if (Array.isArray(promptConfig)) return promptConfig;
+    if (promptConfig && typeof promptConfig === 'object' && 'kind' in promptConfig) return promptConfig;
     return '';
   }
 

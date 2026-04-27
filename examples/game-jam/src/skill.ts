@@ -56,7 +56,7 @@ export default skill({
 })
   // --- Choose variant (askUser structured) ---
   .step('choose-variant', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'What style of Tetris do you want to build?',
       options: [
@@ -72,7 +72,7 @@ export default skill({
 
   // --- Name the game (askUser open) ---
   .step('name-game', {
-    act: act.askUser({ type: 'open', question: 'What should we call your game?' }),
+    prompt: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     output: z.object({ name: z.string() }),
     stash: ({ output }) => ({ name: output.name }),
     next: 'choose-renderer',
@@ -80,7 +80,7 @@ export default skill({
 
   // --- Choose renderer (askUser structured) ---
   .step('choose-renderer', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'Which rendering approach do you want to use?',
       options: [
@@ -96,28 +96,31 @@ export default skill({
 
   // --- Design review (confirm) ---
   .step('design-review', {
-    prompt: ({ stash }) =>
+    prompt: ({ stash }) => [
+      act.confirm({
+        message: 'Design choices are locked in. Ready to start planning the build?',
+        defaultAnswer: 'yes',
+      }),
       prompt`Summarize the design so far: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering.`,
-    act: act.confirm({
-      message: 'Design choices are locked in. Ready to start planning the build?',
-      defaultAnswer: 'yes',
-    }),
+    ],
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'research-renderer' : 'choose-variant'),
   })
 
   // --- Research renderer (subagent) ---
   .step('research-renderer', {
-    prompt: ({ stash, refs }) => prompt`
-      We're building a Tetris game with ${stash.renderer} rendering.
-      Reference material:
-      ${refs.load('tetris-patterns.md')}
-    `,
-    act: act.subagent({
-      prompt:
-        'Research best practices for the chosen rendering approach. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
-      output: z.object({ summary: z.string() }),
-    }),
+    prompt: ({ stash, refs }) => [
+      act.subagent({
+        prompt:
+          'Research best practices for the chosen rendering approach. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
+        output: z.object({ summary: z.string() }),
+      }),
+      prompt`
+        We're building a Tetris game with ${stash.renderer} rendering.
+        Reference material:
+        ${refs.load('tetris-patterns.md')}
+      `,
+    ],
     output: z.object({ summary: z.string() }),
     stash: ({ output }) => ({ researchSummary: output.summary }),
     next: 'implementation-plan',
@@ -145,7 +148,7 @@ export default skill({
 
   // --- Revise plan (askUser open, loops back) ---
   .extend('revise-plan', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
+    prompt: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
     next: 'implementation-plan',
   })
 
@@ -177,14 +180,16 @@ export default skill({
 
   // --- Generate README (subagent) ---
   .step('generate-readme', {
-    prompt: ({ stash }) => prompt`
-      The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
-    `,
-    act: act.subagent({
-      prompt:
-        'Write a README.md for the game. Include: project title, description, controls, how to run, and credits. Return the markdown as a string.',
-      output: z.object({ readme: z.string() }),
-    }),
+    prompt: ({ stash }) => [
+      act.subagent({
+        prompt:
+          'Write a README.md for the game. Include: project title, description, controls, how to run, and credits. Return the markdown as a string.',
+        output: z.object({ readme: z.string() }),
+      }),
+      prompt`
+        The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
+      `,
+    ],
     output: z.object({ readme: z.string() }),
     stash: ({ output }) => ({ readme: output.readme }),
     next: 'final-review',
@@ -192,7 +197,7 @@ export default skill({
 
   // --- Final review (confirm) ---
   .step('final-review', {
-    act: act.confirm({
+    prompt: act.confirm({
       message: 'The game is built! Want to add any finishing touches?',
       defaultAnswer: 'no',
     }),
@@ -202,7 +207,7 @@ export default skill({
 
   // --- Polish loop (askUser open, maxVisits) ---
   .extend('polish', openQuestionStep, {
-    act: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
+    prompt: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
     next: 'final-review',
     maxVisits: 2,
     onMaxVisits: 'summary',

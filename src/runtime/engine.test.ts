@@ -548,18 +548,20 @@ test('engine preserves author order — system between acts', () => {
   assert.equal(lines[2], '<prompt>\nBuild everything.\n</prompt>');
 });
 
-test('engine prepends step-level act before array prompt pieces', () => {
-  const s = skill({ name: 'act-prepend', entry: 'a' })
+test('engine renders act segment in prompt array', () => {
+  const s = skill({ name: 'act-in-prompt', entry: 'a' })
     .step('a', {
-      act: act.askUser({
-        type: 'structured',
-        question: 'Pick one',
-        options: [
-          { value: 'a', label: 'A', description: 'Option A' },
-          { value: 'b', label: 'B', description: 'Option B' },
-        ],
-      }),
-      prompt: 'Additional context.',
+      prompt: [
+        act.askUser({
+          type: 'structured',
+          question: 'Pick one',
+          options: [
+            { value: 'a', label: 'A', description: 'Option A' },
+            { value: 'b', label: 'B', description: 'Option B' },
+          ],
+        }),
+        'Additional context.',
+      ],
       output: z.object({}),
       next: { terminal: true },
     })
@@ -577,7 +579,7 @@ test('engine prepends step-level act before array prompt pieces', () => {
 test('engine renders subagent with no-recurse attribute', () => {
   const s = skill({ name: 'recurse-test', entry: 'a' })
     .step('a', {
-      act: act.subagent({
+      prompt: act.subagent({
         prompt: 'Do research.',
         output: z.object({ result: z.string() }),
       }),
@@ -596,7 +598,7 @@ test('engine renders subagent with no-recurse attribute', () => {
 test('engine renders subagent without no-recurse when allowRecursion is true', () => {
   const s = skill({ name: 'recurse-allowed', entry: 'a' })
     .step('a', {
-      act: act.subagent({
+      prompt: act.subagent({
         prompt: 'Run the sub-skill.',
         output: z.object({ result: z.string() }),
         allowRecursion: true,

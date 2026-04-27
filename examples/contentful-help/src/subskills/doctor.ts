@@ -31,7 +31,7 @@ export default skill({
   })
 
   .step('confirm-fix', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'Apply the suggested fixes?',
       options: [

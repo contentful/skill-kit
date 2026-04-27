@@ -1,14 +1,33 @@
-import type { SkillDefinition } from '../../types.js';
+import type { SkillDefinition, ActSegment, PromptPiece } from '../../types.js';
 import type { LintDiagnostic } from '../types.js';
+
+function extractActSegments(prompt: unknown): ActSegment[] {
+  if (!prompt) return [];
+  if (Array.isArray(prompt)) {
+    return prompt.filter(
+      (p): p is ActSegment => typeof p === 'object' && p !== null && 'kind' in p && p.kind === 'act',
+    );
+  }
+  if (
+    typeof prompt === 'object' &&
+    prompt !== null &&
+    'kind' in prompt &&
+    (prompt as PromptPiece & { kind: string }).kind === 'act'
+  ) {
+    return [prompt as ActSegment];
+  }
+  return [];
+}
 
 export function primitiveSchemaMatch(skill: SkillDefinition): LintDiagnostic[] {
   const diagnostics: LintDiagnostic[] = [];
 
   for (const [stepName, stepDef] of Object.entries(skill.steps)) {
-    const actConfig = stepDef.config.act;
-    if (!actConfig || actConfig.primitive.kind !== 'askUser' || actConfig.primitive.type !== 'structured') continue;
+    const acts = extractActSegments(stepDef.config.prompt);
+    const askAct = acts.find((a) => a.primitive.kind === 'askUser' && a.primitive.type === 'structured');
+    if (!askAct || askAct.primitive.kind !== 'askUser' || askAct.primitive.type !== 'structured') continue;
 
-    const optionValues = actConfig.primitive.options.map((o: { value: string }) => o.value);
+    const optionValues = askAct.primitive.options.map((o: { value: string }) => o.value);
 
     let schemaJson: Record<string, unknown> | null = null;
     try {

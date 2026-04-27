@@ -196,7 +196,7 @@ export interface StepConfig<
   TStash = any,
   TActionOutput = unknown,
 > {
-  prompt?: string | PromptPiece[] | PromptFn<TContext, TStash>;
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TContext, TStash>;
   output: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
   render?: (ctx: PromptContext<TContext, TStash>) => string;
@@ -206,7 +206,6 @@ export interface StepConfig<
   afterAction?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
-  act?: ActSegment;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

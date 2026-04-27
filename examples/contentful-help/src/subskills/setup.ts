@@ -49,7 +49,7 @@ export default skill({
   })
 
   .step('configure', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'What would you like to configure?',
       options: [

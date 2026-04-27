@@ -42,15 +42,17 @@ test('no-host-tool-names does not flag guarded reference', () => {
 test('primitive-schema-mismatch flags mismatched askUser options', () => {
   const s = skill({ name: 'mismatch', entry: 'a' })
     .step('a', {
-      act: act.askUser({
-        type: 'structured',
-        question: 'Pick one',
-        options: [
-          { value: 'a', label: 'A' },
-          { value: 'b', label: 'B' },
-          { value: 'c', label: 'C' },
-        ],
-      }),
+      prompt: [
+        act.askUser({
+          type: 'structured',
+          question: 'Pick one',
+          options: [
+            { value: 'a', label: 'A' },
+            { value: 'b', label: 'B' },
+            { value: 'c', label: 'C' },
+          ],
+        }),
+      ],
       output: z.object({ choice: z.enum(['a', 'b']) }),
       next: { terminal: true },
     })
