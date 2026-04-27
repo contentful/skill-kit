@@ -7,6 +7,7 @@ test('preamble for Claude Code includes tool names in table', () => {
   const host: Handshake = {
     host: 'claude-code',
     toolsAvailable: ['AskUserQuestion', 'EnterPlanMode', 'TaskCreate', 'Agent'],
+    isSubagent: false,
   };
   const result = generatePreamble(host);
 
@@ -23,7 +24,7 @@ test('preamble for Claude Code includes tool names in table', () => {
 });
 
 test('preamble for generic host shows dashes for tools', () => {
-  const host: Handshake = { host: 'generic', toolsAvailable: [] };
+  const host: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
   const result = generatePreamble(host);
 
   assert.ok(result.includes('| Tag |'));
@@ -36,6 +37,7 @@ test('preamble for Cline maps to Cline tools', () => {
   const host: Handshake = {
     host: 'cline',
     toolsAvailable: ['ask_followup_question', 'PLAN_MODE', 'update_todo_list', 'USE_SUBAGENTS'],
+    isSubagent: false,
   };
   const result = generatePreamble(host);
 
@@ -46,9 +48,37 @@ test('preamble for Cline maps to Cline tools', () => {
 });
 
 test('preamble hybrid fallback resolves host from registry', () => {
-  const host: Handshake = { host: 'gemini-cli', toolsAvailable: [] };
+  const host: Handshake = { host: 'gemini-cli', toolsAvailable: [], isSubagent: false };
   const result = generatePreamble(host);
 
   assert.ok(result.includes('ask-user'));
   assert.ok(result.includes('enter-plan-mode'));
+});
+
+test('preamble with partial tools on known host includes registry tools via union', () => {
+  const host: Handshake = {
+    host: 'claude-code',
+    toolsAvailable: ['Read', 'Bash', 'Agent'],
+    isSubagent: false,
+  };
+  const result = generatePreamble(host);
+
+  assert.ok(result.includes('AskUserQuestion'));
+  assert.ok(result.includes('EnterPlanMode'));
+  assert.ok(result.includes('TaskCreate'));
+  assert.ok(result.includes('Agent'));
+});
+
+test('preamble for subagent with partial tools does not include registry tools', () => {
+  const host: Handshake = {
+    host: 'claude-code',
+    toolsAvailable: ['Read', 'Bash', 'Agent'],
+    isSubagent: true,
+  };
+  const result = generatePreamble(host);
+
+  assert.ok(!result.includes('AskUserQuestion'));
+  assert.ok(!result.includes('EnterPlanMode'));
+  assert.ok(!result.includes('TaskCreate'));
+  assert.ok(result.includes('Agent'));
 });

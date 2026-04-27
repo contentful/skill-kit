@@ -34,7 +34,7 @@ export const subagentPrimitive = definePrimitive({
       tag: '`<subagent>`',
       tool: tool ?? '—',
       instruction: tool
-        ? 'Spawn isolated agent for enclosed task via the tool. Return its output. If `no-recurse` is set, the subagent must not invoke this skill again.'
+        ? 'Spawn isolated agent for enclosed task via the tool. Return its output. If `no-recurse` is set, the subagent must not invoke this skill again. The spawned agent should pass `--subagent` when invoking skills.'
         : 'Focus on enclosed task, return structured result, then continue. If `no-recurse` is set, do not invoke this skill again.',
     };
   },

@@ -32,6 +32,7 @@ export async function runComposite(skill: SkillDefinition, opts: RunCompositeOpt
   const handshake: Handshake = {
     host: opts.host?.host ?? 'generic',
     toolsAvailable: opts.host?.toolsAvailable ?? [],
+    isSubagent: opts.host?.isSubagent ?? false,
   };
   const refs = opts.refs ?? NOOP_REFS;
 

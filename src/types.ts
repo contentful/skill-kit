@@ -5,6 +5,7 @@ import type { z } from 'zod';
 export interface Handshake {
   host: string;
   toolsAvailable: string[];
+  isSubagent: boolean;
 }
 
 // --- Fragments ---
@@ -335,9 +336,9 @@ export type Buildable = SkillDefinition | ReferenceDefinition;
 
 export interface PromptResult {
   step: string;
+  preamble?: string;
   prompt: string;
   schema: unknown;
-  preamble?: string;
   completed?: StepResult;
 }
 
@@ -372,6 +373,7 @@ export interface SessionHeader {
   skill: string;
   host: string;
   tools?: string[];
+  isSubagent?: boolean;
   context: unknown;
   createdAt: string;
   outputMode: SessionOutputMode;

@@ -8,7 +8,7 @@ import { validateCycleGuards, CycleGuardError } from './cycle-guard.js';
 import type { Handshake } from '../types.js';
 
 const output = z.object({});
-const genericHost: Handshake = { host: 'generic', toolsAvailable: [] };
+const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
 
 test('validateCycleGuards() accepts a linear graph', () => {
   const steps = {

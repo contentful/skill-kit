@@ -12,8 +12,9 @@ function parseToolsFlag(raw?: string): string[] | undefined {
 }
 
 export async function main(skill: SkillDefinition): Promise<void> {
-  const { command, flags } = parseArgs(process.argv);
+  const { command, flags, booleans } = parseArgs(process.argv);
   const tools = parseToolsFlag(flags['tools']);
+  const isSubagent = booleans.has('subagent');
 
   try {
     switch (command) {
@@ -32,12 +33,13 @@ export async function main(skill: SkillDefinition): Promise<void> {
             skill: skill.name,
             host: flags['host'] ?? 'generic',
             tools,
+            isSubagent: isSubagent || undefined,
             context,
             outputMode,
           });
-          await handleStart(skill, context, flags['host'], session, tools);
+          await handleStart(skill, context, flags['host'], session, tools, isSubagent);
         } else {
-          await handleStart(skill, context, flags['host'], undefined, tools);
+          await handleStart(skill, context, flags['host'], undefined, tools, isSubagent);
         }
         break;
       }
@@ -79,7 +81,16 @@ export async function main(skill: SkillDefinition): Promise<void> {
             session.append({ type: 'output', step: stepName, output });
           }
 
-          await handleAdvance(skill, stepName, output, history, session.header.host, session, session.header.tools);
+          await handleAdvance(
+            skill,
+            stepName,
+            output,
+            history,
+            session.header.host,
+            session,
+            session.header.tools,
+            session.header.isSubagent,
+          );
         } else {
           const step = flags['step'];
           const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
@@ -96,7 +107,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             process.exit(1);
           }
 
-          await handleAdvance(skill, step, output, history, flags['host'], undefined, tools);
+          await handleAdvance(skill, step, output, history, flags['host'], undefined, tools, isSubagent);
         }
         break;
       }

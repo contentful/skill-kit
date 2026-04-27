@@ -71,11 +71,11 @@ export class WorkflowEngine {
     this.startTime = Date.now();
     this.validateParentSentinels();
     this.cycleGuard = validateCycleGuards(this.skill.steps);
-    const prompt = this.buildPrompt(this.currentStep);
-    const preamble = generatePreamble(this.handshake);
-    prompt.preamble = this.skill.system ? `${this.skill.system}\n\n${preamble}` : preamble;
+    const { step, prompt, schema } = this.buildPrompt(this.currentStep);
+    const rawPreamble = generatePreamble(this.handshake);
+    const preamble = this.skill.system ? `${this.skill.system}\n\n${rawPreamble}` : rawPreamble;
     this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
-    return prompt;
+    return { step, preamble, prompt, schema };
   }
 
   async advance(stepName: string, rawOutput: unknown): Promise<CliResult> {

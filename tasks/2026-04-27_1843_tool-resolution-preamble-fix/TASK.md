@@ -3,6 +3,7 @@
 ## Scope
 
 **In scope:**
+
 - Change `resolveTools()` from either/or to union-by-default with `--subagent` opt-out
 - Fix preamble serialization order so it appears before prompt in JSON
 - Fix composite-entry.ts overwriting engine preamble (losing skill system directive)
@@ -12,6 +13,7 @@
 - Update tests and documentation
 
 **Out of scope:**
+
 - Changing the host registry contents
 - Changing the primitive resolution algorithm (still first-match in tools array)
 - Per-primitive merge strategy (rejected — `--subagent` flag is cleaner)
@@ -30,17 +32,18 @@ Third problem: composite-entry.ts lines 294 and 343 overwrite `engine.start()`'s
 
 ### Tool resolution: `--subagent` flag + union-by-default
 
-| Condition | Behavior |
-|-----------|----------|
-| No `--tools` | Fall back to host registry (unchanged) |
-| `--tools` + `--subagent` | Explicit tools are authoritative (current either/or) |
-| `--tools` without `--subagent` | Union of explicit tools + host registry |
+| Condition                      | Behavior                                             |
+| ------------------------------ | ---------------------------------------------------- |
+| No `--tools`                   | Fall back to host registry (unchanged)               |
+| `--tools` + `--subagent`       | Explicit tools are authoritative (current either/or) |
+| `--tools` without `--subagent` | Union of explicit tools + host registry              |
 
 Top-level agents still pass `--tools` for forward compatibility (new hosts, MCP tools). The union ensures under-reporting is handled gracefully while extra tools are captured.
 
 ### Preamble positioning
 
 Ensure `preamble` field appears before `prompt` in serialized JSON:
+
 - Reorder `PromptResult` interface
 - `engine.start()` constructs result with preamble before prompt in object literal
 - `addTypeField()` in session.ts uses explicit field ordering
@@ -60,7 +63,7 @@ export interface Handshake {
 
 export interface PromptResult {
   step: string;
-  preamble?: string;  // before prompt
+  preamble?: string; // before prompt
   prompt: string;
   schema: unknown;
   completed?: StepResult;
@@ -68,7 +71,7 @@ export interface PromptResult {
 
 export interface SessionHeader {
   // ... existing ...
-  isSubagent?: boolean;  // backward compat
+  isSubagent?: boolean; // backward compat
 }
 ```
 
@@ -93,6 +96,7 @@ export function resolveTools(handshake: Handshake): ToolResolver {
 ### Subagent awareness
 
 Two paths for informing subagents about `--subagent`:
+
 1. SKILL.md template: "Subagent invocations" section
 2. `<subagent>` preamble row: mention `--subagent` in instruction text
 

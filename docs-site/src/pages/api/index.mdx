@@ -600,7 +600,7 @@ The engine assembles pieces in author order: `resolvePromptValue` evaluates the 
 
 All prompt segments are emitted as XML tags in the output: `<system>`, `<prompt>`, `<ask-user>`, `<confirm>`, `<plan>`, `<checklist>`, `<survey>`, `<subagent>`, `<rendered>`. No tool names appear in the XML. The `<subagent>` tag may include a `no-recurse` attribute naming the skill that the subagent must not invoke (see [`allowRecursion`](#subagentconfig) above). The preamble (sent once at session start) maps tags to host-specific tools.
 
-The preamble is a markdown table with columns: **Tag**, **Tool**, **How to use**. Each primitive's `preambleRow()` method generates its row, with the tool column populated by `resolveTools()` which uses either/or resolution: if the agent reports any explicit tools (via `--tools`), those are authoritative for all primitives; otherwise the host registry provides the tool list.
+The preamble is a markdown table with columns: **Tag**, **Tool**, **How to use**. Each primitive's `preambleRow()` method generates its row, with the tool column populated by `resolveTools()` which uses three-way resolution: no explicit tools → host registry; explicit tools + `--subagent` → authoritative (no registry merge); explicit tools without `--subagent` → unioned with host registry.
 
 Example preamble table (Claude Code):
 
@@ -645,7 +645,7 @@ The `render` method accepts an optional `RenderContext`. The engine passes `{ sk
 The registry (`src/primitives/registry.ts`) exposes two functions:
 
 - **`renderPrimitive(config, ctx?)`** — renders any `PrimitiveConfig` to its XML tag output, forwarding an optional `RenderContext` (e.g., `{ skillName }`).
-- **`resolveTools(handshake)`** — either/or resolution at the whole-handshake level: if the agent reports any explicit tools, they are authoritative for all primitives (no registry merge); otherwise the host registry provides the tool list. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
+- **`resolveTools(handshake)`** — three-way tool resolution: (1) no explicit tools → use host registry; (2) explicit tools + `isSubagent` → authoritative, no registry merge; (3) explicit tools without `isSubagent` → union with host registry. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
 ---
 

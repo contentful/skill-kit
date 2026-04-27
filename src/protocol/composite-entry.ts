@@ -3,7 +3,6 @@ import type { SkillDefinition, RedirectResult, CliResult, ReferenceLoader, Sessi
 import { WorkflowEngine } from '../runtime/engine.js';
 import { createReferenceLoader } from '../runtime/reference-loader.js';
 import { resolveHost } from './host.js';
-import { generatePreamble } from '../runtime/preamble.js';
 import { SessionManager, type SessionFile } from './session.js';
 
 function resolveSkillDir(): string {
@@ -77,13 +76,20 @@ function parseSubskillArgs(name: string, args: string[]): CompositeCommand {
   return { mode: 'help' };
 }
 
+const BOOLEAN_FLAGS = new Set(['subagent']);
+
 function parseFlags(args: string[], start: number): Record<string, string> {
   const flags: Record<string, string> = {};
   for (let i = start; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg.startsWith('--') && i + 1 < args.length) {
-      flags[arg.slice(2)] = args[i + 1]!;
-      i++;
+    if (arg.startsWith('--')) {
+      const name = arg.slice(2);
+      if (BOOLEAN_FLAGS.has(name)) {
+        flags[name] = 'true';
+      } else if (i + 1 < args.length) {
+        flags[name] = args[i + 1]!;
+        i++;
+      }
     }
   }
   return flags;
@@ -205,11 +211,13 @@ function resolveSessionForCommand(
           .map((t) => t.trim())
           .filter(Boolean)
       : undefined;
+    const isSubagent = flags['subagent'] === 'true' || undefined;
     const session = SessionManager.create({
       sessionDir: flags['session-dir'],
       skill: skillName,
       host: flags['host'] ?? 'generic',
       tools: sessionTools,
+      isSubagent,
       context: flags['context'] ? (JSON.parse(flags['context']) as unknown) : {},
       outputMode,
     });
@@ -285,13 +293,13 @@ async function handleDispatcher(
 ): Promise<void> {
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
   const tools = session?.header.tools ?? parseTools(parsed.flags);
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], tools);
+  const isSubagent = session?.header.isSubagent ?? parsed.flags['subagent'] === 'true';
+  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], tools, isSubagent);
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
     const engine = new WorkflowEngine(def, handshake, context, refs);
     const result = engine.start();
-    result.preamble = generatePreamble(handshake);
     writeStartOutput(result, session);
     return;
   }
@@ -334,13 +342,13 @@ async function handleSubskill(
 
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
   const subTools = session?.header.tools ?? parseTools(parsed.flags);
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], subTools);
+  const subIsSubagent = session?.header.isSubagent ?? parsed.flags['subagent'] === 'true';
+  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], subTools, subIsSubagent);
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
     const engine = new WorkflowEngine(sub.definition, handshake, context, refs);
     const result = engine.start();
-    result.preamble = generatePreamble(handshake);
     writeStartOutput(prefixResult(result, parsed.name), session);
     return;
   }
@@ -456,6 +464,8 @@ function printCompositeHelp(def: SkillDefinition): void {
   lines.push('  --output       JSON string. Agent response for the step. (advance only)');
   lines.push('  --history      JSON array of {step, output, action?} objects. (advance only)');
   lines.push('  --host         Host identifier for prose generation. Default: generic.');
+  lines.push('  --tools        Comma-separated list of available tools (merged with host registry).');
+  lines.push('  --subagent     Indicates a subagent with a genuine tool subset (no registry merge).');
   lines.push('  --session      "new" to create a session (start), or session ID (advance).');
   lines.push('  --session-dir  Directory for session files. Default: OS temp directory.');
   lines.push('  --output-mode  "file" (default) or "flag". How agent passes step output.');

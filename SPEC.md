@@ -904,7 +904,8 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 | `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                                                                      |
 | `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.                                                           |
 | `--host`        | Optional     | Host identifier for tool resolution. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. |
-| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.                                             |
+| `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.           |
+| `--subagent`    | Optional     | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge).                                                           |
 | `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).                                                              |
 | `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                                                                       |
 | `--output-mode` | Optional     | `file` (default) or `flag`. How the agent passes step output. Only on start with `--session new`.                                                                              |
@@ -1316,7 +1317,7 @@ Step prompts use XML tags. Follow sections in the order they appear.
 | `<rendered>` | — | Pre-rendered output from the skill. Emit verbatim. If `name` attr present, reference by name. |
 ```
 
-The table is generated per host via `preambleRows()` in the registry. Each primitive's `preambleRow(tool)` method receives the resolved tool name (or `undefined` for hosts without a matching tool) and returns tag, tool, and instruction. The `resolveTools(handshake)` function uses an either/or strategy at the whole-handshake level: if any explicit tools are reported (via `--tools`), those are authoritative for all primitives; if none are reported, the host registry is used.
+The table is generated per host via `preambleRows()` in the registry. Each primitive's `preambleRow(tool)` method receives the resolved tool name (or `undefined` for hosts without a matching tool) and returns tag, tool, and instruction. The `resolveTools(handshake)` function uses a three-way strategy: if no explicit tools are reported, the host registry provides the full list; if explicit tools are reported and `--subagent` is set, those tools are authoritative (the registry is ignored — subagents genuinely have fewer tools); if explicit tools are reported without `--subagent`, they are unioned with the host registry (handles the common case where top-level agents under-report their tools).
 
 Preambles are best-effort — the model may forget them under context pressure. For critical primitives (anything with schema-enforced output), the XML tags in per-step prose are self-describing enough that the model can act on them even without the preamble. Preambles optimize the common case; per-step XML guards correctness.
 
@@ -1338,7 +1339,13 @@ Same XML. Same skill. The preamble table handles the host-specific translation. 
 
 ### What the major hosts expose (the preamble has to map these)
 
-The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use (across all hosts) in its `tools` array. `resolveTools(handshake)` uses an either/or strategy: if the agent reports any tools via `--tools`, those are the authoritative tool list for all primitives (no registry fallback — if a tool isn't in the explicit list, the primitive gets `undefined`); if the agent reports no tools, the host registry is used for all primitives. The resolved tool name (or `undefined`) is passed to each primitive's `preambleRow()` to generate the instruction.
+The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use (across all hosts) in its `tools` array. `resolveTools(handshake)` uses a three-way strategy based on the `isSubagent` flag:
+
+- **No `--tools`**: the host registry provides the full list for all primitives.
+- **`--tools` + `--subagent`**: explicit tools are authoritative. The registry is ignored entirely — subagents genuinely have fewer tools and the explicit list represents their real capabilities.
+- **`--tools` without `--subagent`**: explicit tools are unioned with the host registry. This handles the common case where a top-level agent under-reports its tools (e.g., reporting only `Read,Bash,Agent` but not `AskUserQuestion` or `TaskCreate`). The union also captures extra tools not yet in the registry (MCP tools, future additions).
+
+The resolved tool name (or `undefined` when no match is found) is passed to each primitive's `preambleRow()` to generate the instruction.
 
 **Claude Code.** `AskUserQuestion`, `EnterPlanMode`/`ExitPlanMode`, `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`, `Agent`, `Skill`, `TodoWrite`, standard file/shell/search tools (`Read`, `Edit`, `Write`, `Bash`, `Glob`, `Grep`), `WebFetch`/`WebSearch`, plus `SendMessage`, `Monitor`, `LSP`, `NotebookEdit`, `EnterWorktree`/`ExitWorktree`.
 
@@ -1612,15 +1619,25 @@ Rule of thumb: if the model already picks the right tool given plain intent, don
 
 ### Host resolution
 
-The `--host` CLI flag identifies which agent host is invoking the skill. The `--tools` flag optionally provides an explicit comma-separated list of available tools (overriding the host registry for more accurate resolution).
+The `--host` CLI flag identifies which agent host is invoking the skill. The `--tools` flag optionally provides an explicit comma-separated list of available tools. The `--subagent` flag indicates the caller is a subagent with a genuine subset of the host's tools.
 
 The SDK maintains a `HOST_REGISTRY` mapping host names to their known tool lists. Each primitive declares the tool names it can use in its `tools` array — for example, the ask-user primitive lists `['AskUserQuestion', 'ToolRequestUserInput', 'ask_followup_question', 'ask-user', 'question']`.
 
-`resolveTools(handshake)` uses either/or resolution at the whole-handshake level:
+`resolveTools(handshake)` uses three-way resolution:
 
 ```typescript
 function resolveTools(handshake: Handshake): ToolResolver {
-  const tools = handshake.toolsAvailable.length > 0 ? handshake.toolsAvailable : (HOST_REGISTRY[handshake.host] ?? []);
+  const registryTools = HOST_REGISTRY[handshake.host] ?? [];
+  const explicitTools = handshake.toolsAvailable;
+
+  let tools: string[];
+  if (explicitTools.length === 0) {
+    tools = registryTools;
+  } else if (handshake.isSubagent) {
+    tools = explicitTools;
+  } else {
+    tools = [...new Set([...explicitTools, ...registryTools])];
+  }
 
   const resolved: ToolResolver = {};
   for (const p of ALL_PRIMITIVES) {
@@ -1630,11 +1647,17 @@ function resolveTools(handshake: Handshake): ToolResolver {
 }
 ```
 
-If the agent reports any tools via `--tools`, those are authoritative for all primitives — no registry fallback. Subagents report a subset of tools (e.g., `Bash,Read,Write,Edit`) but still identify as a known host; per-primitive merge would incorrectly tell them to use tools from the host registry that they don't actually have. Explicit tools are the ground truth. If no tools are reported, the host registry provides the tool list. If a primitive's tool names don't appear in the resolved list, it gets `undefined` and its preamble row falls back to generic instructions.
+Three cases:
+
+1. **No explicit tools** — the host registry provides the full list. This is the safety net when agents omit `--tools`.
+2. **Explicit tools + `--subagent`** — the explicit list is authoritative. Subagents genuinely have fewer tools (e.g., `Bash,Read,Write,Edit`) despite identifying as a known host. The registry is ignored entirely.
+3. **Explicit tools without `--subagent`** — the explicit list is unioned with the host registry. This handles the common case where a top-level agent under-reports its tools (e.g., reporting `Read,Bash,Agent` but not `AskUserQuestion` or `TaskCreate`). The union also captures tools not yet in the registry (MCP tools, future additions).
+
+If a primitive's tool names don't appear in the resolved list, it gets `undefined` and its preamble row falls back to generic instructions.
 
 The resolved tool names are passed to `preambleRows()`, which calls each primitive's `preambleRow(tool)` method to build the markdown table. No hidden magic — tool present means the preamble names it; absent means generic instructions.
 
-The generated `SKILL.md` instructs the agent to pass `--host` and optionally `--tools`. For Claude Code this is straightforward; for other hosts the SKILL.md includes detection guidance and a "Report your tools" section.
+The generated `SKILL.md` instructs the agent to pass `--host` and `--tools`, with a "Subagent invocations" section explaining when to pass `--subagent`.
 
 ### Host guarantees (what the SDK relies on)
 

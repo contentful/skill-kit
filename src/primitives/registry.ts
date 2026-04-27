@@ -33,9 +33,21 @@ export function renderPrimitive(config: PrimitiveConfig, ctx?: RenderContext): s
 export type ToolResolver = Record<string, string | undefined>;
 
 export function resolveTools(handshake: Handshake): ToolResolver {
-  // Explicit tools (from --tools) are authoritative — subagents may report a subset.
-  // Only fall back to host registry when no tools are reported at all.
-  const tools = handshake.toolsAvailable.length > 0 ? handshake.toolsAvailable : (HOST_REGISTRY[handshake.host] ?? []);
+  const registryTools = HOST_REGISTRY[handshake.host] ?? [];
+  const explicitTools = handshake.toolsAvailable;
+
+  let tools: string[];
+  if (explicitTools.length === 0) {
+    // No tools reported — fall back to host registry
+    tools = registryTools;
+  } else if (handshake.isSubagent) {
+    // Subagent: explicit tools are authoritative (genuine subset)
+    tools = explicitTools;
+  } else {
+    // Top-level agent: union explicit tools with host registry.
+    // Handles under-reporting while capturing extra tools (MCP, future).
+    tools = [...new Set([...explicitTools, ...registryTools])];
+  }
 
   const resolved: ToolResolver = {};
   for (const p of ALL_PRIMITIVES) {
