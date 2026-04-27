@@ -27,11 +27,11 @@ The dispatcher (`skill.ts`) is a regular `skill()` with `.subskill()` and `.topi
 
 ## The dispatcher
 
-The entry step uses `askUser` to let the user pick their intent:
+The entry step uses `act.askUser` to let the user pick their intent:
 
 ```typescript
 .step('choose', {
-  ask: askUser({
+  act: act.askUser({
     type: 'structured',
     question: 'What would you like help with?',
     options: [
@@ -100,7 +100,7 @@ const checkEnv = action({
 });
 ```
 
-The step's `afterAction` callback stashes the results, and `next` routes based on the action output — either to guided setup or directly to configuration.
+The step's `action.stash` callback stashes the results, and `next` routes based on the action output — either to guided setup or directly to configuration.
 
 ## Testing
 

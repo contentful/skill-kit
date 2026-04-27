@@ -112,7 +112,7 @@ An authentication module registered into an application skill.
 
 ```typescript
 // modules/auth.ts
-import { module, z, askUser, confirm } from '@contentful/skill-kit';
+import { module, z, act } from '@contentful/skill-kit';
 
 export const authModule = module({
   name: 'auth',
@@ -123,7 +123,7 @@ export const authModule = module({
   }),
 })
   .step('auth-login', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'How would you like to authenticate?',
       options: [
@@ -145,12 +145,11 @@ export const authModule = module({
     onMaxVisits: 'auth-confirm',
   })
   .step('auth-confirm', {
-    confirm: {
-      kind: 'confirm',
+    act: act.confirm({
       message: 'Authentication successful. Continue to the application?',
       destructive: false,
       defaultAnswer: 'yes',
-    },
+    }),
     output: z.object({ approved: z.boolean() }),
     next: '__parent__', // wired to { next } at registration
   })

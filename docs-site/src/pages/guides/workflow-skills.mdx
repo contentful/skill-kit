@@ -60,42 +60,34 @@ Adds a step to the skill. The prompt and stash callbacks receive typed `context`
       detail: z.string(),
     })),
   }),
-  render: ({ history }) => render.table(/* ... */),
   stash: ({ output }) => ({ checksPassed: output.checks.filter(c => c.passed).length }),
-  action: writeReportAction,
-  actionInput: ({ output, stash }) => ({ checks: output.checks }),
-  afterAction: ({ action }) => ({ reportPath: action.path }),
+  action: {
+    run: writeReportAction,
+    input: ({ output, stash }) => ({ checks: output.checks }),
+    stash: ({ action }) => ({ reportPath: action.path }),
+  },
   next: ({ output }) => output.checks.every(c => c.passed) ? 'approve' : 'remediate',
   maxVisits: 3,
   onMaxVisits: 'force-report',
-  ask: askUser({ type: 'structured', question: '...', options: [...] }),
-  confirm: confirm({ message: '...', destructive: true }),
 })
 ```
 
 ### Full step config shape
 
-| Field         | Type                                              | Required | Description                                                                |
-| ------------- | ------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
-| `prompt`      | `string \| (ctx: PromptContext) => string`        | No       | The prose shown to the agent. Can be static or dynamic.                    |
-| `output`      | `z.ZodType`                                       | Yes      | Zod schema the agent's response must match. Validated before transition.   |
-| `next`        | `string \| (ctx) => string \| { terminal: true }` | Yes      | Where to go after this step. Static name, dynamic function, or terminal.   |
-| `render`      | `(ctx: PromptContext) => string`                  | No       | Deterministic output generation. Result available as `rendered` in prompt. |
-| `stash`       | `(ctx: { output }) => Partial<Stash>`             | No       | Shallow-merge updates into the cross-step scratchpad.                      |
-| `action`      | `ActionDefinition`                                | No       | CLI-side side effect that runs after output validation.                    |
-| `actionInput` | `(ctx: { output, stash }) => unknown`             | No       | Transform step output into action input when shapes differ.                |
-| `afterAction` | `(ctx: { output, action }) => Partial<Stash>`     | No       | Stash updates from action results, avoiding type casts from history.       |
-| `maxVisits`   | `number`                                          | No       | Explicit visit limit for this step.                                        |
-| `onMaxVisits` | `string`                                          | No       | Fallback step when `maxVisits` is exceeded.                                |
-| `ask`         | `AskUserConfig`                                   | No       | Primitive: structured or open user question.                               |
-| `confirm`     | `ConfirmConfig`                                   | No       | Primitive: binary yes/no approval.                                         |
-| `plan`        | `PlanConfig`                                      | No       | Primitive: present a plan for approval.                                    |
-| `tasks`       | `TasksConfig`                                     | No       | Primitive: create a tracked task list.                                     |
-| `subtask`     | `SubtaskConfig`                                   | No       | Primitive: spawn an isolated sub-agent.                                    |
+| Field         | Type                                              | Required | Description                                                              |
+| ------------- | ------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `prompt`      | `string \| PromptPiece \| PromptFn`               | No       | The prose shown to the agent. Can be static, a segment, or a function.   |
+| `act`         | `ActSegment`                                      | No       | Shorthand for single-primitive steps (from `act.askUser(...)`, etc.).    |
+| `output`      | `z.ZodType`                                       | Yes      | Zod schema the agent's response must match. Validated before transition. |
+| `next`        | `string \| (ctx) => string \| { terminal: true }` | Yes      | Where to go after this step. Static name, dynamic function, or terminal. |
+| `stash`       | `(ctx: { output, action? }) => Partial<Stash>`    | No       | Shallow-merge updates into the cross-step scratchpad.                    |
+| `action`      | `{ run, input?, stash? }`                         | No       | CLI-side side effect that runs after output validation.                  |
+| `maxVisits`   | `number`                                          | No       | Explicit visit limit for this step.                                      |
+| `onMaxVisits` | `string`                                          | No       | Fallback step when `maxVisits` is exceeded.                              |
 
 ## PromptContext
 
-Every dynamic `prompt` function and `render` function receives a `PromptContext` object. These are the fields available:
+Every dynamic `prompt` function receives a `PromptContext` object. These are the fields available:
 
 | Field      | Type                                                            | Description                                                                    |
 | ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -103,11 +95,12 @@ Every dynamic `prompt` function and `render` function receives a `PromptContext`
 | `history`  | `readonly StepResult[]`                                         | All prior step results as `{ step, output, action? }` objects.                 |
 | `getStep`  | `<T, A>(name: string) => { output: T; action: A } \| undefined` | Type-safe lookup of a specific step's result from history.                     |
 | `context`  | `TContext`                                                      | Global skill context (config defaults + runtime overrides).                    |
-| `rendered` | `string \| undefined`                                           | Output of this step's `render()` function, if defined.                         |
 | `refs`     | `ReferenceLoader`                                               | Lazy loader for reference files: `refs.load('file.md')`, `refs.asset('path')`. |
 | `attempts` | `number`                                                        | How many times this step has been visited (zero-indexed, useful for retries).  |
 | `host`     | `Handshake`                                                     | Host info: `{ host: string, toolsAvailable: string[] }`.                       |
 | `stash`    | `Readonly<TStash>`                                              | Current cross-step scratchpad state. Frozen — read-only in prompts.            |
+| `act`      | `ActContext`                                                    | Primitive directive builders: `askUser`, `confirm`, `plan`, etc.               |
+| `system`   | `SystemTag`                                                     | System segment tag/function for persona/frame.                                 |
 
 ## Transitions
 
@@ -197,7 +190,7 @@ stash: ({ output }) => ({ role: output.role }),
 // Stash is now { name: 'Alice', role: 'dev' }
 ```
 
-The stash exposed in prompt functions is a **frozen** (read-only) snapshot. Mutations are only possible through `stash` and `afterAction` callbacks — never inside prompts or render functions.
+The stash exposed in prompt functions is a **frozen** (read-only) snapshot. Mutations are only possible through `stash` and `action.stash` callbacks — never inside prompts.
 
 ## `.extend(name, base, overrides)`
 
@@ -294,10 +287,10 @@ The standalone `step()` validates that `output` and `next` are provided. The ret
 
 ## Complete worked example
 
-A deploy-check skill that gathers environment info, presents a plan, asks the user which checks to run, tracks remediation tasks, and produces a report. Demonstrates `askUser`, `plan`, `tasks`, `confirm`, fragments, stash, branching, and loop guards.
+A deploy-check skill that gathers environment info, presents a plan, asks the user which checks to run, tracks remediation tasks, and produces a report. Demonstrates `act.askUser`, `act.plan`, `act.checklist`, `act.confirm`, fragments, stash, branching, and loop guards.
 
 ```typescript
-import { skill, step, z, prompt, fragment, render, askUser, confirm, plan, tasks } from '@contentful/skill-kit';
+import { skill, step, z, prompt, fragment, render, act } from '@contentful/skill-kit';
 
 // --- Fragments ---
 
@@ -339,7 +332,7 @@ export default skill({
 })
   // Step 1: Ask the user which environment to check
   .step('choose-env', {
-    ask: askUser({
+    act: act.askUser({
       type: 'structured',
       question: 'Which environment should we validate?',
       options: [
@@ -355,7 +348,7 @@ export default skill({
 
   // Step 2: Present the check plan for approval
   .step('plan-checks', {
-    plan: plan({
+    act: act.plan({
       summary: 'Deployment readiness checks',
       steps: [
         'Verify the build completes without errors',
@@ -388,22 +381,24 @@ export default skill({
     next: ({ output }) => (output.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
   })
 
-  // Step 4a: Remediation (if checks failed) — uses tasks() to track fixes
+  // Step 4a: Remediation (if checks failed) — uses act.checklist to track fixes
   .step('remediate', {
-    tasks: tasks({
-      create: [
-        { title: 'Fix failing deployment checks', status: 'in_progress' },
-        { title: 'Re-run validation suite', status: 'pending' },
-      ],
-    }),
-    prompt: ({ prev, stash }) => prompt`
-      ${strictTone}
+    prompt: ({ prev, stash, act }) => [
+      act.checklist({
+        create: [
+          { title: 'Fix failing deployment checks', status: 'in_progress' },
+          { title: 'Re-run validation suite', status: 'pending' },
+        ],
+      }),
+      prompt`
+        ${strictTone}
 
-      ${stash.failCount} check(s) failed for **${stash.env}**.
-      Failed checks: ${JSON.stringify(prev, null, 2)}
+        ${stash.failCount} check(s) failed for **${stash.env}**.
+        Failed checks: ${JSON.stringify(prev, null, 2)}
 
-      For each failure, propose a concrete fix. Then re-run the checks.
-    `,
+        For each failure, propose a concrete fix. Then re-run the checks.
+      `,
+    ],
     output: z.object({ checks: z.array(CheckResult) }),
     stash: ({ output }) => ({
       failCount: output.checks.filter((c) => !c.passed).length,
@@ -419,31 +414,26 @@ export default skill({
 
   // Step 4b: Approval (if all checks passed)
   .step('approve', {
-    confirm: {
-      kind: 'confirm',
+    act: act.confirm({
       message: 'All checks passed. Ready to generate the deployment report?',
       destructive: false,
       defaultAnswer: 'yes',
-    },
+    }),
     output: z.object({ approved: z.boolean() }),
     next: ({ output }) => (output.approved ? 'report' : 'run-checks'),
   })
 
   // Step 5a: Final report (happy path)
   .step('report', {
-    prompt: ({ rendered }) => prompt`
-      Output the following deployment report exactly as shown:
-
-      ${rendered ?? ''}
-    `,
-    output: z.object({ ready: z.boolean(), summary: z.string() }),
-    render: ({ history, stash }) => {
+    prompt: ({ history, stash }) => {
       const lastChecks = history.filter((s) => s.step === 'run-checks' || s.step === 'remediate').pop();
       const checks =
         (lastChecks?.output as { checks: Array<{ name: string; passed: boolean; detail: string }> })?.checks ?? [];
       const table = render.table(checks, { columns: ['name', 'passed', 'detail'] });
-      return render.section(`Deployment Report: ${stash.env}`, table);
+      const report = render.section(`Deployment Report: ${stash.env}`, table);
+      return `Output the following deployment report exactly as shown:\n\n${report}`;
     },
+    output: z.object({ ready: z.boolean(), summary: z.string() }),
     next: { terminal: true },
   })
 
