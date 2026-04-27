@@ -7,7 +7,10 @@ test('act.askUser() wraps structured config in ActSegment', () => {
   const seg = act.askUser({
     type: 'structured',
     question: 'Pick one',
-    options: [{ value: 'a', label: 'A' }],
+    options: [
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ],
   });
   assert.equal(seg.kind, 'act');
   assert.equal(seg.primitive.kind, 'askUser');

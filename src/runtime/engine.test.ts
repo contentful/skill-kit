@@ -554,7 +554,10 @@ test('engine prepends step-level act before array prompt pieces', () => {
       act: act.askUser({
         type: 'structured',
         question: 'Pick one',
-        options: [{ value: 'a', label: 'A', description: 'Option A' }],
+        options: [
+          { value: 'a', label: 'A', description: 'Option A' },
+          { value: 'b', label: 'B', description: 'Option B' },
+        ],
       }),
       prompt: 'Additional context.',
       output: z.object({}),

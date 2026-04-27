@@ -44,12 +44,14 @@ export interface AskUserOption {
   value: string;
   label: string;
   description?: string;
+  preview?: string;
 }
 
 export interface AskStructuredConfig {
   readonly kind: 'askUser';
   readonly type: 'structured';
   question: string;
+  header?: string;
   options: AskUserOption[];
   multiSelect?: boolean;
 }
@@ -106,7 +108,13 @@ export type PromptPiece = string | PromptSegment;
 export type PromptReturn = string | PromptPiece | PromptPiece[];
 
 export interface ActBuilder {
-  askUser(input: { type: 'structured'; question: string; options: AskUserOption[]; multiSelect?: boolean }): ActSegment;
+  askUser(input: {
+    type: 'structured';
+    question: string;
+    header?: string;
+    options: AskUserOption[];
+    multiSelect?: boolean;
+  }): ActSegment;
   askUser(input: { type: 'open'; question: string }): ActSegment;
   confirm(input: { message: string; destructive?: boolean; defaultAnswer?: 'yes' | 'no' }): ActSegment;
   plan(input: { summary: string; steps: string[] }): ActSegment;
