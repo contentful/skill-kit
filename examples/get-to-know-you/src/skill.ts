@@ -104,46 +104,46 @@ export default skill({
 
   .extend('ask-stack', openQuestionStep, {
     prompt: ({ stash }) => [
-      act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
       prompt`
         ${stash.name} is a developer — nice!
         Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
         "TypeScript + Bun + Zod" is a personality.
       `,
+      act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
     ],
     next: 'ask-hobby',
   })
 
   .extend('ask-tools', openQuestionStep, {
     prompt: [
-      act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
       'A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?',
+      act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
     ],
     next: 'ask-hobby',
   })
 
   .extend('ask-team-size', openQuestionStep, {
     prompt: [
-      act.askUser({ type: 'open', question: 'Tell me about your team.' }),
       'A manager! Ask about their team — how big, what they work on.',
+      act.askUser({ type: 'open', question: 'Tell me about your team.' }),
     ],
     next: 'ask-hobby',
   })
 
   .extend('ask-specialty', openQuestionStep, {
     prompt: [
-      act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
       'Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.',
+      act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     ],
     next: 'ask-hobby',
   })
 
   .step('ask-hobby', {
     prompt: ({ attempts }) => [
-      act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
       attempts === 0
         ? 'Now for the important stuff. Ask about hobbies, side projects, or weird talents.'
         : 'Ask if they have another hobby they want on their card, or if they are done.',
+      act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     ],
     output: z.object({
       hobby: z.string(),
