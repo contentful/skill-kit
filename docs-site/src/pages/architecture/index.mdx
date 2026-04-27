@@ -147,7 +147,7 @@ The preamble is generated per host — different tools in the Tool column, same 
 
 Preambles are best-effort — the model may forget them under context pressure. The XML tags themselves are self-describing, which helps even without preamble context. Preambles optimize the common case; the tag structure guards correctness.
 
-**Per-step XML rendering.** For any step using a primitive (via the `act` field or `act.*` in a prompt function), the SDK renders the primitive as an XML tag. An `askUser` step emits:
+**Per-step XML rendering.** For any step using a primitive (passed to `prompt` directly or composed via `act.*` in a prompt function), the SDK renders the primitive as an XML tag. An `askUser` step emits:
 
 ```xml
 <ask-user type="structured" question="Which target?">
@@ -191,17 +191,17 @@ To add a new primitive, define it with `definePrimitive()` and add it to the `AL
 
 When the engine builds a step's prompt, it follows this sequence:
 
-1. **`resolvePromptValue`** — Evaluates the step's `prompt` config. If it's a function, calls it with `PromptContext` (which includes `act` and `system` builders). If it's a string or array, uses it directly. Returns `PromptReturn`.
+1. **`resolvePromptValue`** — Evaluates the step's `prompt` config. If it's a function, calls it with `PromptContext` (which includes `act` and `system` builders). If it's a string, array, or single segment, uses it directly. Returns `PromptReturn`.
 2. **`normalizePieces`** — Wraps the result in an array of `PromptPiece` values. A single string or segment becomes a one-element array.
-3. **Prepend `act`** — If the step config has an `act` field, the `ActSegment` is unshifted to the front of the pieces array. This means declarative primitives always appear before prompt content.
-4. **`assemblePieces`** — Walks the array in author order, wrapping each piece in its XML tag:
+3. **`assemblePieces`** — Walks the array in author order, wrapping each piece in its XML tag:
    - Plain strings become `<prompt>\n...\n</prompt>`.
    - `SystemSegment` (`{ kind: 'system' }`) becomes `<system>...</system>`.
    - `ActSegment` (`{ kind: 'act' }`) is rendered via `renderPrimitive()` to its XML tag (e.g., `<ask-user>`, `<checklist>`, `<subagent>`).
+   - `ViewSegment` (`{ kind: 'view' }`) becomes `<rendered>...</rendered>` (with optional `name` attribute).
 
    Non-empty results are joined with double newlines.
 
-This pipeline means the author controls ordering. A prompt function returning `[system`...`, act.checklist(...), 'Build the game.']` produces `<system>...</system>`, then `<checklist>...</checklist>`, then `<prompt>Build the game.</prompt>` in the final output. The `act` field is a convenience that always prepends; use `act.*` in a prompt function when ordering matters.
+The author controls ordering. A prompt function returning `[system\`...\`, act.checklist(...), 'Build the game.']`produces`<system>...</system>`, then `<checklist>...</checklist>`, then `<prompt>Build the game.</prompt>` in the final output.
 
 ### Why primitives matter
 

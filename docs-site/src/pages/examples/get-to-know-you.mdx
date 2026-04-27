@@ -71,7 +71,7 @@ The `ask-role` step uses `act.askUser` with structured options. The SDK generate
 
 ```typescript
 .step('ask-role', {
-  act: act.askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: "What's your primary role?",
     options: [
@@ -150,7 +150,7 @@ The `confirm-profile` step uses the `act.confirm` primitive. If the user decline
 
 ```typescript
 .step('confirm-profile', {
-  act: act.confirm({
+  prompt: act.confirm({
     message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
     destructive: false,
     defaultAnswer: 'yes',

@@ -123,7 +123,7 @@ export const authModule = module({
   }),
 })
   .step('auth-login', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'How would you like to authenticate?',
       options: [
@@ -145,7 +145,7 @@ export const authModule = module({
     onMaxVisits: 'auth-confirm',
   })
   .step('auth-confirm', {
-    act: act.confirm({
+    prompt: act.confirm({
       message: 'Authentication successful. Continue to the application?',
       destructive: false,
       defaultAnswer: 'yes',

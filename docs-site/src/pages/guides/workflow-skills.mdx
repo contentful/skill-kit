@@ -77,7 +77,6 @@ Adds a step to the skill. The prompt and stash callbacks receive typed `context`
 | Field         | Type                                              | Required | Description                                                              |
 | ------------- | ------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
 | `prompt`      | `string \| PromptPiece \| PromptFn`               | No       | The prose shown to the agent. Can be static, a segment, or a function.   |
-| `act`         | `ActSegment`                                      | No       | Shorthand for single-primitive steps (from `act.askUser(...)`, etc.).    |
 | `output`      | `z.ZodType`                                       | Yes      | Zod schema the agent's response must match. Validated before transition. |
 | `next`        | `string \| (ctx) => string \| { terminal: true }` | Yes      | Where to go after this step. Static name, dynamic function, or terminal. |
 | `stash`       | `(ctx: { output, action? }) => Partial<Stash>`    | No       | Shallow-merge updates into the cross-step scratchpad.                    |
@@ -332,7 +331,7 @@ export default skill({
 })
   // Step 1: Ask the user which environment to check
   .step('choose-env', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'Which environment should we validate?',
       options: [
@@ -348,7 +347,7 @@ export default skill({
 
   // Step 2: Present the check plan for approval
   .step('plan-checks', {
-    act: act.plan({
+    prompt: act.plan({
       summary: 'Deployment readiness checks',
       steps: [
         'Verify the build completes without errors',
@@ -414,7 +413,7 @@ export default skill({
 
   // Step 4b: Approval (if all checks passed)
   .step('approve', {
-    act: act.confirm({
+    prompt: act.confirm({
       message: 'All checks passed. Ready to generate the deployment report?',
       destructive: false,
       defaultAnswer: 'yes',

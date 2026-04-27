@@ -11,7 +11,7 @@ The CLI can only emit text. Primitives are the mechanism that makes that text re
 
 Primitives can be used two ways:
 
-1. **Step-level `act` field** — shorthand for steps that consist entirely of one primitive with no additional prose.
+1. **Directly in the `prompt` field** — pass `act.askUser(...)` (or any primitive) straight to `prompt` for steps that consist entirely of one primitive with no additional prose.
 2. **`act` methods in prompt functions** — composable directives mixed with other prompt pieces.
 
 When a step uses a primitive, the SDK renders it as an XML tag (e.g., `<ask-user>`, `<plan>`, `<checklist>`). The preamble (sent once at session start) maps each tag to the host's tools via a markdown table. The `output` schema is the contract regardless of host — downstream steps never know how the answer was obtained.
@@ -27,9 +27,9 @@ Presents fixed options via the host's structured question tool (if available) or
 ```typescript
 import { act, z } from '@contentful/skill-kit';
 
-// Step-level shorthand
+// Single-primitive step — passed directly to prompt
 .step('choose-target', {
-  act: act.askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: 'Which deployment target?',
     options: [
@@ -76,7 +76,7 @@ Free-text conversation. Never uses a structured question tool — the agent asks
 
 ```typescript
 .step('ask-stack', {
-  act: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+  prompt: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
   output: z.object({ answer: z.string() }),
   next: 'done',
 })
@@ -95,7 +95,7 @@ Binary yes/no confirmation with support for destructive-operation warnings and d
 import { act, z } from '@contentful/skill-kit';
 
 .step('confirm-delete', {
-  act: act.confirm({
+  prompt: act.confirm({
     message: 'This will delete 47 files in .cache/. Continue?',
     destructive: true,
     defaultAnswer: 'no',
@@ -121,7 +121,7 @@ Shows a structured plan (summary + ordered steps) and asks the user whether to p
 import { act, z } from '@contentful/skill-kit';
 
 .step('review-plan', {
-  act: act.plan({
+  prompt: act.plan({
     summary: 'Migrate auth from session cookies to JWTs',
     steps: [
       'Add JWT signing and verification helpers',
@@ -151,7 +151,7 @@ Creates a tracked list of tasks the agent should work through.
 import { act, z } from '@contentful/skill-kit';
 
 .step('create-tasks', {
-  act: act.checklist({
+  prompt: act.checklist({
     create: [
       { title: 'Fix CI configuration', status: 'pending' },
       { title: 'Update dependencies', status: 'pending' },
@@ -183,7 +183,7 @@ const ResearchSummary = z.object({
 });
 
 .step('research', {
-  act: act.subagent({
+  prompt: act.subagent({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
   }),
@@ -208,7 +208,7 @@ Collects answers to multiple questions in a single step, presented as a batch:
 import { act, z } from '@contentful/skill-kit';
 
 .step('gather-preferences', {
-  act: act.survey({
+  prompt: act.survey({
     questions: [
       { key: 'language', question: 'Preferred programming language?' },
       { key: 'editor', question: 'Preferred editor or IDE?' },

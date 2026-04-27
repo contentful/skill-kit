@@ -31,7 +31,7 @@ The entry step uses `act.askUser` to let the user pick their intent:
 
 ```typescript
 .step('choose', {
-  act: act.askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: 'What would you like help with?',
     options: [

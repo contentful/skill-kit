@@ -108,8 +108,6 @@ When a prompt function returns an array, pieces are assembled in **author order*
 
 The `prompt` field accepts `PromptPiece` directly (including `ActSegment`), so single-primitive steps need no wrapper function — pass the result of `act.askUser(...)`, `act.confirm(...)`, etc. straight to `prompt`.
 
-The `act` field takes an `ActSegment` (from `act.askUser(...)`, `act.confirm(...)`, etc.) and provides a shorthand for steps that consist entirely of one primitive with no additional prose. When set, no `prompt` is needed — the SDK generates the full prompt from the primitive config. This replaces the old `ask`, `confirm`, `plan`, `checklist`, `subagent`, and `primitive` step-level fields.
-
 ### PromptContext
 
 Available in dynamic `prompt` functions:
@@ -437,19 +435,19 @@ Interactive building blocks rendered as XML tags. Authors describe intent; the p
 
 There are two ways to attach a primitive to a step:
 
-1. **`act` field** (declarative) — set `act: act.askUser(...)` on the step config. The SDK prepends the rendered XML tag before the step's `<prompt>`.
+1. **Directly in the `prompt` field** (declarative) — pass `act.askUser(...)` (or any primitive) straight to `prompt` for steps that consist entirely of one primitive with no additional prose.
 2. **`act.*` in a prompt function** (composable) — call `act.askUser(...)` etc. inside the prompt callback to control exactly where the primitive XML tag appears, mix primitives with system segments, or derive primitive config from stash/context.
 
-Both approaches produce identical XML output. Use the `act` field for static configs; use `act.*` in a prompt function when you need composition or dynamic values.
+Both approaches produce identical XML output. Pass a primitive directly to `prompt` for static configs; use `act.*` in a prompt function when you need composition or dynamic values.
 
 ### `act.askUser` — structured or open
 
 ```typescript
 import { act } from '@contentful/skill-kit';
 
-// Step-level shorthand — simple single-primitive step
+// Single-primitive step — passed directly to prompt
 .step('choose-env', {
-  act: act.askUser({
+  prompt: act.askUser({
     type: 'structured',
     question: 'Which environment?',
     options: [
@@ -478,8 +476,8 @@ import { act } from '@contentful/skill-kit';
 ```typescript
 import { act } from '@contentful/skill-kit';
 
-// Step-level shorthand
-act: act.confirm({
+// Single-primitive step — passed directly to prompt
+prompt: act.confirm({
   message: 'This will delete 47 files in .cache/. Continue?',
   destructive: true, // optional — adds warning in prose
   defaultAnswer: 'no', // optional — 'yes' or 'no'
@@ -499,8 +497,8 @@ Step output should include `{ approved: z.boolean() }`.
 ```typescript
 import { act } from '@contentful/skill-kit';
 
-// Step-level shorthand
-act: act.plan({
+// Single-primitive step — passed directly to prompt
+prompt: act.plan({
   summary: 'Migrate database schema',
   steps: ['Backup current schema', 'Run migration', 'Validate'],
 }),
@@ -514,8 +512,8 @@ prompt: ({ act }) => act.plan({ summary: '...', steps: [...] }),
 ```typescript
 import { act } from '@contentful/skill-kit';
 
-// Step-level shorthand
-act: act.checklist({
+// Single-primitive step — passed directly to prompt
+prompt: act.checklist({
   create: [
     { title: 'Lint config', status: 'pending' },
     { title: 'Test suite', status: 'pending' },
@@ -534,8 +532,8 @@ prompt: ({ stash, act }) => [
 ```typescript
 import { act } from '@contentful/skill-kit';
 
-// Step-level shorthand
-act: act.subagent({
+// Single-primitive step — passed directly to prompt
+prompt: act.subagent({
   prompt: 'Review the PR for security issues.',
   output: z.object({ findings: z.array(z.string()) }),
 }),
@@ -596,7 +594,7 @@ The prompt function returns `PromptReturn` — a string, a single `PromptPiece`,
 - **`act.askUser(...)`, `act.confirm(...)`, `act.plan(...)`, `act.checklist(...)`, `act.subagent(...)`, `act.survey(...)`** — an `ActSegment` that the engine renders to its XML tag at runtime via `renderPrimitive()`.
 - **`view()`** — imported helper that wraps content in a `ViewSegment`, rendered as `<rendered>` XML. See [View Helper](#view-helper).
 
-The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` wraps each piece in its XML tag (`<prompt>` for strings, `<system>` for system segments, primitive-specific tags like `<ask-user>` or `<checklist>` for act segments) and joins with double newlines. If an `act` field is also set on the step, it is prepended as the first piece.
+The engine assembles pieces in author order: `resolvePromptValue` evaluates the prompt config, `normalizePieces` wraps the result in an array, then `assemblePieces` wraps each piece in its XML tag (`<prompt>` for strings, `<system>` for system segments, primitive-specific tags like `<ask-user>` or `<checklist>` for act segments) and joins with double newlines.
 
 ### XML output format
 
@@ -1103,7 +1101,7 @@ export default skill({
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
-    act: act.askUser({
+    prompt: act.askUser({
       type: 'structured',
       question: 'Which environment?',
       options: [
@@ -1138,7 +1136,7 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `act: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `prompt: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
 
 2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
 
