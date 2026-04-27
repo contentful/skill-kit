@@ -188,6 +188,9 @@ export type TransitionFn<TOutput = unknown, TActionOutput = unknown> = (ctx: {
   action: TActionOutput;
 }) => string;
 
+/**
+ * Lifecycle: prompt → model → validate(output) → action.input → action.run → action.stash → stash → next
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepConfig<
   TOutput extends z.ZodType = z.ZodType,

@@ -88,18 +88,20 @@ interface StepConfig<TOutput, TContext, TStash, TActionOutput> {
 
 ## Steps
 
-- [ ] Commit task document
-- [ ] Enrich `AskUserOption` + `AskStructuredConfig` (preview, header, validation, render, preamble)
-- [ ] Add `act.survey()` primitive (types, primitive file, registry, ActBuilder, validation, overflow, preamble, tests)
-- [ ] Add `ViewSegment` type and `view()` helper (segment, export, engine handling)
-- [ ] Add `terminal` constant (new file, export)
-- [ ] Rename `prompt` → `instruct` on StepConfig (types, engine, step.ts, skill-builder.ts, tests, examples)
-- [ ] Merge `act` field into `instruct` (remove field, remove engine prepending, lint rule, tests, examples)
-- [ ] Merge `render` into `instruct` via `view()` (remove field, remove rendered from PromptContext, engine, tests, examples)
-- [ ] Restructure action and stash (nested action, merged stash, engine advance/replay, tests, examples)
-- [ ] Add lifecycle JSDoc to StepConfig
+- [x] Commit task document
+- [x] Enrich `AskUserOption` + `AskStructuredConfig` (preview, header, validation, render, preamble)
+- [x] Add `act.survey()` primitive (types, primitive file, registry, ActBuilder, validation, overflow, preamble, tests)
+- [x] Add `ViewSegment` type and `view()` helper (segment, export, engine handling)
+- [x] Add `terminal` constant (new file, export)
+- [x] ~~Rename `prompt` → `instruct`~~ — Reverted. Renaming only the step field while everything else (PromptContext, PromptFn, PromptResult, XML tags) stays `prompt` made the API more surprising, not less.
+- [x] Merge `act` field into `prompt` (remove field, remove engine prepending, lint rule, tests, examples)
+- [x] Merge `render` into `prompt` via `view()` (remove field, remove rendered from PromptContext, engine, tests, examples)
+- [x] Restructure action and stash (nested action, merged stash, engine advance/replay, tests, examples)
+- [x] Add lifecycle JSDoc to StepConfig
 - [ ] Update all docs (SPEC.md, docs/api.md, docs/architecture.md, docs-site MDX, README)
 
 ## Notes
 
-(Running log — decisions made during implementation)
+- Reverted `prompt` → `instruct` rename. The stutter `prompt: prompt\`...\``only happens with the tagged template in callbacks — one specific case. Every other type, interface, XML tag, and wire protocol field says`prompt`. Making the one place you define it the only thing that doesn't say `prompt` was more surprising than the stutter.
+- `action.input` runs before the step's `stash` callback. The `action.input` callback sees accumulated stash from _prior_ steps, not from this step's stash. This matches the lifecycle: action runs first, then stash persists results.
+- `pnpm build` required before example tests because examples resolve `@contentful/skill-kit` via the package `exports.import` field → `./dist/index.js`.
