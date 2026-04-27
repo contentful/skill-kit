@@ -103,25 +103,23 @@ export class WorkflowEngine {
 
     const output = Object.freeze(validation.data);
 
-    if (stepDef.config.stash) {
-      this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
-    }
-
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
-      const rawActionInput = stepDef.config.actionInput
-        ? stepDef.config.actionInput({ output, stash: this.stash.all() })
-        : output;
-      const actionInput = stepDef.config.action.input.parse(rawActionInput);
-      actionOutput = await stepDef.config.action.run({
+      const { run: actionDef, input: inputFn, stash: actionStash } = stepDef.config.action;
+      const rawActionInput = inputFn ? inputFn({ output, stash: this.stash.all() }) : output;
+      const actionInput = actionDef.input.parse(rawActionInput);
+      actionOutput = await actionDef.run({
         input: actionInput,
         signal: this.abortController.signal,
       });
       actionOutput = Object.freeze(actionOutput);
+      if (actionStash) {
+        this.stash.merge(actionStash({ result: actionOutput }) as Record<string, unknown>);
+      }
     }
 
-    if (stepDef.config.afterAction && actionOutput !== undefined) {
-      this.stash.merge(stepDef.config.afterAction({ output, action: actionOutput }) as Record<string, unknown>);
+    if (stepDef.config.stash) {
+      this.stash.merge(stepDef.config.stash({ output, action: actionOutput }) as Record<string, unknown>);
     }
 
     this.history.append(stepName, output, actionOutput);
@@ -168,12 +166,12 @@ export class WorkflowEngine {
       const validation = validateOutput(stepDef.config.output, entry.output);
       const output = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.output);
 
-      if (stepDef.config.stash) {
-        this.stash.merge(stepDef.config.stash({ output }) as Record<string, unknown>);
+      if (stepDef.config.action?.stash && entry.action !== undefined) {
+        this.stash.merge(stepDef.config.action.stash({ result: entry.action }) as Record<string, unknown>);
       }
 
-      if (stepDef.config.afterAction && entry.action !== undefined) {
-        this.stash.merge(stepDef.config.afterAction({ output, action: entry.action }) as Record<string, unknown>);
+      if (stepDef.config.stash) {
+        this.stash.merge(stepDef.config.stash({ output, action: entry.action }) as Record<string, unknown>);
       }
 
       this.history.append(entry.step, output, entry.action);

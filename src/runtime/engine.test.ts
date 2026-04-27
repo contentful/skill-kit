@@ -158,7 +158,7 @@ test('engine runs action after validation, before transition', async () => {
     .step('a', {
       prompt: 'Write something',
       output: z.object({ content: z.string() }),
-      action: writeAction,
+      action: { run: writeAction },
       next: { terminal: true },
     })
     .build();
@@ -245,8 +245,10 @@ test('actionInput mapping decouples step output from action input', async () => 
     .step('a', {
       prompt: 'Decide',
       output: z.object({ fileName: z.string(), body: z.string() }),
-      action: writeAction,
-      actionInput: ({ output }) => ({ path: `/out/${output.fileName}`, content: output.body }),
+      action: {
+        run: writeAction,
+        input: ({ output }) => ({ path: `/out/${output.fileName}`, content: output.body }),
+      },
       next: { terminal: true },
     })
     .build();
@@ -270,19 +272,27 @@ test('actionInput receives current stash', async () => {
     },
   });
 
-  const s = skill({ name: 'stash-map', entry: 'a', stash: z.object({ prefix: z.string() }) })
+  const s = skill({ name: 'stash-map', entry: 'setup', stash: z.object({ prefix: z.string() }) })
+    .step('setup', {
+      prompt: 'Setup',
+      output: z.object({}),
+      stash: () => ({ prefix: 'pre' }),
+      next: 'a',
+    })
     .step('a', {
       prompt: 'Go',
       output: z.object({ val: z.string() }),
-      stash: () => ({ prefix: 'pre' }),
-      action: myAction,
-      actionInput: ({ output, stash }) => ({ prefix: stash.prefix, val: output.val }),
+      action: {
+        run: myAction,
+        input: ({ output, stash }) => ({ prefix: stash.prefix, val: output.val }),
+      },
       next: { terminal: true },
     })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
+  await engine.advance('setup', {});
   await engine.advance('a', { val: 'test' });
   assert.deepEqual(receivedInput, { prefix: 'pre', val: 'test' });
 });
@@ -299,8 +309,8 @@ test('action output is passed to transition function', async () => {
     .step('call', {
       prompt: 'Call the API',
       output: z.object({ url: z.string() }),
-      action: apiAction,
-      next: ({ action }) => (action.status === 200 ? 'success' : 'failure'),
+      action: { run: apiAction },
+      next: ({ action }) => ((action as { status: number }).status === 200 ? 'success' : 'failure'),
     })
     .step('success', { prompt: 'OK', output: z.object({}), next: { terminal: true } })
     .step('failure', { prompt: 'Fail', output: z.object({}), next: { terminal: true } })
@@ -347,8 +357,10 @@ test('afterAction stashes action result', async () => {
     .step('call', {
       prompt: 'Call API',
       output: z.object({ url: z.string() }),
-      action: apiAction,
-      afterAction: ({ action }) => ({ lastCode: action.responseCode }),
+      action: {
+        run: apiAction,
+        stash: ({ result }) => ({ lastCode: result.responseCode }),
+      },
       next: 'report',
     })
     .step('report', {
@@ -384,8 +396,10 @@ test('afterAction is replayed correctly from history', () => {
         return 'Call';
       },
       output: z.object({ url: z.string() }),
-      action: apiAction,
-      afterAction: ({ action }) => ({ code: action.code }),
+      action: {
+        run: apiAction,
+        stash: ({ result }) => ({ code: result.code }),
+      },
       next: 'report',
     })
     .step('report', {

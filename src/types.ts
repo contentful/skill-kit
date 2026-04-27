@@ -198,10 +198,12 @@ export interface StepConfig<
   prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TContext, TStash>;
   output: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
-  action?: ActionDefinition;
-  actionInput?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
-  stash?: (ctx: { output: z.infer<TOutput> }) => Partial<TStash>;
-  afterAction?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
+  action?: {
+    run: ActionDefinition;
+    input?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
+    stash?: (ctx: { result: TActionOutput }) => Partial<TStash>;
+  };
+  stash?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
 }

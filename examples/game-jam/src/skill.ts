@@ -240,14 +240,16 @@ export default skill({
       'Present the rendered summary card verbatim.',
     ],
     output: z.object({ summary: z.string() }),
-    action: saveGameConfig,
-    actionInput: ({ stash }) => ({
-      config: {
-        name: stash.name,
-        variant: stash.variant,
-        renderer: stash.renderer,
-      },
-    }),
+    action: {
+      run: saveGameConfig,
+      input: ({ stash }) => ({
+        config: {
+          name: stash.name,
+          variant: stash.variant,
+          renderer: stash.renderer,
+        },
+      }),
+    },
     next: { terminal: true },
   })
 

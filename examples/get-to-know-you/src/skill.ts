@@ -219,7 +219,7 @@ export default skill({
       card: z.string(),
       profile: ProfileSchema,
     }),
-    action: writeProfile,
+    action: { run: writeProfile },
     next: { terminal: true },
   })
 
