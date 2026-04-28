@@ -1,10 +1,32 @@
-import { skill, z } from '../../index.js';
+import { skill, z, action } from '../../index.js';
 import { compositeMain } from '../../cli.js';
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
+const scanAction = action({
+  name: 'scan',
+  input: z.object({ path: z.string() }),
+  output: z.object({ found: z.string() }),
+  run: async ({ input }) => ({ found: `scanned:${input.path}` }),
+});
+
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({ scanResult: z.string() }) })
   .step('diagnose', {
     prompt: 'Diagnose the issue.',
     output: z.object({ issue: z.string() }),
+    action: {
+      run: scanAction,
+      input: ({ output }) => ({ path: output.issue }),
+      stash: ({ result }) => ({ scanResult: result.found }),
+    },
+    next: 'triage',
+  })
+  .step('triage', {
+    prompt: 'Triage the findings.',
+    output: z.object({ priority: z.string() }),
+    next: 'report',
+  })
+  .step('report', {
+    prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
+    output: z.object({ summary: z.string() }),
     next: { terminal: true },
   })
   .build();

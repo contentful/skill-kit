@@ -112,7 +112,11 @@ function filterHistory(history: HistoryEntry[], subskillName: string): HistoryEn
 
 function prefixResult(result: CliResult, subskillName: string): CliResult {
   if ('step' in result && typeof result.step === 'string') {
-    return { ...result, step: prefixStep(subskillName, result.step) };
+    const prefixed = { ...result, step: prefixStep(subskillName, result.step) };
+    if ('completed' in prefixed && prefixed.completed) {
+      prefixed.completed = { ...prefixed.completed, step: prefixStep(subskillName, prefixed.completed.step) };
+    }
+    return prefixed;
   }
   return result;
 }
