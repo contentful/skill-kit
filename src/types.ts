@@ -167,11 +167,16 @@ export interface StepResult<TOutput = unknown> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface PromptContext<TParams = any, TStash = any> {
+export interface PromptContext<
+  TParams = any,
+  TStash = any,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+> {
   history: readonly StepResult[];
-  getStep: <TOutput = unknown, TAction = unknown>(
-    stepName: string,
-  ) => { stepOutput: TOutput; actionOutput: TAction } | undefined;
+  getStep: {
+    <K extends string & keyof TSteps>(stepName: K): { stepOutput: TSteps[K]; actionOutput: unknown } | undefined;
+    (stepName: string): { stepOutput: unknown; actionOutput: unknown } | undefined;
+  };
   params: TParams;
   refs: ReferenceLoader;
   attempts: number;
@@ -182,7 +187,9 @@ export interface PromptContext<TParams = any, TStash = any> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PromptFn<TParams = any, TStash = any> = (ctx: PromptContext<TParams, TStash>) => PromptReturn;
+export type PromptFn<TParams = any, TStash = any, TSteps extends Record<string, unknown> = Record<string, unknown>> = (
+  ctx: PromptContext<TParams, TStash, TSteps>,
+) => PromptReturn;
 
 export type TransitionFn<TOutput = unknown, TActionOutput = unknown, TParams = unknown, TStash = unknown> = (ctx: {
   stepOutput: TOutput;
@@ -204,8 +211,9 @@ export interface StepConfig<
   TParams = any,
   TStash = any,
   TActionOutput = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
 > {
-  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash>;
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash, TSteps>;
   output?: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput, TParams, TStash> | { terminal: true };
   action?: {
@@ -229,12 +237,13 @@ export interface StepDefinition<
   TParams = any,
   TStash = any,
   TActionOutput = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
 > {
   readonly kind: 'step';
-  readonly config: StepConfig<TOutput, TParams, TStash, TActionOutput>;
+  readonly config: StepConfig<TOutput, TParams, TStash, TActionOutput, TSteps>;
   extend(
-    overrides: Partial<StepConfig<TOutput, TParams, TStash, TActionOutput>>,
-  ): StepDefinition<TOutput, TParams, TStash, TActionOutput>;
+    overrides: Partial<StepConfig<TOutput, TParams, TStash, TActionOutput, TSteps>>,
+  ): StepDefinition<TOutput, TParams, TStash, TActionOutput, TSteps>;
 }
 
 // --- Observers ---

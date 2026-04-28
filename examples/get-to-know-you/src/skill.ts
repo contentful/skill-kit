@@ -172,10 +172,10 @@ export default skill({
       const role = stash.role ?? 'Enigma';
 
       const specialty =
-        getStep<{ answer: string }>('ask-stack')?.stepOutput.answer ??
-        getStep<{ answer: string }>('ask-tools')?.stepOutput.answer ??
-        getStep<{ answer: string }>('ask-team-size')?.stepOutput.answer ??
-        getStep<{ answer: string }>('ask-specialty')?.stepOutput.answer ??
+        getStep('ask-stack')?.stepOutput.answer ??
+        getStep('ask-tools')?.stepOutput.answer ??
+        getStep('ask-team-size')?.stepOutput.answer ??
+        getStep('ask-specialty')?.stepOutput.answer ??
         'Classified';
 
       const hobbies = history

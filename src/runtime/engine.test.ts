@@ -523,7 +523,7 @@ test('getStep provides typed history access', async () => {
     .step('a', { prompt: 'A', output: z.object({ val: z.number() }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
-        stepAResult = ctx.getStep<{ val: number }>('a');
+        stepAResult = ctx.getStep('a');
         return 'B';
       },
       output: z.object({}),
