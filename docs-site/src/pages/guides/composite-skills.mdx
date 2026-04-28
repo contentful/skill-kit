@@ -5,7 +5,7 @@ title: 'Composite Skills'
 
 Composite skills combine related skills into a single artifact with shared references. A composite is a regular `skill()` that has sub-skills and/or topics registered on it. The dispatcher state machine classifies intent and routes to the appropriate sub-skill or resolves a reference topic directly.
 
-Use composites when you have multiple skills that overlap in references, context, or user-facing scope — for example, a `contentful-doctor`, `contentful-setup`, and `contentful-faq` that all reference the same Contentful documentation.
+Use composites when you have multiple skills that overlap in references, params, or user-facing scope — for example, a `contentful-doctor`, `contentful-setup`, and `contentful-faq` that all reference the same Contentful documentation.
 
 ## Registering sub-skills
 
@@ -19,33 +19,33 @@ import setupSkill from './subskills/setup.js';
 export default skill({
   name: 'contentful-help',
   entry: 'classify',
-  context: z.object({ query: z.string() }),
+  params: z.object({ query: z.string() }),
   stash: z.object({ intent: z.string(), spaceId: z.string() }),
 })
   .step('classify', {
-    prompt: ({ context }) => `Classify intent: "${context.query}"`,
+    prompt: ({ params }) => `Classify intent: "${params.query}"`,
     output: z.object({ intent: z.string(), confidence: z.number() }),
-    stash: ({ output }) => ({ intent: output.intent, spaceId: '' }),
-    next: ({ output }) => {
-      if (output.confidence < 0.7) return 'clarify';
-      if (output.intent === 'doctor') return 'get-space';
-      return `subskill:${output.intent}`;
+    updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent, spaceId: '' }),
+    next: ({ stepOutput }) => {
+      if (stepOutput.confidence < 0.7) return 'clarify';
+      if (stepOutput.intent === 'doctor') return 'get-space';
+      return `subskill:${stepOutput.intent}`;
     },
   })
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID.',
     output: z.object({ spaceId: z.string() }),
-    stash: ({ output }) => ({ intent: 'doctor', spaceId: output.spaceId }),
+    updateStash: ({ stepOutput }) => ({ intent: 'doctor', spaceId: stepOutput.spaceId }),
     next: 'subskill:doctor',
   })
   .subskill('doctor', doctorSkill, {
-    context: (_output, stash) => ({ spaceId: stash.spaceId }),
+    params: (_output, stash) => ({ spaceId: stash.spaceId }),
   })
   .subskill('setup', setupSkill)
   .build();
 ```
 
-Each `.subskill()` registration accepts an optional `context` function that maps the dispatcher's state (step output + stash) to the sub-skill's context.
+Each `.subskill()` registration accepts an optional `params` function that maps the dispatcher's state (step output + stash) to the sub-skill's params.
 
 ## Registering topics
 
@@ -85,17 +85,17 @@ All commands go through `scripts/run`. Session mode is recommended:
 
 ```bash
 # Session mode (recommended)
-scripts/run --context '{"query":"my types are broken"}' --session new
+scripts/run --params '{"query":"my types are broken"}' --session new
 # → {"sessionId":"abc123","file":"/tmp/skill-kit-abc123.jsonl","line":2}
 scripts/run advance --session abc123
 # → 4  (line number to read)
 
 # Stateless mode (fallback)
-scripts/run --context '{"query":"my types are broken"}'
+scripts/run --params '{"query":"my types are broken"}'
 scripts/run advance --step classify --output '{"intent":"doctor","confidence":0.9}' --history '[...]'
 
 # Direct sub-skill access (bypasses dispatcher)
-scripts/run doctor --context '{"spaceId":"abc123"}' --session new
+scripts/run doctor --params '{"spaceId":"abc123"}' --session new
 
 # Reference topics
 scripts/run topics
@@ -113,7 +113,7 @@ import { runComposite, mockModel } from '@contentful/skill-kit/test';
 import skill from './skill.js';
 
 const result = await runComposite(skill, {
-  context: { query: 'my entries are broken' },
+  params: { query: 'my entries are broken' },
   refs,
   model: mockModel({
     classify: { intent: 'doctor', confidence: 0.9 },
@@ -135,7 +135,7 @@ Use `directSubskill: 'doctor'` to test a sub-skill in isolation, bypassing the d
 | ----------- | ------------------------- | ---------------------------- |
 | Namespace   | Flattened into parent     | Prefixed: `doctor/diagnose`  |
 | Stash       | Merged with parent        | Isolated per sub-skill       |
-| Context     | Cannot access parent      | Receives mapped context      |
+| Params      | Cannot access parent      | Receives mapped params       |
 | Entry point | No independent invocation | CLI subcommand               |
 | Testing     | Within host skill         | Standalone with `runSkill()` |
 

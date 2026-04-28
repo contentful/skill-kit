@@ -39,7 +39,7 @@ import { act, z } from '@contentful/skill-kit';
     ],
   }),
   output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
-  next: ({ output }) => `deploy-${output.target}`,
+  next: ({ stepOutput }) => `deploy-${stepOutput.target}`,
 })
 
 // Or composed with other prompt pieces
@@ -57,7 +57,7 @@ import { act, z } from '@contentful/skill-kit';
     `Explain what each environment is used for before asking.`,
   ],
   output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
-  next: ({ output }) => `deploy-${output.target}`,
+  next: ({ stepOutput }) => `deploy-${stepOutput.target}`,
 })
 ```
 
@@ -101,7 +101,7 @@ import { act, z } from '@contentful/skill-kit';
     defaultAnswer: 'no',
   }),
   output: z.object({ approved: z.boolean() }),
-  next: ({ output }) => output.approved ? 'proceed' : 'abort',
+  next: ({ stepOutput }) => stepOutput.approved ? 'proceed' : 'abort',
 })
 ```
 
@@ -132,7 +132,7 @@ import { act, z } from '@contentful/skill-kit';
     ],
   }),
   output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-  next: ({ output }) => output.approved ? 'execute' : 'revise',
+  next: ({ stepOutput }) => stepOutput.approved ? 'execute' : 'revise',
 })
 ```
 
@@ -282,10 +282,10 @@ import { prompt } from '@contentful/skill-kit';
 import { enterpriseTone, jsonOutputRules } from '../fragments/tone.js';
 
 .step('analyze', {
-  prompt: ({ prev }) => prompt`
+  prompt: ({ getStep }) => prompt`
     ${enterpriseTone}
 
-    Analyze the dependency tree at ${prev.repoPath}.
+    Analyze the dependency tree at ${getStep('gather')!.stepOutput.repoPath}.
     Flag packages with known CVEs.
 
     ${jsonOutputRules}

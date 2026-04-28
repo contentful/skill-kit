@@ -36,7 +36,7 @@ export default skill({
     next: 'welcome',
   })
   .step('welcome', {
-    prompt: ({ prev }) => `Say hello to ${(prev as { name: string }).name}.`,
+    prompt: ({ getStep }) => `Say hello to ${getStep('ask')!.stepOutput.name}.`,
     output: z.object({ message: z.string() }),
     next: { terminal: true },
   })
@@ -70,6 +70,6 @@ const result = await runSkill(greet, {
 
 - [Testing Skills](../getting-started/testing/) — full `runSkill` and `mockModel` API, assertion patterns, host testing
 - [Building & Distribution](../getting-started/building/) — compile to executables or Node.js bundles, lint with `skill-kit check`
-- [Workflow Skills guide](../guides/workflow-skills/) — branching, stash, context, actions, modules
+- [Workflow Skills guide](../guides/workflow-skills/) — branching, stash, params, actions, modules
 - [Reference Skills guide](../guides/reference-skills/) — progressive disclosure with topics
 - [Composite Skills guide](../guides/composite-skills/) — sub-skills, topics, and dispatcher routing

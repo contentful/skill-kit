@@ -7,7 +7,7 @@ Workflow skills are typed state machines. Each step has a prompt, an output sche
 
 ## `skill()` configuration
 
-`skill(config)` returns a `SkillBuilder`. One per entry file. Context and stash Zod schemas declared here flow into all step callbacks via contextual type inference.
+`skill(config)` returns a `SkillBuilder`. One per entry file. Params and stash Zod schemas declared here flow into all step callbacks via contextual type inference.
 
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
@@ -17,7 +17,7 @@ export default skill({
   version: '1.0.0',
   description: 'Validates deployment readiness across environments.',
   entry: 'gather-info',
-  context: z.object({ env: z.string().default('staging') }),
+  params: z.object({ env: z.string().default('staging') }),
   stash: z.object({ checksPassed: z.number() }),
   finalOutput: z.object({ ready: z.boolean(), report: z.string() }),
   observers: {
@@ -40,7 +40,7 @@ export default skill({
 | `version`     | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
 | `description` | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
 | `triggers`    | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
-| `context`     | `z.ZodType`                     | No       | Zod schema for global skill context. Validated on `start`, typed everywhere.   |
+| `params`      | `z.ZodType`                     | No       | Zod schema for global skill params. Validated on `start`, typed everywhere.    |
 | `stash`       | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
 | `finalOutput` | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
 | `observers`   | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
@@ -48,11 +48,11 @@ export default skill({
 
 ## `.step(name, config)`
 
-Adds a step to the skill. The prompt and stash callbacks receive typed `context` and `stash` from the builder — no manual annotations needed.
+Adds a step to the skill. The prompt and stash callbacks receive typed `params` and `stash` from the builder — no manual annotations needed.
 
 ```typescript
 .step('gather-info', {
-  prompt: ({ context }) => `Check deployment readiness for ${context.env}.`,
+  prompt: ({ params }) => `Check deployment readiness for ${params.env}.`,
   output: z.object({
     checks: z.array(z.object({
       name: z.string(),
@@ -60,13 +60,13 @@ Adds a step to the skill. The prompt and stash callbacks receive typed `context`
       detail: z.string(),
     })),
   }),
-  stash: ({ output }) => ({ checksPassed: output.checks.filter(c => c.passed).length }),
+  updateStash: ({ stepOutput }) => ({ checksPassed: stepOutput.checks.filter(c => c.passed).length }),
   action: {
     run: writeReportAction,
-    input: ({ output, stash }) => ({ checks: output.checks }),
-    stash: ({ action }) => ({ reportPath: action.path }),
+    input: ({ stepOutput, stash }) => ({ checks: stepOutput.checks }),
+    updateStash: ({ actionOutput }) => ({ reportPath: actionOutput.path }),
   },
-  next: ({ output }) => output.checks.every(c => c.passed) ? 'approve' : 'remediate',
+  next: ({ stepOutput }) => stepOutput.checks.every(c => c.passed) ? 'approve' : 'remediate',
   maxVisits: 3,
   onMaxVisits: 'force-report',
 })
@@ -74,32 +74,31 @@ Adds a step to the skill. The prompt and stash callbacks receive typed `context`
 
 ### Full step config shape
 
-| Field         | Type                                              | Required | Description                                                              |
-| ------------- | ------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
-| `prompt`      | `string \| PromptPiece \| PromptFn`               | No       | The prose shown to the agent. Can be static, a segment, or a function.   |
-| `output`      | `z.ZodType`                                       | Yes      | Zod schema the agent's response must match. Validated before transition. |
-| `next`        | `string \| (ctx) => string \| { terminal: true }` | Yes      | Where to go after this step. Static name, dynamic function, or terminal. |
-| `stash`       | `(ctx: { output, action? }) => Partial<Stash>`    | No       | Shallow-merge updates into the cross-step scratchpad.                    |
-| `action`      | `{ run, input?, stash? }`                         | No       | CLI-side side effect that runs after output validation.                  |
-| `maxVisits`   | `number`                                          | No       | Explicit visit limit for this step.                                      |
-| `onMaxVisits` | `string`                                          | No       | Fallback step when `maxVisits` is exceeded.                              |
+| Field         | Type                                                     | Required | Description                                                              |
+| ------------- | -------------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
+| `prompt`      | `string \| PromptPiece \| PromptFn`                      | No       | The prose shown to the agent. Can be static, a segment, or a function.   |
+| `output`      | `z.ZodType`                                              | Yes      | Zod schema the agent's response must match. Validated before transition. |
+| `next`        | `string \| (ctx) => string \| { terminal: true }`        | Yes      | Where to go after this step. Static name, dynamic function, or terminal. |
+| `updateStash` | `(ctx: { stepOutput, actionOutput? }) => Partial<Stash>` | No       | Shallow-merge updates into the cross-step scratchpad.                    |
+| `action`      | `{ run, input?, updateStash? }`                          | No       | CLI-side side effect that runs after output validation.                  |
+| `maxVisits`   | `number`                                                 | No       | Explicit visit limit for this step.                                      |
+| `onMaxVisits` | `string`                                                 | No       | Fallback step when `maxVisits` is exceeded.                              |
 
 ## PromptContext
 
 Every dynamic `prompt` function receives a `PromptContext` object. These are the fields available:
 
-| Field      | Type                                                            | Description                                                                    |
-| ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `prev`     | `unknown`                                                       | Typed output of the immediately preceding step.                                |
-| `history`  | `readonly StepResult[]`                                         | All prior step results as `{ step, output, action? }` objects.                 |
-| `getStep`  | `<T, A>(name: string) => { output: T; action: A } \| undefined` | Type-safe lookup of a specific step's result from history.                     |
-| `context`  | `TContext`                                                      | Global skill context (config defaults + runtime overrides).                    |
-| `refs`     | `ReferenceLoader`                                               | Lazy loader for reference files: `refs.load('file.md')`, `refs.asset('path')`. |
-| `attempts` | `number`                                                        | How many times this step has been visited (zero-indexed, useful for retries).  |
-| `host`     | `Handshake`                                                     | Host info: `{ host: string, toolsAvailable: string[] }`.                       |
-| `stash`    | `Readonly<TStash>`                                              | Current cross-step scratchpad state. Frozen — read-only in prompts.            |
-| `act`      | `ActContext`                                                    | Primitive directive builders: `askUser`, `confirm`, `plan`, etc.               |
-| `system`   | `SystemTag`                                                     | System segment tag/function for persona/frame.                                 |
+| Field      | Type                                                           | Description                                                                     |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `history`  | `readonly StepResult[]`                                        | All prior step results as `{ step, stepOutput, actionOutput? }` objects.        |
+| `getStep`  | `(name: string) => { stepOutput; actionOutput? } \| undefined` | Type-safe lookup of a specific step's result from history (typed from builder). |
+| `params`   | `TParams`                                                      | Global skill params (config defaults + runtime overrides).                      |
+| `refs`     | `ReferenceLoader`                                              | Lazy loader for reference files: `refs.load('file.md')`, `refs.asset('path')`.  |
+| `attempts` | `number`                                                       | How many times this step has been visited (zero-indexed, useful for retries).   |
+| `host`     | `Handshake`                                                    | Host info: `{ host: string, toolsAvailable: string[] }`.                        |
+| `stash`    | `Readonly<TStash>`                                             | Current cross-step scratchpad state. Frozen — read-only in prompts.             |
+| `act`      | `ActContext`                                                   | Primitive directive builders: `askUser`, `confirm`, `plan`, etc.                |
+| `system`   | `SystemTag`                                                    | System segment tag/function for persona/frame.                                  |
 
 ## Transitions
 
@@ -123,11 +122,11 @@ A function that receives the step output and returns a step name. Use this for b
 ```typescript
 .step('diagnose', {
   output: z.object({ severity: z.enum(['low', 'medium', 'high']) }),
-  next: ({ output }) => output.severity === 'high' ? 'escalate' : 'auto-fix',
+  next: ({ stepOutput }) => stepOutput.severity === 'high' ? 'escalate' : 'auto-fix',
 })
 ```
 
-The function receives `{ output, attempts, action }` where `action` is the action result if one ran.
+The function receives `{ stepOutput, attempts, actionOutput }` where `actionOutput` is the action result if one ran.
 
 ### Terminal transition
 
@@ -147,8 +146,8 @@ Return `'self'` from a dynamic `next` to revisit the current step. Always pair w
 ```typescript
 .step('refine', {
   output: z.object({ confidence: z.number(), result: z.string() }),
-  next: ({ output, attempts }) =>
-    output.confidence < 0.8 && attempts < 3 ? 'self' : 'done',
+  next: ({ stepOutput, attempts }) =>
+    stepOutput.confidence < 0.8 && attempts < 3 ? 'self' : 'done',
   maxVisits: 3,
   onMaxVisits: 'done',
 })
@@ -169,7 +168,7 @@ Linear workflows with function-based `next` don't need cycle guards — the cons
 ```typescript
 .step('retry-step', {
   output: RetrySchema,
-  next: ({ output }) => output.ok ? 'done' : 'self',
+  next: ({ stepOutput }) => stepOutput.ok ? 'done' : 'self',
   maxVisits: 5,
   onMaxVisits: 'fallback',  // required safety valve
 })
@@ -177,35 +176,35 @@ Linear workflows with function-based `next` don't need cycle guards — the cons
 
 ## Stash merging
 
-The stash is a cross-step scratchpad typed by the skill's `stash` schema. Updates are **shallow-merged** — each `stash` callback returns a partial object that overwrites top-level keys.
+The stash is a cross-step scratchpad typed by the skill's `stash` schema. Updates are **shallow-merged** — each `updateStash` callback returns a partial object that overwrites top-level keys.
 
 ```typescript
 // Step 1 sets name
-stash: ({ output }) => ({ name: output.name }),
+updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
 // Stash is now { name: 'Alice' }
 
 // Step 2 sets role — name is preserved
-stash: ({ output }) => ({ role: output.role }),
+updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
 // Stash is now { name: 'Alice', role: 'dev' }
 ```
 
-The stash exposed in prompt functions is a **frozen** (read-only) snapshot. Mutations are only possible through `stash` and `action.stash` callbacks — never inside prompts.
+The stash exposed in prompt functions is a **frozen** (read-only) snapshot. Mutations are only possible through `updateStash` and `action.updateStash` callbacks — never inside prompts.
 
 ## `.extend(name, base, overrides)`
 
-Wires a shared step into the skill with typed overrides. The base step provides defaults; overrides replace specific fields. Context and stash types from the builder flow into the override callbacks.
+Wires a shared step into the skill with typed overrides. The base step provides defaults; overrides replace specific fields. Params and stash types from the builder flow into the override callbacks.
 
 ```typescript
 import { step, z } from '@contentful/skill-kit';
 
-// Shared step — no context/stash types
+// Shared step — no params/stash types
 const openQuestion = step({
   output: z.object({ answer: z.string() }),
   next: '__parent__',
 });
 
-// In a skill — .extend() applies typed context/stash:
-skill({ context: ContextSchema, stash: StashSchema, entry: 'ask', ... })
+// In a skill — .extend() applies typed params/stash:
+skill({ params: ParamsSchema, stash: StashSchema, entry: 'ask', ... })
   .extend('ask', openQuestion, {
     prompt: ({ stash }) => `${stash.name}, tell me about yourself.`,  // typed
     next: 'done',  // overrides __parent__
@@ -266,7 +265,7 @@ const result = await runSkill(mySkill.build(), {
 
 ## Standalone `step()` function
 
-For shared, reusable steps defined outside a skill. These steps have no typed context or stash — they default to `unknown`. Use `__parent__` as the next transition, then override it with `.extend()`.
+For shared, reusable steps defined outside a skill. These steps have no typed params or stash — they default to `unknown`. Use `__parent__` as the next transition, then override it with `.extend()`.
 
 ```typescript
 import { step, z } from '@contentful/skill-kit';
@@ -315,7 +314,7 @@ export default skill({
   description: 'Validates deployment readiness across environments.',
   entry: 'choose-env',
 
-  context: z.object({
+  params: z.object({
     defaultEnv: z.string().default('staging'),
   }),
 
@@ -341,7 +340,7 @@ export default skill({
       ],
     }),
     output: z.object({ env: z.enum(['staging', 'production', 'local']) }),
-    stash: ({ output }) => ({ env: output.env }),
+    updateStash: ({ stepOutput }) => ({ env: stepOutput.env }),
     next: 'plan-checks',
   })
 
@@ -357,7 +356,7 @@ export default skill({
       ],
     }),
     output: z.object({ approved: z.boolean() }),
-    next: ({ output }) => (output.approved ? 'run-checks' : 'force-report'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'run-checks' : 'force-report'),
   })
 
   // Step 3: Run the checks
@@ -374,15 +373,15 @@ export default skill({
       Return each check with its pass/fail status and detail.
     `,
     output: z.object({ checks: z.array(CheckResult) }),
-    stash: ({ output }) => ({
-      failCount: output.checks.filter((c) => !c.passed).length,
+    updateStash: ({ stepOutput }) => ({
+      failCount: stepOutput.checks.filter((c) => !c.passed).length,
     }),
-    next: ({ output }) => (output.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
+    next: ({ stepOutput }) => (stepOutput.checks.every((c) => c.passed) ? 'approve' : 'remediate'),
   })
 
   // Step 4a: Remediation (if checks failed) — uses act.checklist to track fixes
   .step('remediate', {
-    prompt: ({ prev, stash, act }) => [
+    prompt: ({ getStep, stash, act }) => [
       act.checklist({
         create: [
           { title: 'Fix failing deployment checks', status: 'in_progress' },
@@ -393,17 +392,17 @@ export default skill({
         ${strictTone}
 
         ${stash.failCount} check(s) failed for **${stash.env}**.
-        Failed checks: ${JSON.stringify(prev, null, 2)}
+        Failed checks: ${JSON.stringify(getStep('run-checks')?.stepOutput, null, 2)}
 
         For each failure, propose a concrete fix. Then re-run the checks.
       `,
     ],
     output: z.object({ checks: z.array(CheckResult) }),
-    stash: ({ output }) => ({
-      failCount: output.checks.filter((c) => !c.passed).length,
+    updateStash: ({ stepOutput }) => ({
+      failCount: stepOutput.checks.filter((c) => !c.passed).length,
     }),
-    next: ({ output, attempts }) => {
-      if (output.checks.every((c) => c.passed)) return 'approve';
+    next: ({ stepOutput, attempts }) => {
+      if (stepOutput.checks.every((c) => c.passed)) return 'approve';
       if (attempts >= 2) return 'force-report';
       return 'self';
     },
@@ -419,7 +418,7 @@ export default skill({
       defaultAnswer: 'yes',
     }),
     output: z.object({ approved: z.boolean() }),
-    next: ({ output }) => (output.approved ? 'report' : 'run-checks'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'report' : 'run-checks'),
   })
 
   // Step 5a: Final report (happy path)
@@ -427,7 +426,7 @@ export default skill({
     prompt: ({ history, stash }) => {
       const lastChecks = history.filter((s) => s.step === 'run-checks' || s.step === 'remediate').pop();
       const checks =
-        (lastChecks?.output as { checks: Array<{ name: string; passed: boolean; detail: string }> })?.checks ?? [];
+        (lastChecks?.stepOutput as { checks: Array<{ name: string; passed: boolean; detail: string }> })?.checks ?? [];
       const table = render.table(checks, { columns: ['name', 'passed', 'detail'] });
       const report = render.section(`Deployment Report: ${stash.env}`, table);
       return `Output the following deployment report exactly as shown:\n\n${report}`;
@@ -459,7 +458,7 @@ import skill from './skill.js';
 
 test('happy path: all checks pass', async () => {
   const result = await runSkill(skill, {
-    context: { defaultEnv: 'staging' },
+    params: { defaultEnv: 'staging' },
     model: mockModel({
       'choose-env': { env: 'staging' },
       'plan-checks': { approved: true },

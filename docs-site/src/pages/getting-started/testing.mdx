@@ -18,18 +18,18 @@ const result = await runSkill(mySkill, {
   model: mockModel({
     /* step responses */
   }),
-  context: { repoPath: '.' }, // optional — parsed against the skill's context schema
+  params: { repoPath: '.' }, // optional — parsed against the skill's params schema
   host: { host: 'claude-code' }, // optional — defaults to generic
 });
 ```
 
 ### Options
 
-| Option    | Type           | Required | Description                                                      |
-| --------- | -------------- | -------- | ---------------------------------------------------------------- |
-| `model`   | `ModelAdapter` | yes      | Provides responses for each step (use `mockModel`)               |
-| `context` | `object`       | no       | Skill-wide context, validated against the skill's context schema |
-| `host`    | `Handshake`    | no       | Host identity and available tools. Defaults to generic host      |
+| Option   | Type           | Required | Description                                                    |
+| -------- | -------------- | -------- | -------------------------------------------------------------- |
+| `model`  | `ModelAdapter` | yes      | Provides responses for each step (use `mockModel`)             |
+| `params` | `object`       | no       | Skill-wide params, validated against the skill's params schema |
+| `host`   | `Handshake`    | no       | Host identity and available tools. Defaults to generic host    |
 
 ### Return value
 
@@ -173,7 +173,7 @@ To test a sub-skill in isolation, bypassing the dispatcher:
 ```typescript
 const result = await runComposite(skill, {
   directSubskill: 'doctor',
-  context: { spaceId: 'test-space' },
+  params: { spaceId: 'test-space' },
   model: mockModel({
     'doctor/diagnose': { issues: [], healthy: true },
     'doctor/report-clean': { summary: 'All good!' },
