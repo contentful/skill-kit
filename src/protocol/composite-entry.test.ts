@@ -329,6 +329,31 @@ test('composite session: subskill action stash survives across advances', async 
   );
 });
 
+test('composite session: direct subskill advance with qualified step name from session', async () => {
+  const dir = createTempDir();
+
+  // Direct subskill start — prompts for doctor/diagnose
+  const { stdout: startOut } = await run('doctor', '--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(startOut.trim());
+
+  // Host writes output with the QUALIFIED step name (as seen in the prompt output)
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: '/src' } }) + '\n',
+  );
+
+  // Advance — should handle the qualified step name without double-prefixing
+  const { stdout: advOut } = await run('doctor', 'advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line = parseInt(advOut.trim(), 10);
+
+  const lines = readSessionLines(pointer.file);
+  const resultLine = lines[line - 1]!;
+  assert.equal(resultLine.type, 'prompt');
+  assert.equal(resultLine.step, 'doctor/triage');
+  assert.ok(resultLine.completed);
+  assert.equal((resultLine.completed as { step: string }).step, 'doctor/diagnose');
+});
+
 test('composite session: direct subskill start (file mode)', async () => {
   const dir = createTempDir();
   const { stdout } = await run('doctor', '--context', '{}', '--session', 'new', '--session-dir', dir);
