@@ -68,7 +68,7 @@ test('choose faq routes through ask-topic to topic content', async () => {
   assert.deepEqual(result.path, ['choose', 'ask-topic']);
   assert.equal(result.redirectedTo?.kind, 'topic');
   assert.equal(result.redirectedTo?.name, 'rate-limits');
-  assert.ok((result.stepOutput as { content: string }).content.includes('78 requests/second'));
+  assert.ok((result.output as { content: string }).content.includes('78 requests/second'));
 });
 
 test('faq with locales topic loads correct content', async () => {
@@ -81,7 +81,7 @@ test('faq with locales topic loads correct content', async () => {
   });
 
   assert.equal(result.redirectedTo?.name, 'locales');
-  assert.ok((result.stepOutput as { content: string }).content.includes('Fallback chain'));
+  assert.ok((result.output as { content: string }).content.includes('Fallback chain'));
 });
 
 test('direct sub-skill access bypasses dispatcher', async () => {
