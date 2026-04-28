@@ -9,7 +9,7 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, system?, context?, stash?, observers?, finalOutput?, skillMd? })
+skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -27,14 +27,14 @@ skill({ name, entry, system?, context?, stash?, observers?, finalOutput?, skillM
 | `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`                             |
 | `description`    | `string`                                       | no       | Used in generated SKILL.md                                                                                          |
 | `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                                                          |
-| `context`        | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide context                                                                         |
+| `params`         | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide params                                                                          |
 | `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                                             |
 | `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                                               |
 | `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                                                       |
 | `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                                                   |
 | `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                 |
 
-Context and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
+Params and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
 ### `.step(name, config)`
 
@@ -78,15 +78,15 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 ```typescript
 {
-  prompt?: string | PromptPiece | PromptPiece[] | PromptFn,  // accepts single segments too
-  output: z.ZodType,                                         // required
-  next: string | TransitionFn | { terminal: true },          // required
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn,       // optional — omit for auto-advance steps
+  output?: z.ZodType,                                             // optional — omit for pass-through steps
+  next: string | TransitionFn | { terminal: true },               // required
   action?: {
     run: ActionDefinition,
-    input?: (ctx: { output; stash }) => unknown,              // was actionInput
-    stash?: (ctx: { result }) => Partial<TStash>,             // was part of afterAction
+    input?: (ctx: { stepOutput; stash; params }) => unknown,
+    updateStash?: (ctx: { actionOutput; stash; params }) => Partial<TStash>,
   },
-  stash?: (ctx: { output; action? }) => Partial<TStash>,     // now gets action result too
+  updateStash?: (ctx: { stepOutput; actionOutput?; stash; params }) => Partial<TStash>,
   maxVisits?: number,
   onMaxVisits?: string,
 }
@@ -109,23 +109,22 @@ The `prompt` field accepts `PromptPiece` directly (including `ActSegment`), so s
 
 Available in dynamic `prompt` functions:
 
-| Field      | Type                                                    | Description                                                                |
-| ---------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `prev`     | `unknown`                                               | Output of the previous step                                                |
-| `history`  | `readonly StepResult[]`                                 | All prior step results                                                     |
-| `getStep`  | `<T, A>(name) => { output: T; action: A } \| undefined` | Typed accessor for a prior step's result                                   |
-| `context`  | `TContext`                                              | Immutable skill context (typed from builder)                               |
-| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                                             |
-| `attempts` | `number`                                                | How many times this step has been visited                                  |
-| `host`     | `Handshake`                                             | Current host info and available tools                                      |
-| `stash`    | `Readonly<TStash>`                                      | Accumulated stash (typed from builder, frozen)                             |
-| `act`      | `ActContext`                                            | Primitive directive builders: `askUser`, `confirm`, `plan`, `survey`, etc. |
-| `system`   | `SystemTag`                                             | System segment tag/function for persona/frame                              |
+| Field      | Type                                                              | Description                                                                           |
+| ---------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `history`  | `readonly StepResult[]`                                           | All prior step results                                                                |
+| `getStep`  | `<T, A>(name) => { stepOutput: T; actionOutput: A } \| undefined` | Typed accessor for a prior step's result (infers output types from the builder chain) |
+| `params`   | `TParams`                                                         | Immutable skill params (typed from builder)                                           |
+| `refs`     | `ReferenceLoader`                                                 | Loader for `references/` files                                                        |
+| `attempts` | `number`                                                          | How many times this step has been visited                                             |
+| `host`     | `Handshake`                                                       | Current host info and available tools                                                 |
+| `stash`    | `Readonly<TStash>`                                                | Accumulated stash (typed from builder, frozen)                                        |
+| `act`      | `ActContext`                                                      | Primitive directive builders: `askUser`, `confirm`, `plan`, `survey`, etc.            |
+| `system`   | `SystemTag`                                                       | System segment tag/function for persona/frame                                         |
 
 ### Transitions
 
 - **Static:** `next: 'step-name'` — always goes to the named step.
-- **Dynamic:** `next: ({ output, action, attempts }) => 'step-name'` — choose based on output, action result, or visit count.
+- **Dynamic:** `next: ({ stepOutput, actionOutput, attempts, params, stash }) => 'step-name'` — choose based on output, action result, or visit count.
 - **Terminal:** `next: terminal` — ends the skill. Output becomes `finalOutput`. The `terminal` constant is exported from `@contentful/skill-kit` and is equivalent to `{ terminal: true }`.
 - **Self:** `next: 'self'` or returning the current step name — revisit the same step (requires `maxVisits`).
 
@@ -138,7 +137,7 @@ Steps in detected cycles have an implicit visit limit (10) enforced at runtime. 
   // ...
   maxVisits: 3,
   onMaxVisits: 'confirm-profile',  // fallback when limit hit
-  next: ({ output }) => output.wantsMore ? 'ask-hobby' : 'confirm-profile',
+  next: ({ stepOutput }) => stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile',
 })
 ```
 
@@ -146,16 +145,37 @@ The cycle guard validator detects potential cycles and reports them as lint warn
 
 ### Stash merging
 
-The `stash` callback receives the validated output (and optionally the action result) and returns a partial stash object. The return value is shallow-merged into the accumulated stash:
+The `updateStash` callback receives the validated output (and optionally the action result) and returns a partial stash object. The return value is shallow-merged into the accumulated stash:
 
 ```typescript
-stash: ({ output }) => ({ target: output.target }),
+updateStash: ({ stepOutput }) => ({ target: stepOutput.target }),
 
 // With action result:
-stash: ({ output, action }) => ({ target: output.target, savedPath: action?.path }),
+updateStash: ({ stepOutput, actionOutput }) => ({ target: stepOutput.target, savedPath: actionOutput?.path }),
 ```
 
 All outputs and stash values are frozen with `Object.freeze()` to prevent mutation.
+
+### Prompt-less and output-less steps
+
+**Prompt-less steps** omit the `prompt` field entirely. The engine skips model invocation and immediately advances to `next`. Use these for routing or orchestration steps that branch based on stash or params without needing a model turn:
+
+```typescript
+.step('route', {
+  next: ({ stash }) => stash.intent === 'help' ? 'help-flow' : 'main-flow',
+})
+```
+
+**Output-less steps** omit the `output` schema. The step still renders a prompt and invokes the model, but the model's response is not validated or recorded. Use these for fire-and-forget instructions where the step's value is in the model's side effects (e.g., delivering a message to the user) rather than in a structured response:
+
+```typescript
+.step('deliver', {
+  prompt: ({ stash }) => `Tell the user: ${stash.summary}`,
+  next: terminal,
+})
+```
+
+Both patterns can be combined: a step with neither `prompt` nor `output` is a pure routing node.
 
 ---
 
@@ -255,7 +275,7 @@ const authModule = module({
   .step('auth-login', {
     prompt: 'Ask for credentials.',
     output: z.object({ userId: z.string() }),
-    stash: ({ output }) => ({ userId: output.userId }),
+    updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
     next: '__parent__', // exits back to the registering skill
   })
   .build();
@@ -301,17 +321,17 @@ import doctorSkill from './subskills/doctor.js';
 skill({ name: 'helper', entry: 'classify', ... })
   .step('classify', {
     output: z.object({ intent: z.string() }),
-    next: ({ output }) => `subskill:${output.intent}`,
+    next: ({ stepOutput }) => `subskill:${stepOutput.intent}`,
   })
   .subskill('doctor', doctorSkill, {
-    context: (_output, stash) => ({ spaceId: stash.spaceId }),
+    params: (_stepOutput, stash) => ({ spaceId: stash.spaceId }),
   })
   .build();
 ```
 
-| Option    | Type                             | Required | Description                                |
-| --------- | -------------------------------- | -------- | ------------------------------------------ |
-| `context` | `(stepOutput, stash) => unknown` | no       | Maps dispatcher state to sub-skill context |
+| Option   | Type                             | Required | Description                               |
+| -------- | -------------------------------- | -------- | ----------------------------------------- |
+| `params` | `(stepOutput, stash) => unknown` | no       | Maps dispatcher state to sub-skill params |
 
 ### `.topic(name, config)`
 
@@ -356,17 +376,17 @@ The composite entry point handles this — the host never sees `RedirectResult` 
 Session mode (recommended):
 
 ```bash
-scripts/run --context '{...}' --session new           # dispatcher start → SessionPointer
+scripts/run --params '{...}' --session new           # dispatcher start → SessionPointer
 scripts/run advance --session <id>                     # advance (agent wrote output to file)
-scripts/run doctor --context '{...}' --session new     # direct sub-skill start
+scripts/run doctor --params '{...}' --session new     # direct sub-skill start
 ```
 
 Stateless mode (fallback):
 
 ```bash
-scripts/run --context '{...}'                          # dispatcher start
+scripts/run --params '{...}'                          # dispatcher start
 scripts/run advance --step doctor/diagnose --output .. # sub-skill advance
-scripts/run doctor --context '{...}'                   # direct sub-skill start
+scripts/run doctor --params '{...}'                   # direct sub-skill start
 scripts/run topics                                     # list topics
 scripts/run topic rate-limits                          # load a topic
 ```
@@ -393,7 +413,7 @@ See [Architecture — Session mode](./architecture.md#session-mode-recommended) 
 import { runComposite, mockModel } from '@contentful/skill-kit/test';
 
 const result = await runComposite(skill, {
-  context: { query: 'help' },
+  params: { query: 'help' },
   refs, // optional ReferenceLoader for topic content
   model: mockModel({
     choose: { choice: 'doctor' },
@@ -409,7 +429,7 @@ assert.equal(result.redirectedTo?.name, 'doctor');
 | Option           | Type              | Required | Description                                           |
 | ---------------- | ----------------- | -------- | ----------------------------------------------------- |
 | `model`          | `ModelAdapter`    | yes      | Provides responses for dispatcher and sub-skill steps |
-| `context`        | `object`          | no       | Dispatcher context                                    |
+| `params`         | `object`          | no       | Dispatcher params                                     |
 | `refs`           | `ReferenceLoader` | no       | For topic content resolution (defaults to no-op)      |
 | `host`           | `Handshake`       | no       | Host identity. Defaults to generic                    |
 | `directSubskill` | `string`          | no       | Skip dispatcher, start a sub-skill directly           |
@@ -672,7 +692,7 @@ const openQuestion = step({
 });
 ```
 
-Both `output` and `next` are required. Use via `.extend()` on the builder to get typed overrides that respect the parent skill's context/stash types.
+Both `output` and `next` are required. Use via `.extend()` on the builder to get typed overrides that respect the parent skill's params/stash types.
 
 ---
 
@@ -752,17 +772,19 @@ Attach to a step via the `action` field:
   output: z.object({ reasoning: z.string(), profile: ProfileSchema }),
   action: {
     run: writeProfile,
-    input: ({ output }) => ({ profile: output.profile }),
-    stash: ({ result }) => ({ savedPath: result.path }),
+    input: ({ stepOutput }) => ({ profile: stepOutput.profile }),
+    updateStash: ({ actionOutput }) => ({ savedPath: actionOutput.path }),
   },
-  next: ({ action }) => action.path ? 'confirm' : 'retry',
+  next: ({ actionOutput }) => actionOutput.path ? 'confirm' : 'retry',
 })
 ```
 
 - `action.input` transforms step output into action input (runs before action)
-- `action.stash` stashes action results (runs after action, receives `{ result }`)
-- The top-level `stash` callback receives `{ output, action? }` — the action result is available alongside the step output
+- `action.updateStash` stashes action results (runs after action, receives `{ actionOutput }`)
+- The top-level `updateStash` callback receives `{ stepOutput, actionOutput? }` — the action result is available alongside the step output
 - `next` receives action output for conditional routing
+
+Step lifecycle with action: `prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next`
 
 ### `action()` config (ActionDefinition)
 
@@ -775,11 +797,11 @@ Attach to a step via the `action` field:
 
 ### Step `action` field config
 
-| Field   | Type                                   | Required | Description                                                    |
-| ------- | -------------------------------------- | -------- | -------------------------------------------------------------- |
-| `run`   | `ActionDefinition`                     | yes      | The action to execute                                          |
-| `input` | `(ctx: { output; stash }) => unknown`  | no       | Transform step output into action input (default: pass output) |
-| `stash` | `(ctx: { result }) => Partial<TStash>` | no       | Stash action results after execution                           |
+| Field         | Type                                                        | Required | Description                                                    |
+| ------------- | ----------------------------------------------------------- | -------- | -------------------------------------------------------------- |
+| `run`         | `ActionDefinition`                                          | yes      | The action to execute                                          |
+| `input`       | `(ctx: { stepOutput; stash; params }) => unknown`           | no       | Transform step output into action input (default: pass output) |
+| `updateStash` | `(ctx: { actionOutput; stash; params }) => Partial<TStash>` | no       | Stash action results after execution                           |
 
 The `run` function on the `ActionDefinition` receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated output is parsed as action input; use `action.input` to customize. Action results are recorded in history alongside step outputs and available via `getStep()` or the `next` transition function.
 
@@ -812,7 +834,7 @@ Named views help the model reference specific rendered blocks when a prompt cont
 ```typescript
 .step('report', {
   prompt: ({ history }) => {
-    const checks = history.find(s => s.step === 'diagnose')!.output.checks;
+    const checks = history.find(s => s.step === 'diagnose')!.stepOutput.checks;
     return [
       view('report', render.table(checks, { columns: ['name', 'status', 'detail'] })),
       `Output the report above to the user exactly as shown.`,
@@ -915,7 +937,7 @@ Lifecycle hooks for telemetry, logging, or analytics:
 skill({
   // ...
   observers: {
-    onStepStart: ({ step, context }) => {
+    onStepStart: ({ step, params }) => {
       console.error(`→ entering "${step}"`);
     },
     onStepComplete: ({ step, output, durationMs }) => {
@@ -950,7 +972,7 @@ Drives a skill to completion with a model adapter:
 
 ```typescript
 const result = await runSkill(mySkill, {
-  context: { repoPath: '.' }, // optional — parsed against skill's context schema
+  params: { repoPath: '.' }, // optional — parsed against skill's params schema
   model: mockModel({
     /* ... */
   }),
@@ -1011,10 +1033,10 @@ skill-kit build <entry.ts> -o <dir> --single                # current platform o
 
 | Flag            | Required     | Description                                                                                                                                                                                                                            |
 | --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                                                                               |
+| `--params`      | On `start`   | JSON string validated against the skill's params schema                                                                                                                                                                                |
 | `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                                                                             |
 | `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                                                                           |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                                                                                 |
+| `--history`     | On `advance` | JSON array of `{ step, stepOutput, actionOutput? }`. Not needed with `--session`                                                                                                                                                       |
 | `--host`        | Optional     | Host identifier for tool resolution: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. Defaults to `generic`                                                                        |
 | `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`. Only needed on `start` — session mode stores tools in the header |
 | `--subagent`    | Optional     | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge)                                                                                                                    |
@@ -1049,7 +1071,7 @@ Output (node mode):
 Dev mode — run a skill without compiling:
 
 ```bash
-skill-kit run <entry.ts> start --context '{}' --host claude-code
+skill-kit run <entry.ts> start --params '{}' --host claude-code
 skill-kit run <entry.ts> advance --step greet --output '{"name":"Alice"}' --history '[]' --host claude-code
 ```
 
@@ -1113,7 +1135,7 @@ for (const d of diagnostics) {
 
 ## Worked Example: deploy-check
 
-A complete skill showing context, stash, `askUser`, branching, and terminal steps:
+A complete skill showing params, stash, `askUser`, branching, and terminal steps:
 
 ```typescript
 import { skill, z, act, terminal } from '@contentful/skill-kit';
@@ -1121,7 +1143,7 @@ import { skill, z, act, terminal } from '@contentful/skill-kit';
 export default skill({
   name: 'deploy-check',
   entry: 'choose',
-  context: z.object({ env: z.string().default('staging') }),
+  params: z.object({ env: z.string().default('staging') }),
   stash: z.object({ target: z.string() }),
 })
   .step('choose', {
@@ -1134,13 +1156,13 @@ export default skill({
       ],
     }),
     output: z.object({ target: z.enum(['production', 'staging']) }),
-    stash: ({ output }) => ({ target: output.target }),
+    updateStash: ({ stepOutput }) => ({ target: stepOutput.target }),
     next: 'verify',
   })
   .step('verify', {
     prompt: ({ stash }) => `Run pre-deploy checks for ${stash.target}. Report any blockers.`,
     output: z.object({ blockers: z.array(z.string()), safe: z.boolean() }),
-    next: ({ output }) => (output.safe ? 'deploy' : 'abort'),
+    next: ({ stepOutput }) => (stepOutput.safe ? 'deploy' : 'abort'),
   })
   .step('deploy', {
     prompt: 'Execute the deployment.',
@@ -1181,4 +1203,4 @@ const result = await runSkill(deploy, {
 // result.output → { url: 'https://staging.example.com' }
 ```
 
-Context and stash types flow end-to-end — `stash.target` in the `verify` prompt is typed as `string`, and the `choose` step's stash callback is checked against the declared stash schema. No type annotations needed anywhere.
+Params and stash types flow end-to-end — `stash.target` in the `verify` prompt is typed as `string`, and the `choose` step's stash callback is checked against the declared stash schema. No type annotations needed anywhere.

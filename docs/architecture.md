@@ -15,7 +15,7 @@ Session mode moves protocol data to a JSONL temp file, reducing noise in the age
 **1. Start** — Agent creates a session:
 
 ```bash
-scripts/run --context '{"repoPath":"."}' --host claude-code --session new
+scripts/run --params '{"repoPath":"."}' --host claude-code --session new
 ```
 
 Returns a minimal `SessionPointer` to stdout:
@@ -51,7 +51,7 @@ In stateless mode, the agent passes the full conversation history on every invoc
 **1. Start** — Agent calls `scripts/run` (defaults to `start`):
 
 ```bash
-scripts/run --context '{"repoPath":"."}' --host claude-code
+scripts/run --params '{"repoPath":"."}' --host claude-code
 ```
 
 Returns a `PromptResult`:
@@ -95,10 +95,10 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 | Flag            | Required     | Description                                                                                                                                                                                                                            |
 | --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                                                                               |
+| `--params`      | On `start`   | JSON string validated against the skill's params schema                                                                                                                                                                                |
 | `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                                                                             |
 | `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                                                                           |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                                                                                 |
+| `--history`     | On `advance` | JSON array of `{ step, stepOutput, actionOutput? }`. Not needed with `--session`                                                                                                                                                       |
 | `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`, `generic`                                                                                                        |
 | `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). Only needed on `start` — session mode stores tools in the session header. E.g., `AskUserQuestion,EnterPlanMode,TaskCreate,Agent` |
 | `--subagent`    | Optional     | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge)                                                                                                                    |
@@ -360,30 +360,33 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 
 ### Lifecycle
 
-**Constructor** — Takes a `SkillDefinition`, `Handshake`, context, and optional `ReferenceLoader`. Initializes the stash store and history.
+**Constructor** — Takes a `SkillDefinition`, `Handshake`, params, and optional `ReferenceLoader`. Initializes the stash store and history.
 
-**`start()`** — Validates the skill structure (parent sentinels resolved, cycle guards present). Generates the preamble. Fires `onStepStart`. Returns the first step's `PromptResult`.
+**`start()`** — Validates the skill structure (parent sentinels resolved, cycle guards present). Generates the preamble. Fires `onStepStart`. Returns the first step's `PromptResult`. If the entry step has no prompt, it auto-advances through the step lifecycle without agent interaction (useful for computation-only routing steps).
 
 **`advance(stepName, rawOutput)`** — The main loop:
 
-1. **Validate** output against step's Zod schema via `safeParse()`.
+1. **Validate** output against step's Zod schema via `safeParse()`. Steps without an `output` schema skip validation.
 2. If invalid: fire `onStepValidationFailed`, return `ValidationErrorResult` with `retry: true`.
 3. **Map action input** via `action.input` (if configured), or use validated output directly.
 4. **Execute action** (if configured). Action receives typed input and AbortSignal. Result recorded in history.
-5. **Merge action stash** via `action.stash` (if configured, receives `{ result }`). Shallow merge into accumulator.
-6. **Merge step stash** via the step's `stash()` callback (if present, receives `{ output, action? }`). Shallow merge into accumulator.
+5. **Merge action stash** via `action.updateStash` (if configured, receives `{ actionOutput }`). Shallow merge into accumulator.
+6. **Merge step stash** via the step's `updateStash()` callback (if present, receives `{ stepOutput, actionOutput? }`). Shallow merge into accumulator.
 7. **Freeze** the output object.
 8. **Append** to history.
 9. Fire `onStepComplete`.
 10. **Resolve next step:**
     - `{ terminal: true }` / `terminal` → fire `onSkillComplete`, return `DoneResult`.
-    - Function → call with `{ output, attempts }`, get step name.
+    - Function → call with `{ stepOutput, actionOutput, attempts }`, get step name.
     - `'self'` → rewrite to current step name.
     - Apply `maxVisits` / `onMaxVisits` throttle.
 11. Fire `onTransition`.
-12. Return next step's `PromptResult`.
+12. If the next step has no prompt, auto-advance through it immediately (no agent round-trip needed).
+13. Return next step's `PromptResult`.
 
-The full lifecycle for a step with an action: prompt → model → validate(output) → action.input → action.run → action.stash → stash → next.
+The full lifecycle for a step with an action: prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next.
+
+**Auto-advance for prompt-less steps:** When a step omits `prompt`, the engine skips agent interaction and immediately processes the step. This is useful for computation-only steps that route based on stash or params without requiring a model round-trip. The step's `updateStash`, action, and `next` callbacks still execute normally. Multiple prompt-less steps can chain — the engine advances through them until it reaches a step with a prompt or a terminal transition.
 
 ### History replay
 
@@ -391,7 +394,7 @@ The full lifecycle for a step with an action: prompt → model → validate(outp
 
 ### StashStore
 
-Merge-only accumulator. Each `stash()` callback returns a partial stash object that's shallow-merged (`Object.assign`) into the current state. Values are frozen after merge. No deletions, no deep merges.
+Merge-only accumulator. Each `updateStash()` callback returns a partial stash object that's shallow-merged (`Object.assign`) into the current state. Values are frozen after merge. No deletions, no deep merges.
 
 ### Observer dispatch
 
@@ -401,12 +404,12 @@ Observers fire sequentially and are awaited (they can be async), but failures ar
 
 When a composite skill's step returns a `next` target that doesn't exist in the local step map (e.g., `'subskill:doctor'`), the engine returns a `RedirectResult` instead of throwing. The composite entry point (`compositeMain`) intercepts this:
 
-1. **`subskill:X`** — looks up the sub-skill registration, calls `contextMap(output, stash)` to produce context, creates a new `WorkflowEngine` for the sub-skill, and returns its first `PromptResult` with the step name prefixed (`doctor/diagnose`).
+1. **`subskill:X`** — looks up the sub-skill registration, calls `paramsMap(stepOutput, stash)` to produce params, creates a new `WorkflowEngine` for the sub-skill, and returns its first `PromptResult` with the step name prefixed (`doctor/diagnose`).
 2. **`topic:X`** — loads the topic content via `ReferenceLoader` and returns a `DoneResult`.
 
 On subsequent `advance` calls, the composite entry checks whether the step name contains `/`. If it does, it routes to the corresponding sub-skill engine (with history filtered and unprefixed). The engines themselves are unaware of the composite layer — each operates on its own `SkillDefinition` with unprefixed step names.
 
-Direct sub-skill access (`scripts/run doctor --context '{}'`) bypasses the dispatcher entirely and creates the sub-skill engine directly.
+Direct sub-skill access (`scripts/run doctor --params '{}'`) bypasses the dispatcher entirely and creates the sub-skill engine directly.
 
 ---
 

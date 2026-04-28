@@ -11,7 +11,6 @@
 
 **Out:**
 
-- Documentation updates across the 5 doc locations (SPEC.md, docs/api.md, docs/architecture.md, docs-site, README) — separate task after API stabilizes
 - Changes to `action.run` signature — stays `{ input, signal }`, intentionally portable/context-free
 
 ## Context
@@ -234,8 +233,24 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 
 - [x] `src/runtime/stash.ts` — schema validation on merge (warn mode)
 - [x] `src/terminal.ts` — `Terminal` type export
-- [ ] `src/skill-builder.ts` — build-time action input schema check (deferred — requires Zod schema comparison which Zod 4 doesn't expose cleanly)
+- [x] `src/skill-builder.ts` — build-time action input schema check via JSON Schema property comparison
 - [x] `src/types.ts` — `Readonly<>` on `params` and `stash` in all callback signatures (not on `stepOutput`/`actionOutput` — creates noise with `unknown` erasure in engine internals)
+
+### Phase 4 — Typed getStep (added after user feedback)
+
+- [x] `src/types.ts` — `TSteps` generic on `PromptContext`, `PromptFn`, `StepConfig`, `StepDefinition`
+- [x] `src/skill-builder.ts` — `TSteps` accumulates via intersection on each `.step()` call
+- [x] `src/step.ts` — thread `TSteps` generic
+- [x] Tests — getStep without manual generics, overloaded signature for untyped fallback
+
+### Phase 5 — Documentation
+
+- [ ] `SPEC.md` — all renames, new features (prompt-less, output-less, typed getStep)
+- [ ] `docs/api.md` — all renames, remove legacy comments, new features
+- [ ] `docs/architecture.md` — lifecycle diagram, auto-advance, composite routing
+- [ ] `README.md` — hero example, API table, brief new features
+- [ ] `docs-site/src/components/Hero.astro` — fix broken landing page example
+- [ ] `docs-site/src/pages/` — all MDX pages mirroring docs/ changes
 
 ## Notes
 
