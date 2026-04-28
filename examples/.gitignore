@@ -1,0 +1,5 @@
+# Build artifacts from skill-kit build
+*/bin/
+*/scripts/
+*/package.json
+*/SKILL.md
