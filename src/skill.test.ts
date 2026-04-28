@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from './skill.js';
+import { action } from './action.js';
 
 test('skill().build() creates a frozen SkillDefinition', () => {
   const s = skill({
@@ -251,4 +252,69 @@ test('skill without subskills or topics omits those fields', () => {
 
   assert.equal(s.subskills, undefined);
   assert.equal(s.topics, undefined);
+});
+
+test('step with incompatible action input schema throws at build time', () => {
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string(), content: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => ({ ok: true }),
+  });
+
+  assert.throws(
+    () =>
+      skill({ name: 'compat-check', entry: 'draft' })
+        .step('draft', {
+          prompt: 'Draft',
+          output: z.object({ title: z.string(), body: z.string() }),
+          action: { run: writeAction },
+          next: { terminal: true },
+        })
+        .build(),
+    /missing properties.*path.*content/,
+  );
+});
+
+test('step with compatible action input schema does not throw', () => {
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => ({ ok: true }),
+  });
+
+  assert.doesNotThrow(() =>
+    skill({ name: 'compat-ok', entry: 'a' })
+      .step('a', {
+        prompt: 'Go',
+        output: z.object({ path: z.string(), extra: z.number() }),
+        action: { run: writeAction },
+        next: { terminal: true },
+      })
+      .build(),
+  );
+});
+
+test('step with action.input mapper skips compat check', () => {
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => ({ ok: true }),
+  });
+
+  assert.doesNotThrow(() =>
+    skill({ name: 'mapper-skip', entry: 'a' })
+      .step('a', {
+        prompt: 'Go',
+        output: z.object({ title: z.string() }),
+        action: {
+          run: writeAction,
+          input: ({ stepOutput }) => ({ path: stepOutput.title }),
+        },
+        next: { terminal: true },
+      })
+      .build(),
+  );
 });

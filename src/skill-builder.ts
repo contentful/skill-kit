@@ -12,6 +12,27 @@ import type {
 } from './types.js';
 import { step as createStep } from './step.js';
 
+function checkActionInputCompat(stepName: string, outputSchema: z.ZodType, actionDef: ActionDefinition): void {
+  try {
+    const stepJson = outputSchema.toJSONSchema() as Record<string, unknown>;
+    const actionJson = actionDef.input.toJSONSchema() as Record<string, unknown>;
+
+    const stepProps = Object.keys((stepJson['properties'] as Record<string, unknown>) ?? {});
+    const actionRequired = (actionJson['required'] as string[]) ?? [];
+
+    const missing = actionRequired.filter((k) => !stepProps.includes(k));
+    if (missing.length > 0) {
+      throw new Error(
+        `Step "${stepName}" uses action "${actionDef.name}" without an input mapper, ` +
+          `but the step output is missing properties required by the action input: [${missing.join(', ')}]. ` +
+          `Add an action.input mapper to transform the step output.`,
+      );
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Step "')) throw err;
+  }
+}
+
 export class SkillBuilder<TParams, TStash> {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
@@ -42,7 +63,11 @@ export class SkillBuilder<TParams, TStash> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
-      this.steps[name] = createStep(configOrDef as StepConfig);
+      const config = configOrDef as StepConfig;
+      if (config.action && !config.action.input && config.output) {
+        checkActionInputCompat(name, config.output, config.action.run);
+      }
+      this.steps[name] = createStep(config);
     }
     return this;
   }
