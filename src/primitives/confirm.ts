@@ -10,7 +10,7 @@ export interface ConfirmInput {
 export const confirmPrimitive = definePrimitive({
   tag: 'confirm',
 
-  tools: ['AskUserQuestion', 'ask_followup_question'] as const,
+  tools: ['AskUserQuestion', 'request_user_input', 'ask_followup_question'] as const,
 
   create(input: ConfirmInput): ConfirmConfig {
     return Object.freeze({

@@ -1349,7 +1349,7 @@ The resolved tool name (or `undefined` when no match is found) is passed to each
 
 **Claude Code.** `AskUserQuestion`, `EnterPlanMode`/`ExitPlanMode`, `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`, `Agent`, `Skill`, `TodoWrite`, standard file/shell/search tools (`Read`, `Edit`, `Write`, `Bash`, `Glob`, `Grep`), `WebFetch`/`WebSearch`, plus `SendMessage`, `Monitor`, `LSP`, `NotebookEdit`, `EnterWorktree`/`ExitWorktree`.
 
-**Codex CLI.** `shell`, `apply_patch`, `update_plan`, `web_search`, `view_image`, `exec_command`/`write_stdin`, `ToolRequestUserInput`, `CollabAgent`.
+**Codex CLI.** `shell` or `exec_command`/`write_stdin` (config-dependent shell backends), `apply_patch`, `update_plan`, `web_search` (Responses API built-in, config-dependent), `view_image`, `request_user_input` (available in Plan mode only), `spawn_agent`/`send_input`/`wait_agent`/`close_agent` (multi-agent).
 
 **OpenCode.** `bash`, `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `codesearch`, `lsp`, `webfetch`, `websearch`, `question`, `todo`, `task`, `plan`, `skill`.
 
@@ -1363,7 +1363,7 @@ The resolved tool name (or `undefined` when no match is found) is passed to each
 
 Patterns:
 
-- Structured user questions: Claude Code has `AskUserQuestion`, Codex has `ToolRequestUserInput`, Gemini CLI has `ask-user`, Cline/Roo/Kilo have `ask_followup_question`, OpenCode has `question`. Most divergent primitive.
+- Structured user questions: Claude Code has `AskUserQuestion`, Codex has `request_user_input` (Plan mode only), Gemini CLI has `ask-user`, Cline/Roo/Kilo have `ask_followup_question`, OpenCode has `question`. Most divergent primitive.
 - Planning/TODOs: All major hosts have something, but the semantics differ. Task tracking is convergent; plan-mode-before-execute varies by host.
 - File/shell/search: Essentially interchangeable from an XML perspective — the model picks the right tool from the tag context.
 

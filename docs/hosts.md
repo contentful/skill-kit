@@ -390,38 +390,45 @@ The open-source Amazon Q Developer CLI (`aws/amazon-q-developer-cli`) has been d
 
 ### Complete Tool List
 
-| Tool                   | Description                                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `shell`                | Execute shell commands (sandboxed containers or local)                                                       |
-| `apply_patch`          | Apply file patches                                                                                           |
-| `web_search`           | Search the web                                                                                               |
-| `view_image`           | View/analyze images                                                                                          |
-| `exec_command`         | Execute commands                                                                                             |
-| `write_stdin`          | Write to stdin of running process                                                                            |
-| `ToolRequestUserInput` | Ask user structured questions. Params: `options` array, `isOther` (allow free-text), `isSecret` (mask input) |
-| `CollabAgent`          | Sub-agent collaboration. Lifecycle: `spawnAgent`, `sendInput`, `resumeAgent`, `wait`, `closeAgent`           |
-| MCP tools              | MCP server tool calls                                                                                        |
-| Skills                 | Skill tool dependencies                                                                                      |
+Tools vary by configuration. The registry lists the superset a Codex instance can expose.
+
+| Tool                 | Description                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `shell`              | Execute shell commands (Default shell backend). Takes `command` as array                                                                         |
+| `exec_command`       | PTY-based command execution (UnifiedExec backend, GPT-5.2+). Takes `cmd` as string                                                               |
+| `write_stdin`        | Write to stdin of a running `exec_command` session                                                                                               |
+| `apply_patch`        | Apply file patches                                                                                                                               |
+| `update_plan`        | Progress tracker — array of `{ step, status }` items. Always registered                                                                          |
+| `web_search`         | Responses API built-in tool (not a function tool). Config-dependent                                                                              |
+| `view_image`         | View/analyze images                                                                                                                              |
+| `request_user_input` | Structured questions with `questions[].options[]`. Always registered but only usable in Plan mode — returns unavailability error in Default mode |
+| `spawn_agent`        | Spawn a sub-agent with a task (V1 multi-agent protocol)                                                                                          |
+| `send_input`         | Send input to an existing sub-agent                                                                                                              |
+| `wait_agent`         | Wait for sub-agents to reach final status                                                                                                        |
+| `close_agent`        | Close a sub-agent and its descendants                                                                                                            |
+| MCP tools            | `list_mcp_resources`, `list_mcp_resource_templates`, `read_mcp_resource` (when MCP servers configured)                                           |
+
+`shell` and `exec_command` are mutually exclusive backends (`ConfigShellToolType`). Which one is active depends on the model and config.
 
 ### Key tool details
 
-- **`ToolRequestUserInput`:** The only agent besides Claude Code with a purpose-built structured question tool. `options` array for choices, `isOther` flag enables free-text input alongside options, `isSecret` flag masks sensitive input.
-- **`CollabAgent`:** Full sub-agent lifecycle — spawn, send input, resume, wait for completion, close. More granular than Claude Code's `Agent` tool.
+- **`request_user_input`:** Structured question tool with `questions` array, each having `options`. Available in Plan mode only — in Default mode it returns an error. The model cannot switch modes on its own. An "Other" free-form option is automatically added by the client.
+- **`spawn_agent` / `send_input` / `wait_agent` / `close_agent`:** V1 multi-agent protocol. `spawn_agent` takes `message`, optional `agent_type`, `fork_context`, `model`, `reasoning_effort`. V2 protocol (when enabled) adds `send_message`, `followup_task`, `list_agents` and uses task-path naming.
 
 ### Capabilities
 
-| Capability           |                                                                                   Supported                                                                                    | Details                                                       |
-| -------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | ------------------------------------------------------------- |
-| Structured questions |                                                                                      Yes                                                                                       | `ToolRequestUserInput` with `options`, `isOther`, `isSecret`  |
-| Free-form questions  |                                                                                      Yes                                                                                       | `ToolRequestUserInput` with `isOther` flag                    |
-| Task/todo list       |                                                                                       No                                                                                       | Not documented                                                |
-| Sub-agents           |                                                                                      Yes                                                                                       | `CollabAgent` — full lifecycle (spawn/send/resume/wait/close) |
-| Plan mode            |                                                                                       No                                                                                       | Not documented as explicit tool                               |
-| File CRUD            |                                                                                      Yes                                                                                       | Via `shell` and `apply_patch`                                 |
-| Shell                |                                                                                      Yes                                                                                       | `shell` (sandboxed or local)                                  |
-| Web search           |                                                                                      Yes                                                                                       | `web_search`                                                  |
-| URL fetch            |                                                                                  Unconfirmed                                                                                   | Not documented separately                                     |
-| MCP                  |                                                                                      Yes                                                                                       | MCP server tool calls                                         |
+| Capability           |                                                                                   Supported                                                                                    | Details                                                                                        |
+| -------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | ---------------------------------------------------------------------------------------------- |
+| Structured questions |                                                                                    Partial                                                                                     | `request_user_input` — only in Plan mode, unavailable in Default mode                          |
+| Free-form questions  |                                                                                    Partial                                                                                     | `request_user_input` auto-adds "Other" option; in Default mode falls back to plain text        |
+| Task/todo list       |                                                                                       No                                                                                       | `update_plan` is a progress tracker, not a task list                                           |
+| Sub-agents           |                                                                                      Yes                                                                                       | `spawn_agent`/`send_input`/`wait_agent`/`close_agent` (V1) or V2 with task-path naming         |
+| Plan mode            |                                                                                    Partial                                                                                     | `update_plan` tracks progress but is not a mode toggle — mode is set by developer instructions |
+| File CRUD            |                                                                                      Yes                                                                                       | Via `shell`/`exec_command` and `apply_patch`                                                   |
+| Shell                |                                                                                      Yes                                                                                       | `shell` (Default) or `exec_command` (UnifiedExec) depending on config                          |
+| Web search           |                                                                                    Partial                                                                                     | `web_search` — Responses API built-in, config-dependent                                        |
+| URL fetch            |                                                                                  Unconfirmed                                                                                   | Not documented separately                                                                      |
+| MCP                  |                                                                                      Yes                                                                                       | `list_mcp_resources`, `read_mcp_resource` etc. when MCP servers configured                     |
 | Unique               | Sandboxed execution (containerized), autonomy levels (suggest, auto-edit, full-auto), non-interactive mode, GitHub/Slack/Linear integrations, cloud-delegated background tasks |
 
 ---
@@ -634,12 +641,12 @@ The open-source Amazon Q Developer CLI (`aws/amazon-q-developer-cli`) has been d
 
 | Capability           | CC  |   OC   | Cursor | Wind. | Aider | Cline |  Q   | Copilot | Codex | Gemini | Kilo  |  Roo  | Amp |
 | -------------------- | :-: | :----: | :----: | :---: | :---: | :---: | :--: | :-----: | :---: | :----: | :---: | :---: | :-: |
-| Structured questions | Yes | Likely |  Ltd   |  No   |  No   |  Yes  |  No  |   No    |  Yes  | Likely |  Yes  |  Yes  |  ?  |
+| Structured questions | Yes | Likely |  Ltd   |  No   |  No   |  Yes  |  No  |   No    | Part. | Likely |  Yes  |  Yes  |  ?  |
 | Free-form questions  | Yes |  Yes   |  Yes   |  Yes  |  Yes  |  Yes  | Yes  |   Yes   |  Yes  |  Yes   |  Yes  |  Yes  | Yes |
 | Task/todo list       | Yes |  Yes   |   No   |  Yes  |  No   |  Yes  |  No  |   No    |  No   |  Yes   |  Yes  |  Yes  |  ?  |
 | Sub-agents           | Yes |  Yes   |   No   |  No   |  No   |  Yes  |  No  |  Part.  |  Yes  |  Yes   | Part. | Part. | Yes |
 | Agent teams          | Yes |   No   |   No   |  No   |  No   |  No   |  No  |   No    |  Yes  |   No   |  No   |  No   | Yes |
-| Plan mode            | Yes |  Yes   |  No\*  |  Yes  | Part. |  Yes  |  No  |   Yes   |  No   |  Yes   |  Yes  |  Yes  | Yes |
+| Plan mode            | Yes |  Yes   |  No\*  |  Yes  | Part. |  Yes  |  No  |   Yes   | Part. |  Yes   |  Yes  |  Yes  | Yes |
 | File CRUD            | Yes |  Yes   |  Yes   |  Yes  |  Yes  |  Yes  | Yes  |   Yes   |  Yes  |  Yes   |  Yes  |  Yes  | Yes |
 | Shell                | Yes |  Yes   |  Yes   |  Yes  |  Yes  |  Yes  | Yes  |   Yes   |  Yes  |  Yes   |  Yes  |  Yes  | Yes |
 | Web search           | Yes |  Yes   |  Yes   |  Yes  |  No   |  Yes  |  No  |    ?    |  Yes  |  Yes   |   ?   |  No   |  ?  |
@@ -661,31 +668,32 @@ This section shows how the agent tools above map to skill-kit's 5 primitives. Th
 
 For each SDK primitive, the ordered list of tool names that trigger tool-specific prose. First match wins.
 
-| Primitive     | Tool name               | Host(s)                    | Prose file                            |
-| ------------- | ----------------------- | -------------------------- | ------------------------------------- |
-| **askUser**   | `AskUserQuestion`       | Claude Code                | `ask-user/ask-user-question.ts`       |
-|               | `ToolRequestUserInput`  | Codex                      | `ask-user/tool-request-user-input.ts` |
-|               | `ask_followup_question` | Cline, Roo Code, Kilo Code | `ask-user/ask-followup-question.ts`   |
-|               | `ask-user`              | Gemini CLI                 | `ask-user/ask-user-tool.ts`           |
-|               | `question`              | OpenCode                   | `ask-user/question-tool.ts`           |
-| **confirm**   | `AskUserQuestion`       | Claude Code                | `confirm/ask-user-question.ts`        |
-|               | `ask_followup_question` | Cline, Roo Code, Kilo Code | `confirm/ask-followup-question.ts`    |
-| **plan**      | `EnterPlanMode`         | Claude Code                | `plan/enter-plan-mode.ts`             |
-|               | `enter-plan-mode`       | Gemini CLI                 | `plan/enter-plan-mode.ts`             |
-|               | `update_plan`           | Codex                      | `plan/update-plan.ts`                 |
-|               | `plan`                  | OpenCode                   | `plan/plan-tool.ts`                   |
-|               | `PLAN_MODE`             | Cline                      | `plan/plan-mode-toggle.ts`            |
-| **checklist** | `TaskCreate`            | Claude Code                | `checklist/task-create.ts`            |
-|               | `tracker-create-task`   | Gemini CLI                 | `checklist/tracker.ts`                |
-|               | `write-todos`           | Gemini CLI                 | `checklist/todo-tool.ts`              |
-|               | `todo`                  | OpenCode                   | `checklist/todo-tool.ts`              |
-|               | `update_todo_list`      | Cline, Roo Code, Kilo Code | `checklist/update-todo-list.ts`       |
-| **subagent**  | `Agent`                 | Claude Code                | `subagent/agent-tool.ts`              |
-|               | `agent`                 | Gemini CLI                 | `subagent/agent-tool.ts`              |
-|               | `CollabAgent`           | Codex                      | `subagent/collab-agent.ts`            |
-|               | `task`                  | OpenCode                   | `subagent/task-tool.ts`               |
-|               | `USE_SUBAGENTS`         | Cline                      | `subagent/use-subagents.ts`           |
-|               | `new_task`              | Roo Code, Kilo Code        | `subagent/new-task.ts`                |
+| Primitive     | Tool name               | Host(s)                    | Prose file                          |
+| ------------- | ----------------------- | -------------------------- | ----------------------------------- |
+| **askUser**   | `AskUserQuestion`       | Claude Code                | `ask-user/ask-user-question.ts`     |
+|               | `request_user_input`    | Codex                      | `ask-user/request-user-input.ts`    |
+|               | `ask_followup_question` | Cline, Roo Code, Kilo Code | `ask-user/ask-followup-question.ts` |
+|               | `ask-user`              | Gemini CLI                 | `ask-user/ask-user-tool.ts`         |
+|               | `question`              | OpenCode                   | `ask-user/question-tool.ts`         |
+| **confirm**   | `AskUserQuestion`       | Claude Code                | `confirm/ask-user-question.ts`      |
+|               | `request_user_input`    | Codex                      | `confirm/request-user-input.ts`     |
+|               | `ask_followup_question` | Cline, Roo Code, Kilo Code | `confirm/ask-followup-question.ts`  |
+| **plan**      | `EnterPlanMode`         | Claude Code                | `plan/enter-plan-mode.ts`           |
+|               | `enter-plan-mode`       | Gemini CLI                 | `plan/enter-plan-mode.ts`           |
+|               | `update_plan`           | Codex                      | `plan/update-plan.ts`               |
+|               | `plan`                  | OpenCode                   | `plan/plan-tool.ts`                 |
+|               | `PLAN_MODE`             | Cline                      | `plan/plan-mode-toggle.ts`          |
+| **checklist** | `TaskCreate`            | Claude Code                | `checklist/task-create.ts`          |
+|               | `tracker-create-task`   | Gemini CLI                 | `checklist/tracker.ts`              |
+|               | `write-todos`           | Gemini CLI                 | `checklist/todo-tool.ts`            |
+|               | `todo`                  | OpenCode                   | `checklist/todo-tool.ts`            |
+|               | `update_todo_list`      | Cline, Roo Code, Kilo Code | `checklist/update-todo-list.ts`     |
+| **subagent**  | `Agent`                 | Claude Code                | `subagent/agent-tool.ts`            |
+|               | `agent`                 | Gemini CLI                 | `subagent/agent-tool.ts`            |
+|               | `spawn_agent`           | Codex                      | `subagent/spawn-agent.ts`           |
+|               | `task`                  | OpenCode                   | `subagent/task-tool.ts`             |
+|               | `USE_SUBAGENTS`         | Cline                      | `subagent/use-subagents.ts`         |
+|               | `new_task`              | Roo Code, Kilo Code        | `subagent/new-task.ts`              |
 
 ### Capabilities not mapped to primitives
 

@@ -12,7 +12,14 @@ export type AskUserInput =
 export const askUserPrimitive = definePrimitive({
   tag: 'ask-user',
 
-  tools: ['AskUserQuestion', 'ToolRequestUserInput', 'ask_followup_question', 'ask-user', 'question'] as const,
+  tools: [
+    'AskUserQuestion',
+    'request_user_input',
+    'ToolRequestUserInput',
+    'ask_followup_question',
+    'ask-user',
+    'question',
+  ] as const,
 
   create(input: AskUserInput): AskUserConfig {
     if (input.type === 'open') {

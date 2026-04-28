@@ -11,7 +11,7 @@ export interface SubagentInput {
 export const subagentPrimitive = definePrimitive({
   tag: 'subagent',
 
-  tools: ['Agent', 'agent', 'CollabAgent', 'task', 'USE_SUBAGENTS', 'new_task'] as const,
+  tools: ['Agent', 'agent', 'spawn_agent', 'CollabAgent', 'task', 'USE_SUBAGENTS', 'new_task'] as const,
 
   create(input: SubagentInput): SubagentConfig {
     return Object.freeze({
