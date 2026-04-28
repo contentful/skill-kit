@@ -4,6 +4,7 @@ import { WorkflowEngine } from '../runtime/engine.js';
 import { createReferenceLoader } from '../runtime/reference-loader.js';
 import { resolveHost } from './host.js';
 import { SessionManager, type SessionFile } from './session.js';
+import { SubskillEngine } from './subskill-engine.js';
 
 function resolveSkillDir(): string {
   const binPath = process.execPath;
@@ -95,30 +96,13 @@ function parseFlags(args: string[], start: number): Record<string, string> {
   return flags;
 }
 
-function prefixStep(subskillName: string, step: string): string {
-  return `${subskillName}/${step}`;
+function detectSubskill(step: string): string | null {
+  const idx = step.indexOf('/');
+  return idx === -1 ? null : step.slice(0, idx);
 }
 
-function unprefixStep(step: string): { subskill: string; step: string } | null {
-  const slashIdx = step.indexOf('/');
-  if (slashIdx === -1) return null;
-  return { subskill: step.slice(0, slashIdx), step: step.slice(slashIdx + 1) };
-}
-
-function filterHistory(history: HistoryEntry[], subskillName: string): HistoryEntry[] {
-  const prefix = `${subskillName}/`;
-  return history.filter((e) => e.step.startsWith(prefix)).map((e) => ({ ...e, step: e.step.slice(prefix.length) }));
-}
-
-function prefixResult(result: CliResult, subskillName: string): CliResult {
-  if ('step' in result && typeof result.step === 'string') {
-    const prefixed = { ...result, step: prefixStep(subskillName, result.step) };
-    if ('completed' in prefixed && prefixed.completed) {
-      prefixed.completed = { ...prefixed.completed, step: prefixStep(subskillName, prefixed.completed.step) };
-    }
-    return prefixed;
-  }
-  return result;
+function extractDispatcherHistory(history: HistoryEntry[]): HistoryEntry[] {
+  return history.filter((e) => !e.step.includes('/'));
 }
 
 function writeOutput(data: unknown, session: SessionFile | undefined): void {
@@ -310,14 +294,20 @@ async function handleDispatcher(
 
   const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
 
-  const parsed_ = unprefixStep(stepName);
-  if (parsed_) {
-    await handleSubskillAdvance(def, parsed_.subskill, parsed_.step, output, history, handshake, refs, session);
+  const subskillName = detectSubskill(stepName);
+  if (subskillName) {
+    const sub = def.subskills?.[subskillName];
+    if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
+    const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, subskillName);
+    subEngine.replayHistory(history);
+    subEngine.startForReplay();
+    const result = await subEngine.advance(stepName, output);
+    writeOutput(result, session);
     return;
   }
 
   const engine = new WorkflowEngine(def, handshake, {}, refs);
-  const dispatcherHistory = history.filter((e) => !e.step.includes('/'));
+  const dispatcherHistory = extractDispatcherHistory(history);
   if (dispatcherHistory.length > 0) {
     engine.replayHistory(dispatcherHistory);
   }
@@ -351,41 +341,17 @@ async function handleSubskill(
 
   if (isStart) {
     const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
-    const engine = new WorkflowEngine(sub.definition, handshake, context, refs);
-    const result = engine.start();
-    writeStartOutput(prefixResult(result, parsed.name), session);
+    const subEngine = new SubskillEngine(sub.definition, handshake, context, refs, parsed.name);
+    writeStartOutput(subEngine.start(), session);
     return;
   }
 
   const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
-  await handleSubskillAdvance(def, parsed.name, stepName, output, history, handshake, refs, session);
-}
-
-async function handleSubskillAdvance(
-  def: SkillDefinition,
-  subskillName: string,
-  stepName: string,
-  output: unknown,
-  history: HistoryEntry[],
-  handshake: ReturnType<typeof resolveHost>,
-  refs: ReferenceLoader,
-  session: SessionFile | undefined,
-): Promise<void> {
-  const sub = def.subskills?.[subskillName];
-  if (!sub) {
-    process.stderr.write(`error: unknown sub-skill "${subskillName}"\n`);
-    process.exit(1);
-  }
-
-  const subHistory = filterHistory(history, subskillName);
-  const engine = new WorkflowEngine(sub.definition, handshake, {}, refs);
-  if (subHistory.length > 0) {
-    engine.replayHistory(subHistory);
-  }
-  engine.start();
-
-  const result = await engine.advance(stepName, output);
-  writeOutput(prefixResult(result, subskillName), session);
+  const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, parsed.name);
+  subEngine.replayHistory(history);
+  subEngine.startForReplay();
+  const result = await subEngine.advance(stepName, output);
+  writeOutput(result, session);
 }
 
 async function handleRedirect(
@@ -416,9 +382,10 @@ async function handleRedirect(
     }
 
     const context = sub.contextMap ? sub.contextMap(redirect.completed.output, redirect.stash) : {};
-    const engine = new WorkflowEngine(sub.definition, handshake, context, refs);
-    const result = engine.start();
-    writeOutput({ ...prefixResult(result, subName), completed: redirect.completed }, session);
+    const subEngine = new SubskillEngine(sub.definition, handshake, context, refs, subName);
+    const startResult = subEngine.start();
+    // completed is from the dispatcher step that triggered the redirect — already in session convention
+    writeOutput({ ...startResult, completed: redirect.completed }, session);
     return;
   }
 
