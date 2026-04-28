@@ -78,6 +78,11 @@ export class WorkflowEngine {
     return { step, preamble, prompt, schema };
   }
 
+  isPromptless(stepName: string): boolean {
+    const stepDef = this.skill.steps[stepName];
+    return !!stepDef && stepDef.config.prompt === undefined;
+  }
+
   async advance(stepName: string, rawOutput: unknown): Promise<CliResult> {
     const stepStartTime = Date.now();
     const stepDef = this.skill.steps[stepName];
@@ -85,23 +90,28 @@ export class WorkflowEngine {
       return { error: 'validation', step: stepName, message: `Unknown step "${stepName}"`, retry: false };
     }
 
-    const validation = validateOutput(stepDef.config.output, rawOutput);
-    if (!validation.success) {
-      this.observers.fire('onStepValidationFailed', {
-        step: stepName,
-        raw: rawOutput,
-        error: validation.error!,
-        attempt: this.history.visitCount(stepName) + 1,
-      });
-      return {
-        error: 'validation',
-        step: stepName,
-        message: validation.error!,
-        retry: true,
-      };
-    }
+    let stepOutput: unknown;
 
-    const stepOutput = Object.freeze(validation.data);
+    if (stepDef.config.output) {
+      const validation = validateOutput(stepDef.config.output, rawOutput);
+      if (!validation.success) {
+        this.observers.fire('onStepValidationFailed', {
+          step: stepName,
+          raw: rawOutput,
+          error: validation.error!,
+          attempt: this.history.visitCount(stepName) + 1,
+        });
+        return {
+          error: 'validation',
+          step: stepName,
+          message: validation.error!,
+          retry: true,
+        };
+      }
+      stepOutput = Object.freeze(validation.data);
+    } else {
+      stepOutput = Object.freeze({});
+    }
 
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
@@ -172,8 +182,13 @@ export class WorkflowEngine {
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;
 
-      const validation = validateOutput(stepDef.config.output, entry.stepOutput);
-      const stepOutput = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.stepOutput);
+      let stepOutput: unknown;
+      if (stepDef.config.output) {
+        const validation = validateOutput(stepDef.config.output, entry.stepOutput);
+        stepOutput = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.stepOutput);
+      } else {
+        stepOutput = Object.freeze(entry.stepOutput ?? {});
+      }
 
       if (stepDef.config.action?.updateStash && entry.actionOutput !== undefined) {
         this.stash.merge(
@@ -265,10 +280,12 @@ export class WorkflowEngine {
     const promptText = this.assemblePieces(pieces);
 
     let schema: unknown = null;
-    try {
-      schema = stepDef.config.output.toJSONSchema();
-    } catch {
-      // Zod schema may not support toJSONSchema in all cases
+    if (stepDef.config.output) {
+      try {
+        schema = stepDef.config.output.toJSONSchema();
+      } catch {
+        // Zod schema may not support toJSONSchema in all cases
+      }
     }
 
     return { step: stepName, prompt: promptText, schema };

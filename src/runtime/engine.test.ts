@@ -779,3 +779,110 @@ test('engine injects skill-level system into preamble', () => {
   assert.ok(result.preamble!.startsWith('You are helpful.'));
   assert.ok(result.preamble!.includes('| Tag |'));
 });
+
+// --- Prompt-less and output-less steps ---
+
+test('isPromptless returns true for steps without prompt', () => {
+  const s = skill({ name: 'promptless', entry: 'gate' })
+    .step('gate', { output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  assert.equal(engine.isPromptless('gate'), true);
+});
+
+test('isPromptless returns false for steps with prompt', () => {
+  const s = skill({ name: 'prompted', entry: 'a' })
+    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  assert.equal(engine.isPromptless('a'), false);
+});
+
+test('prompt-less step can be advanced with empty output', async () => {
+  const s = skill({ name: 'gate-advance', entry: 'gate', stash: z.object({ routed: z.boolean() }) })
+    .step('gate', {
+      output: z.object({}),
+      updateStash: () => ({ routed: true }),
+      next: 'main',
+    })
+    .step('main', {
+      prompt: (ctx) => `Routed: ${ctx.stash.routed}`,
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('gate', {});
+  assert.equal((result as PromptResult).step, 'main');
+  assert.ok((result as PromptResult).prompt.includes('Routed: true'));
+});
+
+test('output-less step skips validation and omits schema', () => {
+  const s = skill({ name: 'outputless', entry: 'display' })
+    .step('display', { prompt: 'Show results', next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  const result = engine.start();
+  assert.equal(result.step, 'display');
+  assert.equal(result.schema, null);
+});
+
+test('output-less step advance succeeds without validation', async () => {
+  const s = skill({ name: 'outputless-advance', entry: 'display' })
+    .step('display', { prompt: 'Show results', next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('display', {});
+  assert.equal((result as DoneResult).done, true);
+});
+
+test('prompt-less + output-less step is a pure routing gate', async () => {
+  const s = skill({ name: 'pure-gate', entry: 'gate', params: z.object({ fast: z.boolean() }) })
+    .step('gate', {
+      next: ({ params }) => (params.fast ? 'quick' : 'full'),
+    })
+    .step('quick', { prompt: 'Quick mode', output: z.object({}), next: { terminal: true } })
+    .step('full', { prompt: 'Full mode', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, { fast: true });
+  engine.start();
+  const result = await engine.advance('gate', {});
+  assert.equal((result as PromptResult).step, 'quick');
+});
+
+test('prompt-less step with action runs action before transitioning', async () => {
+  let actionRan = false;
+
+  const checkAction = action({
+    name: 'check',
+    input: z.object({}),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => {
+      actionRan = true;
+      return { ok: true };
+    },
+  });
+
+  const s = skill({ name: 'gate-action', entry: 'check' })
+    .step('check', {
+      output: z.object({}),
+      action: { run: checkAction },
+      next: 'main',
+    })
+    .step('main', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('check', {});
+  assert.ok(actionRan);
+  assert.equal((result as PromptResult).step, 'main');
+});

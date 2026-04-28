@@ -9,7 +9,6 @@ export function step<
 >(
   config: StepConfig<TOutput, TParams, TStash, TActionOutput>,
 ): StepDefinition<TOutput, TParams, TStash, TActionOutput> {
-  if (!config.output) throw new Error('step: output schema is required');
   if (config.next === undefined) throw new Error('step: next is required');
 
   const definition: StepDefinition<TOutput, TParams, TStash, TActionOutput> = {

@@ -1,7 +1,24 @@
-import type { SkillDefinition } from '../types.js';
+import type { SkillDefinition, CliResult, PromptResult } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { resolveHost } from './host.js';
 import type { SessionFile } from './session.js';
+
+const MAX_AUTO_ADVANCE = 20;
+
+async function autoAdvance(engine: WorkflowEngine, result: CliResult): Promise<CliResult> {
+  let current = result;
+  let depth = 0;
+  while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
+    const prompt = current as PromptResult;
+    if (!engine.isPromptless(prompt.step)) break;
+    depth += 1;
+    if (depth > MAX_AUTO_ADVANCE) {
+      throw new Error(`Auto-advance depth exceeded (${MAX_AUTO_ADVANCE}). Check for infinite prompt-less step loops.`);
+    }
+    current = await engine.advance(prompt.step, {});
+  }
+  return current;
+}
 
 export async function handleStart(
   skill: SkillDefinition,
@@ -13,7 +30,8 @@ export async function handleStart(
 ): Promise<void> {
   const handshake = resolveHost(hostName, tools, isSubagent);
   const engine = new WorkflowEngine(skill, handshake, params);
-  const result = engine.start();
+  const startResult = engine.start();
+  const result = await autoAdvance(engine, startResult);
 
   if (session) {
     const line = session.appendResult(result);
@@ -41,7 +59,8 @@ export async function handleAdvance(
   }
 
   engine.start();
-  const result = await engine.advance(stepName, output);
+  const advanceResult = await engine.advance(stepName, output);
+  const result = await autoAdvance(engine, advanceResult);
 
   if (session) {
     const line = session.appendResult(result);

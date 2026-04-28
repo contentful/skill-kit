@@ -125,3 +125,36 @@ test('mockModel with array for repeated visits', async () => {
 
   assert.deepEqual(result.path, ['retry', 'retry', 'done']);
 });
+
+test('runSkill auto-advances prompt-less steps', async () => {
+  const s = skill({ name: 'auto-advance', entry: 'gate', params: z.object({ skip: z.boolean() }) })
+    .step('gate', {
+      next: ({ params }) => (params.skip ? 'fast' : 'slow'),
+    })
+    .step('fast', { prompt: 'Fast path', output: z.object({}), next: { terminal: true } })
+    .step('slow', { prompt: 'Slow path', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = await runSkill(s, {
+    params: { skip: true },
+    model: mockModel({ fast: {} }),
+  });
+
+  assert.deepEqual(result.path, ['gate', 'fast']);
+});
+
+test('runSkill handles output-less terminal step', async () => {
+  const s = skill({ name: 'outputless', entry: 'work' })
+    .step('work', { prompt: 'Do work', output: z.object({ done: z.boolean() }), next: 'farewell' })
+    .step('farewell', { prompt: 'Goodbye', next: { terminal: true } })
+    .build();
+
+  const result = await runSkill(s, {
+    model: mockModel({
+      work: { done: true },
+      farewell: {},
+    }),
+  });
+
+  assert.deepEqual(result.path, ['work', 'farewell']);
+});

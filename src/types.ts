@@ -194,6 +194,9 @@ export type TransitionFn<TOutput = unknown, TActionOutput = unknown, TParams = u
 
 /**
  * Lifecycle: prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next
+ *
+ * When prompt is omitted the engine auto-advances (no LLM round-trip).
+ * When output is omitted no schema block is emitted and validation is skipped.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepConfig<
@@ -203,7 +206,7 @@ export interface StepConfig<
   TActionOutput = unknown,
 > {
   prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash>;
-  output: TOutput;
+  output?: TOutput;
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput, TParams, TStash> | { terminal: true };
   action?: {
     run: ActionDefinition;
