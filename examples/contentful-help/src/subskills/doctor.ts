@@ -5,19 +5,19 @@ export default skill({
   version: '1.0.0',
   description: 'Diagnose and fix common Contentful issues.',
   entry: 'diagnose',
-  context: z.object({ spaceId: z.string().default('') }),
+  params: z.object({ spaceId: z.string().default('') }),
   stash: z.object({ issues: z.array(z.string()) }),
 })
   .step('diagnose', {
-    prompt: ({ context }) =>
-      `Check the Contentful space "${context.spaceId}" for common issues. ` +
+    prompt: ({ params }) =>
+      `Check the Contentful space "${params.spaceId}" for common issues. ` +
       'Look for: missing locales, unpublished entries, broken references, rate limit issues.',
     output: z.object({
       issues: z.array(z.string()),
       healthy: z.boolean(),
     }),
-    stash: ({ output }) => ({ issues: output.issues }),
-    next: ({ output }) => (output.healthy ? 'report-clean' : 'suggest-fix'),
+    updateStash: ({ stepOutput }) => ({ issues: stepOutput.issues }),
+    next: ({ stepOutput }) => (stepOutput.healthy ? 'report-clean' : 'suggest-fix'),
   })
 
   .step('suggest-fix', {
@@ -40,7 +40,7 @@ export default skill({
       ],
     }),
     output: z.object({ choice: z.enum(['apply', 'skip']) }),
-    next: ({ output }) => (output.choice === 'apply' ? 'apply-fix' : 'report-issues'),
+    next: ({ stepOutput }) => (stepOutput.choice === 'apply' ? 'apply-fix' : 'report-issues'),
   })
 
   .step('apply-fix', {

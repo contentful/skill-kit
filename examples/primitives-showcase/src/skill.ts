@@ -53,7 +53,7 @@ export default skill({
       },
     ]),
     output: z.object({ theme: z.string(), framework: z.string() }),
-    stash: ({ output }) => ({ theme: output.theme, framework: output.framework }),
+    updateStash: ({ stepOutput }) => ({ theme: stepOutput.theme, framework: stepOutput.framework }),
     next: 'research',
   })
 
@@ -67,7 +67,7 @@ export default skill({
       }),
     ],
     output: z.object({ summary: z.string() }),
-    stash: ({ output }) => ({ researchSummary: output.summary }),
+    updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
     next: 'plan-report',
   })
 
@@ -81,7 +81,7 @@ export default skill({
       }),
     ],
     output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-    next: ({ output }) => (output.approved ? 'write-report' : 'ask-changes'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'write-report' : 'ask-changes'),
   })
 
   // --- askUser (open): free-form feedback ---
@@ -117,7 +117,7 @@ export default skill({
     output: z.object({ title: z.string(), body: z.string() }),
     action: {
       run: saveReport,
-      stash: ({ result }) => ({ savedPath: result.path }),
+      updateStash: ({ actionOutput }) => ({ savedPath: actionOutput.path }),
     },
     next: 'confirm-publish',
   })
@@ -129,8 +129,8 @@ export default skill({
       act.confirm({ message: 'Publish the report?', destructive: false, defaultAnswer: 'yes' }),
     ],
     output: z.object({ publish: z.boolean() }),
-    stash: ({ output }) => ({ approved: output.publish }),
-    next: ({ output }) => (output.publish ? 'summary' : 'ask-changes'),
+    updateStash: ({ stepOutput }) => ({ approved: stepOutput.publish }),
+    next: ({ stepOutput }) => (stepOutput.publish ? 'summary' : 'ask-changes'),
   })
 
   // --- view + terminal: pre-rendered card ---

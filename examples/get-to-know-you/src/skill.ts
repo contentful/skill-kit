@@ -44,7 +44,7 @@ export default skill({
   system:
     "Keep it light and fun. Use casual language. Throw in the occasional joke or pun if it fits. You're a friendly interviewer, not a form.",
 
-  context: z.object({
+  params: z.object({
     greeting: z.string().default('Hey there!'),
   }),
 
@@ -66,12 +66,12 @@ export default skill({
   },
 })
   .step('greet', {
-    prompt: ({ context }) => prompt`
-      ${context.greeting} You're about to interview the user to build their developer trading card.
+    prompt: ({ params }) => prompt`
+      ${params.greeting} You're about to interview the user to build their developer trading card.
       Start by asking their name. Be warm and enthusiastic — first impressions matter!
     `,
     output: z.object({ name: z.string() }),
-    stash: ({ output }) => ({ name: output.name }),
+    updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
     next: 'ask-role',
   })
 
@@ -87,9 +87,9 @@ export default skill({
       ],
     }),
     output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
-    stash: ({ output }) => ({ role: output.role }),
-    next: ({ output }) => {
-      switch (output.role) {
+    updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
+    next: ({ stepOutput }) => {
+      switch (stepOutput.role) {
         case 'dev':
           return 'ask-stack';
         case 'designer':
@@ -149,10 +149,10 @@ export default skill({
       hobby: z.string(),
       wantsMore: z.boolean(),
     }),
-    stash: ({ output }) => ({ latestHobby: output.hobby }),
+    updateStash: ({ stepOutput }) => ({ latestHobby: stepOutput.hobby }),
     maxVisits: 2,
     onMaxVisits: 'confirm-profile',
-    next: ({ output }) => (output.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+    next: ({ stepOutput }) => (stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile'),
   })
 
   .step('confirm-profile', {
@@ -161,7 +161,7 @@ export default skill({
       defaultAnswer: 'yes',
     }),
     output: z.object({ approved: z.boolean() }),
-    next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'profile-card' : 'ask-hobby'),
     maxVisits: 3,
     onMaxVisits: 'profile-card',
   })
@@ -172,13 +172,15 @@ export default skill({
       const role = stash.role ?? 'Enigma';
 
       const specialty =
-        getStep<{ answer: string }>('ask-stack')?.output.answer ??
-        getStep<{ answer: string }>('ask-tools')?.output.answer ??
-        getStep<{ answer: string }>('ask-team-size')?.output.answer ??
-        getStep<{ answer: string }>('ask-specialty')?.output.answer ??
+        getStep<{ answer: string }>('ask-stack')?.stepOutput.answer ??
+        getStep<{ answer: string }>('ask-tools')?.stepOutput.answer ??
+        getStep<{ answer: string }>('ask-team-size')?.stepOutput.answer ??
+        getStep<{ answer: string }>('ask-specialty')?.stepOutput.answer ??
         'Classified';
 
-      const hobbies = history.filter((s) => s.step === 'ask-hobby').map((s) => (s.output as { hobby: string }).hobby);
+      const hobbies = history
+        .filter((s) => s.step === 'ask-hobby')
+        .map((s) => (s.stepOutput as { hobby: string }).hobby);
 
       let funFact = '';
       try {

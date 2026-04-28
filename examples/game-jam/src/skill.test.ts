@@ -5,7 +5,7 @@ import skill from './skill.js';
 
 test('happy path: classic + canvas, approve plan, no polish', async () => {
   const result = await runSkill(skill, {
-    context: { difficulty: 'beginner' },
+    params: { difficulty: 'beginner' },
     model: mockModel({
       'choose-variant': { variant: 'classic' },
       'name-game': { name: 'RetroBlocks' },
