@@ -3,21 +3,21 @@ import type { StepConfig, StepDefinition } from './types.js';
 
 export function step<
   TOutput extends z.ZodType = z.ZodType,
-  TContext = unknown,
+  TParams = unknown,
   TStash = unknown,
   TActionOutput = unknown,
 >(
-  config: StepConfig<TOutput, TContext, TStash, TActionOutput>,
-): StepDefinition<TOutput, TContext, TStash, TActionOutput> {
+  config: StepConfig<TOutput, TParams, TStash, TActionOutput>,
+): StepDefinition<TOutput, TParams, TStash, TActionOutput> {
   if (!config.output) throw new Error('step: output schema is required');
   if (config.next === undefined) throw new Error('step: next is required');
 
-  const definition: StepDefinition<TOutput, TContext, TStash, TActionOutput> = {
+  const definition: StepDefinition<TOutput, TParams, TStash, TActionOutput> = {
     kind: 'step',
     config,
     extend(
-      overrides: Partial<StepConfig<TOutput, TContext, TStash, TActionOutput>>,
-    ): StepDefinition<TOutput, TContext, TStash, TActionOutput> {
+      overrides: Partial<StepConfig<TOutput, TParams, TStash, TActionOutput>>,
+    ): StepDefinition<TOutput, TParams, TStash, TActionOutput> {
       return step({ ...config, ...overrides });
     },
   };

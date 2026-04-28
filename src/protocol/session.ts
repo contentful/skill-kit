@@ -29,7 +29,7 @@ export interface CreateSessionOptions {
   host: string;
   tools?: string[];
   isSubagent?: boolean;
-  context: unknown;
+  params: unknown;
   outputMode?: SessionOutputMode;
 }
 
@@ -54,9 +54,9 @@ export class SessionFile {
     return content.trimEnd().split('\n').length;
   }
 
-  reconstructHistory(): Array<{ step: string; output: unknown; action?: unknown }> {
+  reconstructHistory(): Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }> {
     const lines = this.readLines();
-    const history: Array<{ step: string; output: unknown; action?: unknown }> = [];
+    const history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }> = [];
 
     for (const line of lines) {
       if (line.type === 'prompt' || line.type === 'done') {
@@ -64,8 +64,8 @@ export class SessionFile {
         if (completed) {
           history.push({
             step: completed.step,
-            output: completed.output,
-            ...(completed.action !== undefined ? { action: completed.action } : {}),
+            stepOutput: completed.stepOutput,
+            ...(completed.actionOutput !== undefined ? { actionOutput: completed.actionOutput } : {}),
           });
         }
       }
@@ -135,7 +135,7 @@ export class SessionManager {
       host: options.host,
       ...(options.tools?.length ? { tools: options.tools } : {}),
       ...(options.isSubagent ? { isSubagent: true } : {}),
-      context: options.context,
+      params: options.params,
       createdAt: new Date().toISOString(),
       outputMode: options.outputMode ?? 'file',
     };

@@ -162,16 +162,15 @@ export type InferActionOutput<A> = A extends ActionDefinition<any, infer TOut> ?
 
 export interface StepResult<TOutput = unknown> {
   readonly step: string;
-  readonly output: TOutput;
-  readonly action?: unknown;
+  readonly stepOutput: TOutput;
+  readonly actionOutput?: unknown;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface PromptContext<TContext = any, TStash = any> {
-  prev: unknown;
+export interface PromptContext<TParams = any, TStash = any> {
   history: readonly StepResult[];
-  getStep: <TOutput = unknown, TAction = unknown>(stepName: string) => { output: TOutput; action: TAction } | undefined;
-  context: TContext;
+  getStep: <TOutput = unknown, TAction = unknown>(stepName: string) => { stepOutput: TOutput; actionOutput: TAction } | undefined;
+  params: TParams;
   refs: ReferenceLoader;
   attempts: number;
   host: Handshake;
@@ -181,33 +180,35 @@ export interface PromptContext<TContext = any, TStash = any> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PromptFn<TContext = any, TStash = any> = (ctx: PromptContext<TContext, TStash>) => PromptReturn;
+export type PromptFn<TParams = any, TStash = any> = (ctx: PromptContext<TParams, TStash>) => PromptReturn;
 
-export type TransitionFn<TOutput = unknown, TActionOutput = unknown> = (ctx: {
-  output: TOutput;
+export type TransitionFn<TOutput = unknown, TActionOutput = unknown, TParams = unknown, TStash = unknown> = (ctx: {
+  stepOutput: TOutput;
   attempts: number;
-  action: TActionOutput;
+  actionOutput: TActionOutput;
+  params: TParams;
+  stash: Readonly<TStash>;
 }) => string;
 
 /**
- * Lifecycle: prompt → model → validate(output) → action.input → action.run → action.stash → stash → next
+ * Lifecycle: prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepConfig<
   TOutput extends z.ZodType = z.ZodType,
-  TContext = any,
+  TParams = any,
   TStash = any,
   TActionOutput = unknown,
 > {
-  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TContext, TStash>;
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash>;
   output: TOutput;
-  next: string | TransitionFn<z.infer<TOutput>, TActionOutput> | { terminal: true };
+  next: string | TransitionFn<z.infer<TOutput>, TActionOutput, TParams, TStash> | { terminal: true };
   action?: {
     run: ActionDefinition;
-    input?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
-    stash?: (ctx: { result: TActionOutput }) => Partial<TStash>;
+    input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: TParams }) => unknown;
+    updateStash?: (ctx: { actionOutput: TActionOutput }) => Partial<TStash>;
   };
-  stash?: (ctx: { output: z.infer<TOutput>; action: TActionOutput }) => Partial<TStash>;
+  updateStash?: (ctx: { stepOutput: z.infer<TOutput>; actionOutput: TActionOutput; stash: Readonly<TStash>; params: TParams }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
 }
@@ -215,22 +216,22 @@ export interface StepConfig<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepDefinition<
   TOutput extends z.ZodType = z.ZodType,
-  TContext = any,
+  TParams = any,
   TStash = any,
   TActionOutput = unknown,
 > {
   readonly kind: 'step';
-  readonly config: StepConfig<TOutput, TContext, TStash, TActionOutput>;
+  readonly config: StepConfig<TOutput, TParams, TStash, TActionOutput>;
   extend(
-    overrides: Partial<StepConfig<TOutput, TContext, TStash, TActionOutput>>,
-  ): StepDefinition<TOutput, TContext, TStash, TActionOutput>;
+    overrides: Partial<StepConfig<TOutput, TParams, TStash, TActionOutput>>,
+  ): StepDefinition<TOutput, TParams, TStash, TActionOutput>;
 }
 
 // --- Observers ---
 
 export interface ObserverMap {
-  onStepStart?: (ctx: { step: string; context: unknown }) => void | Promise<void>;
-  onStepComplete?: (ctx: { step: string; output: unknown; durationMs: number }) => void | Promise<void>;
+  onStepStart?: (ctx: { step: string; params: unknown }) => void | Promise<void>;
+  onStepComplete?: (ctx: { step: string; stepOutput: unknown; durationMs: number }) => void | Promise<void>;
   onStepValidationFailed?: (ctx: {
     step: string;
     raw: unknown;
@@ -255,13 +256,13 @@ export type VersionStrategy = { version?: string; resolveVersion?: never } | { v
 
 // --- Skill Builder Config (input to skill()) ---
 
-export type SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> = {
+export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> = {
   name: string;
   description?: string;
   triggers?: string[];
   entry: string;
   system?: string;
-  context?: TContext;
+  params?: TParams;
   stash?: TStash;
   observers?: ObserverMap;
   finalOutput?: z.ZodType;
@@ -271,7 +272,7 @@ export type SkillBuilderConfig<TContext extends z.ZodType = z.ZodType, TStash ex
 
 // --- Skill Definition (output of .build()) ---
 
-export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
+export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
   readonly kind: 'skill';
   readonly name: string;
   readonly version: string;
@@ -279,7 +280,7 @@ export interface SkillDefinition<TContext extends z.ZodType = z.ZodType, TStash 
   readonly description: string;
   readonly entry: string;
   readonly system: string | undefined;
-  readonly context: TContext | undefined;
+  readonly params: TParams | undefined;
   readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;
   readonly observers: ObserverMap | undefined;
@@ -327,7 +328,7 @@ export interface ReferenceDefinition {
 
 export interface SubskillRegistration {
   readonly definition: SkillDefinition;
-  readonly contextMap?: (stepOutput: unknown, stash: unknown) => unknown;
+  readonly paramsMap?: (stepOutput: unknown, stash: unknown) => unknown;
 }
 
 export type Buildable = SkillDefinition | ReferenceDefinition;
@@ -374,7 +375,7 @@ export interface SessionHeader {
   host: string;
   tools?: string[];
   isSubagent?: boolean;
-  context: unknown;
+  params: unknown;
   createdAt: string;
   outputMode: SessionOutputMode;
 }
@@ -398,7 +399,7 @@ export interface SessionPointer {
 export interface SkillRunResult {
   path: string[];
   outputs: Record<string, unknown>;
-  output: unknown;
+  stepOutput: unknown;
   history: readonly StepResult[];
 }
 

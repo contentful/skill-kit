@@ -11,7 +11,7 @@ function resolveSkillDir(): string {
   return resolve(dirname(binPath), '..');
 }
 
-type HistoryEntry = { step: string; output: unknown; action?: unknown };
+type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown };
 
 export type CompositeCommand =
   | { mode: 'dispatcher'; command: 'start' | 'advance'; flags: Record<string, string> }
@@ -206,7 +206,7 @@ function resolveSessionForCommand(
       host: flags['host'] ?? 'generic',
       tools: sessionTools,
       isSubagent,
-      context: flags['context'] ? (JSON.parse(flags['context']) as unknown) : {},
+      params: flags['context'] ? (JSON.parse(flags['context']) as unknown) : {},
       outputMode,
     });
     return { session, isStart: true };
@@ -285,8 +285,8 @@ async function handleDispatcher(
   const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], tools, isSubagent);
 
   if (isStart) {
-    const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
-    const engine = new WorkflowEngine(def, handshake, context, refs);
+    const params = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
+    const engine = new WorkflowEngine(def, handshake, params, refs);
     const result = engine.start();
     writeStartOutput(result, session);
     return;
@@ -299,7 +299,7 @@ async function handleDispatcher(
     const sub = def.subskills?.[subskillName];
     if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
     const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, subskillName);
-    subEngine.replayHistory(history);
+    subEngine.replayHistory(history as HistoryEntry[]);
     subEngine.startForReplay();
     const result = await subEngine.advance(stepName, output);
     writeOutput(result, session);
@@ -307,7 +307,7 @@ async function handleDispatcher(
   }
 
   const engine = new WorkflowEngine(def, handshake, {}, refs);
-  const dispatcherHistory = extractDispatcherHistory(history);
+  const dispatcherHistory = extractDispatcherHistory(history as HistoryEntry[]);
   if (dispatcherHistory.length > 0) {
     engine.replayHistory(dispatcherHistory);
   }
@@ -340,15 +340,15 @@ async function handleSubskill(
   const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], subTools, subIsSubagent);
 
   if (isStart) {
-    const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
-    const subEngine = new SubskillEngine(sub.definition, handshake, context, refs, parsed.name);
+    const params = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
+    const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, parsed.name);
     writeStartOutput(subEngine.start(), session);
     return;
   }
 
   const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
   const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, parsed.name);
-  subEngine.replayHistory(history);
+  subEngine.replayHistory(history as HistoryEntry[]);
   subEngine.startForReplay();
   const result = await subEngine.advance(stepName, output);
   writeOutput(result, session);
@@ -381,8 +381,8 @@ async function handleRedirect(
       throw new Error(`Redirect to unknown sub-skill "${subName}"`);
     }
 
-    const context = sub.contextMap ? sub.contextMap(redirect.completed.output, redirect.stash) : {};
-    const subEngine = new SubskillEngine(sub.definition, handshake, context, refs, subName);
+    const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+    const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, subName);
     const startResult = subEngine.start();
     // completed is from the dispatcher step that triggered the redirect — already in session convention
     writeOutput({ ...startResult, completed: redirect.completed }, session);

@@ -12,7 +12,7 @@ import type {
 } from './types.js';
 import { step as createStep } from './step.js';
 
-export class SkillBuilder<TContext, TStash> {
+export class SkillBuilder<TParams, TStash> {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
   private readonly subskills: Record<string, SubskillRegistration> = {};
@@ -26,19 +26,19 @@ export class SkillBuilder<TContext, TStash> {
     name: string,
     configOrDef:
       | (Omit<
-          StepConfig<TOutput, TContext, TStash, A extends ActionDefinition ? InferActionOutput<A> : undefined>,
+          StepConfig<TOutput, TParams, TStash, A extends ActionDefinition ? InferActionOutput<A> : undefined>,
           'action'
         > & {
           action?: A extends ActionDefinition
             ? {
                 run: A;
-                input?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
-                stash?: (ctx: { result: InferActionOutput<A> }) => Partial<TStash>;
+                input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: TParams }) => unknown;
+                updateStash?: (ctx: { actionOutput: InferActionOutput<A> }) => Partial<TStash>;
               }
             : undefined;
         })
       | StepDefinition,
-  ): SkillBuilder<TContext, TStash> {
+  ): SkillBuilder<TParams, TStash> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
@@ -50,8 +50,8 @@ export class SkillBuilder<TContext, TStash> {
   extend<TOutput extends z.ZodType>(
     name: string,
     base: StepDefinition<TOutput>,
-    overrides: Partial<StepConfig<TOutput, TContext, TStash>>,
-  ): SkillBuilder<TContext, TStash> {
+    overrides: Partial<StepConfig<TOutput, TParams, TStash>>,
+  ): SkillBuilder<TParams, TStash> {
     this.steps[name] = createStep({ ...base.config, ...overrides } as StepConfig);
     return this;
   }
@@ -59,7 +59,7 @@ export class SkillBuilder<TContext, TStash> {
   register<TModuleStash extends z.ZodType>(
     mod: ModuleDefinition<TModuleStash>,
     opts: { next: string },
-  ): SkillBuilder<TContext, TStash & z.infer<TModuleStash>> {
+  ): SkillBuilder<TParams, TStash & z.infer<TModuleStash>> {
     for (const [name, stepDef] of Object.entries(mod.steps)) {
       const isExit = stepDef.config.next === '__parent__';
       if (isExit) {
@@ -69,25 +69,25 @@ export class SkillBuilder<TContext, TStash> {
       }
     }
 
-    return this as unknown as SkillBuilder<TContext, TStash & z.infer<TModuleStash>>;
+    return this as unknown as SkillBuilder<TParams, TStash & z.infer<TModuleStash>>;
   }
 
   subskill(
     name: string,
     definition: SkillDefinition,
-    opts?: { context?: (stepOutput: unknown, stash: unknown) => unknown },
-  ): SkillBuilder<TContext, TStash> {
+    opts?: { params?: (stepOutput: unknown, stash: unknown) => unknown },
+  ): SkillBuilder<TParams, TStash> {
     if (definition.subskills && Object.keys(definition.subskills).length > 0) {
       throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);
     }
     this.subskills[name] = Object.freeze({
       definition,
-      contextMap: opts?.context,
+      paramsMap: opts?.params,
     });
     return this;
   }
 
-  topic(name: string, config: TopicConfig): SkillBuilder<TContext, TStash> {
+  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TStash> {
     this.topics[name] = config;
     return this;
   }
@@ -117,7 +117,7 @@ export class SkillBuilder<TContext, TStash> {
       description,
       entry,
       system: this.config.system,
-      context: this.config.context,
+      params: this.config.params,
       stash: this.config.stash,
       steps: Object.freeze({ ...this.steps }),
       observers: this.config.observers,

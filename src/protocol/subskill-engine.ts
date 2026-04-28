@@ -10,7 +10,7 @@ import type {
 } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 
-type HistoryEntry = { step: string; output: unknown; action?: unknown };
+type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown };
 
 /**
  * Wraps a WorkflowEngine for a subskill, transparently qualifying step names
@@ -25,11 +25,11 @@ export class SubskillEngine {
   constructor(
     definition: SkillDefinition,
     handshake: Handshake,
-    context: unknown,
+    params: unknown,
     refs: ReferenceLoader,
     subskillName: string,
   ) {
-    this.engine = new WorkflowEngine(definition, handshake, context, refs);
+    this.engine = new WorkflowEngine(definition, handshake, params, refs);
     this.prefix = `${subskillName}/`;
   }
 

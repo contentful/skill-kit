@@ -19,7 +19,7 @@ export interface CompositeRunResult {
 }
 
 export interface RunCompositeOptions {
-  context?: Record<string, unknown>;
+  params?: Record<string, unknown>;
   model: ModelAdapter;
   host?: Partial<Handshake>;
   directSubskill?: string;
@@ -49,7 +49,7 @@ async function runFromDispatcher(
   opts: RunCompositeOptions,
   refs: ReferenceLoader,
 ): Promise<CompositeRunResult> {
-  const engine = new WorkflowEngine(skill, handshake, opts.context ?? {}, refs);
+  const engine = new WorkflowEngine(skill, handshake, opts.params ?? {}, refs);
   let current = engine.start();
 
   const path: string[] = [];
@@ -115,8 +115,8 @@ async function handleRedirect(
     const sub = skill.subskills?.[subName];
     if (!sub) throw new Error(`Redirect to unknown sub-skill "${subName}"`);
 
-    const context = sub.contextMap ? sub.contextMap(redirect.completed.output, redirect.stash) : {};
-    const subResult = await runSubskillEngine(sub.definition, subName, handshake, context, opts, refs);
+    const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+    const subResult = await runSubskillEngine(sub.definition, subName, handshake, params, opts, refs);
 
     return {
       path: [...path, ...subResult.path],
@@ -139,7 +139,7 @@ async function runSubskillDirect(
 ): Promise<CompositeRunResult> {
   const sub = skill.subskills?.[subskillName];
   if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
-  const result = await runSubskillEngine(sub.definition, subskillName, handshake, opts.context ?? {}, opts, refs);
+  const result = await runSubskillEngine(sub.definition, subskillName, handshake, opts.params ?? {}, opts, refs);
   return { ...result, redirectedTo: { kind: 'subskill', name: subskillName } };
 }
 
@@ -147,11 +147,11 @@ async function runSubskillEngine(
   def: SkillDefinition,
   subName: string,
   handshake: Handshake,
-  context: unknown,
+  params: unknown,
   opts: RunCompositeOptions,
   refs: ReferenceLoader,
 ): Promise<{ path: string[]; outputs: Record<string, unknown>; output: unknown; history: StepResult[] }> {
-  const engine = new WorkflowEngine(def, handshake, context, refs);
+  const engine = new WorkflowEngine(def, handshake, params, refs);
   let current = engine.start();
 
   const path: string[] = [];

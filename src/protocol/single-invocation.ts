@@ -5,14 +5,14 @@ import type { SessionFile } from './session.js';
 
 export async function handleStart(
   skill: SkillDefinition,
-  context: unknown,
+  params: unknown,
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
   isSubagent?: boolean,
 ): Promise<void> {
   const handshake = resolveHost(hostName, tools, isSubagent);
-  const engine = new WorkflowEngine(skill, handshake, context);
+  const engine = new WorkflowEngine(skill, handshake, params);
   const result = engine.start();
 
   if (session) {
@@ -27,7 +27,7 @@ export async function handleAdvance(
   skill: SkillDefinition,
   stepName: string,
   output: unknown,
-  history: Array<{ step: string; output: unknown; action?: unknown }>,
+  history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>,
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
@@ -56,7 +56,7 @@ function printHelp(skillName: string): void {
     `${skillName} — skill-kit CLI`,
     '',
     'Usage:',
-    `  ${skillName} --context '{"key":"value"}' [--host claude-code] [--session new]`,
+    `  ${skillName} --params '{"key":"value"}' [--host claude-code] [--session new]`,
     `  ${skillName} advance --session <id>`,
     `  ${skillName} advance --step <name> --output '{"key":"value"}' --history '[...]' [--host claude-code]`,
     '',
@@ -66,10 +66,10 @@ function printHelp(skillName: string): void {
     '  advance     Submit step output. Returns next prompt or done signal.',
     '',
     'Flags:',
-    '  --context      JSON string. Validated against skill context schema. (start only)',
+    '  --context      JSON string. Validated against skill params schema. (start only)',
     '  --step         Name of the step whose output is being submitted. (advance only)',
     '  --output       JSON string. The agent response for the step. (advance only)',
-    '  --history      JSON array of {step, output, action?} objects. (advance only)',
+    '  --history      JSON array of {step, stepOutput, actionOutput?} objects. (advance only)',
     '  --host         Host identifier for tool resolution. Default: generic.',
     '  --tools        Comma-separated list of available tools (merged with host registry).',
     '  --subagent     Indicates a subagent with a genuine tool subset (no registry merge).',

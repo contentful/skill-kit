@@ -2,7 +2,7 @@ import type { SkillDefinition, Handshake, ModelAdapter, SkillRunResult, PromptRe
 import { WorkflowEngine } from '../runtime/engine.js';
 
 export interface RunSkillOptions {
-  context?: Record<string, unknown>;
+  params?: Record<string, unknown>;
   model: ModelAdapter;
   host?: Partial<Handshake>;
 }
@@ -14,7 +14,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
     isSubagent: opts.host?.isSubagent ?? false,
   };
 
-  const engine = new WorkflowEngine(skill, handshake, opts.context ?? {});
+  const engine = new WorkflowEngine(skill, handshake, opts.params ?? {});
   let current = engine.start();
 
   const path: string[] = [];
@@ -36,7 +36,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
       return {
         path,
         outputs,
-        output: (result as DoneResult).finalOutput,
+        stepOutput: (result as DoneResult).finalOutput,
         history: engine['history'].all(),
       };
     }
