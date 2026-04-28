@@ -417,6 +417,103 @@ test('afterAction is replayed correctly from history', () => {
   assert.deepEqual(capturedStash, { code: 404 });
 });
 
+test('action stash vs step stash: both survive replay into next prompt', async () => {
+  let capturedStash: unknown;
+
+  const fetchAction = action({
+    name: 'fetch',
+    input: z.object({ url: z.string() }),
+    output: z.object({ spaceId: z.string() }),
+    run: async () => ({ spaceId: 'never-called' }),
+  });
+
+  const s = skill({
+    name: 'stash-compare',
+    entry: 'explore',
+    stash: z.object({ fromStep: z.string(), fromAction: z.string() }),
+  })
+    .step('explore', {
+      prompt: 'Explore',
+      output: z.object({ url: z.string() }),
+      stash: ({ output }) => ({ fromStep: output.url }),
+      action: {
+        run: fetchAction,
+        stash: ({ result }) => ({ fromAction: result.spaceId }),
+      },
+      next: 'triage',
+    })
+    .step('triage', {
+      prompt: 'Triage',
+      output: z.object({ decision: z.string() }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        capturedStash = ctx.stash;
+        return 'Report';
+      },
+      output: z.object({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  // Simulate: explore completed (with action), triage being advanced → report prompt built
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.replayHistory([{ step: 'explore', output: { url: 'https://x.com' }, action: { spaceId: 'abc123' } }]);
+  engine.start();
+  await engine.advance('triage', { decision: 'go' });
+
+  assert.deepEqual(capturedStash, { fromStep: 'https://x.com', fromAction: 'abc123' });
+});
+
+test('action stash survives cross-process replay into next step prompt', async () => {
+  let capturedStash: unknown;
+
+  const fetchAction = action({
+    name: 'fetch',
+    input: z.object({ url: z.string() }),
+    output: z.object({ spaceId: z.string() }),
+    run: async () => ({ spaceId: 'never-called' }),
+  });
+
+  const s = skill({ name: 'cross-process', entry: 'explore', stash: z.object({ spaceId: z.string() }) })
+    .step('explore', {
+      prompt: 'Explore',
+      output: z.object({ url: z.string() }),
+      action: {
+        run: fetchAction,
+        stash: ({ result }) => ({ spaceId: result.spaceId }),
+      },
+      next: 'triage',
+    })
+    .step('triage', {
+      prompt: 'Triage',
+      output: z.object({ decision: z.string() }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        capturedStash = ctx.stash;
+        return 'Report';
+      },
+      output: z.object({ summary: z.string() }),
+      next: { terminal: true },
+    })
+    .build();
+
+  // Simulate process 3: explore and triage completed, advancing triage builds report prompt
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.replayHistory([
+    { step: 'explore', output: { url: 'https://x.com' }, action: { spaceId: '58j6jt5cfhic' } },
+    { step: 'triage', output: { decision: 'fix' } },
+  ]);
+  engine.start();
+  const result = await engine.advance('triage', { decision: 'fix' });
+
+  assert.equal((result as PromptResult).step, 'report');
+  assert.deepEqual(capturedStash, { spaceId: '58j6jt5cfhic' });
+});
+
 test('getStep provides typed history access', async () => {
   let stepAResult: unknown;
 
