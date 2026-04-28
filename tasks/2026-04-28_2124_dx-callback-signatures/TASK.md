@@ -3,12 +3,14 @@
 ## Scope
 
 **In:**
+
 - Rename all callback parameters for naming consistency across the lifecycle
 - Widen "thin" callbacks (`next`, `updateStash`, `action.input`) to include `params` and `stash`
 - Make `prompt` and `output` optional with proper engine auto-advance behavior
 - Add guardrails: stash runtime validation, `Readonly<>` types, `Terminal` type export, build-time action input check
 
 **Out:**
+
 - Documentation updates across the 5 doc locations (SPEC.md, docs/api.md, docs/architecture.md, docs-site, README) — separate task after API stabilizes
 - Changes to `action.run` signature — stays `{ input, signal }`, intentionally portable/context-free
 
@@ -25,6 +27,7 @@ Alexander Braunreuther, internal engineer, 2026-04-28:
 > "Or even simpler, that I get it in the next callback: `next: ({context}) => context.optionalParam ? 'ask-for-param-step' : 'do-something-with-param-step'`"
 
 After explanation of stash as workaround:
+
 > "Let's look at it together tomorrow. It's still somewhat confusing."
 
 ### Root cause analysis
@@ -40,6 +43,7 @@ action.run(ctx)   → input, signal                           ← intentionally 
 ```
 
 Compounding the asymmetry, naming is inconsistent:
+
 - "context" means 4 things: skill input schema, runtime input value, callback parameter bag, general concept
 - "stash" means 4 things: schema declaration, step merge callback, action merge callback, read accessor
 - The action's return is called `result` in `action.stash` but `action` in step `stash`
@@ -66,16 +70,16 @@ Compounding the asymmetry, naming is inconsistent:
 
 ### Design: naming overhaul
 
-| Concept | Old name(s) | New name | Rationale |
-|---------|------------|----------|-----------|
-| Skill external input | `context` | **`params`** | Short, unambiguous, no collisions with HTML/action concepts |
-| Step LLM response | `output` | **`stepOutput`** | Fully qualified — zero ambiguity alongside `actionOutput` |
-| Action return value | `result` / `action` (inconsistent) | **`actionOutput`** | Consistent with `stepOutput`, eliminates collision with action config |
-| Cross-step state (read) | `stash` | **`stash`** (unchanged) | Read accessor name is fine |
-| Merge callbacks | `stash: (ctx) => ...` | **`updateStash: (ctx) => ...`** | Distinguishes write callback from read accessor and schema |
-| Subskill context mapper | `contextMap` | **`paramsMap`** | Follows `context` → `params` rename |
-| Generic type param | `TContext` | **`TParams`** | Follows concept rename |
-| `prev` on PromptContext | `prev: unknown` | **removed** | Untyped, just `history.at(-1)?.output`. Use `getStep()` or `history` instead |
+| Concept                 | Old name(s)                        | New name                        | Rationale                                                                    |
+| ----------------------- | ---------------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| Skill external input    | `context`                          | **`params`**                    | Short, unambiguous, no collisions with HTML/action concepts                  |
+| Step LLM response       | `output`                           | **`stepOutput`**                | Fully qualified — zero ambiguity alongside `actionOutput`                    |
+| Action return value     | `result` / `action` (inconsistent) | **`actionOutput`**              | Consistent with `stepOutput`, eliminates collision with action config        |
+| Cross-step state (read) | `stash`                            | **`stash`** (unchanged)         | Read accessor name is fine                                                   |
+| Merge callbacks         | `stash: (ctx) => ...`              | **`updateStash: (ctx) => ...`** | Distinguishes write callback from read accessor and schema                   |
+| Subskill context mapper | `contextMap`                       | **`paramsMap`**                 | Follows `context` → `params` rename                                          |
+| Generic type param      | `TContext`                         | **`TParams`**                   | Follows concept rename                                                       |
+| `prev` on PromptContext | `prev: unknown`                    | **removed**                     | Untyped, just `history.at(-1)?.output`. Use `getStep()` or `history` instead |
 
 ### Design: unified callback signatures
 
@@ -154,9 +158,10 @@ This propagates to: `PromptResult.completed`, `DoneResult.completed`, `SkillRunR
 ### Design: prompt-less steps (auto-advance)
 
 When `prompt` is omitted from a step:
+
 1. Engine detects absence during `buildPrompt()` — returns a marker/flag
 2. Protocol layer (`single-invocation.ts`, `composite-entry.ts`) detects the marker
-3. Instead of emitting a prompt to stdout, immediately calls `engine.advance(stepName, {})` 
+3. Instead of emitting a prompt to stdout, immediately calls `engine.advance(stepName, {})`
 4. If the next step is ALSO prompt-less, loops again (chain resolution)
 5. Safety: max 20 auto-advances to prevent infinite loops in misconfigured graphs
 
@@ -165,6 +170,7 @@ The LLM never sees prompt-less steps — they're invisible infrastructure.
 ### Design: output-less steps
 
 When `output` is omitted from a step:
+
 1. No `<schema>` block in the emitted prompt — LLM produces prose, not JSON
 2. Engine skips output validation, uses `{}` internally
 3. `updateStash` and `next` receive `stepOutput: undefined` (TypeScript-typed as `undefined`)
@@ -177,6 +183,7 @@ Combined with prompt-less: a step with neither `prompt` nor `output` is a pure r
 **Stash runtime validation:** `StashStore` receives the Zod schema at construction. Each `merge()` call does `schema.safeParse(candidate)` — on failure, `console.warn()` (not throw). Catches silent type drift without breaking existing skills.
 
 **`Terminal` type export:**
+
 ```ts
 export type Terminal = { readonly terminal: true };
 export const terminal: Terminal = Object.freeze({ terminal: true });
@@ -193,6 +200,7 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 ## Steps
 
 ### Phase 1 — Rename + widen all callback signatures
+
 - [ ] `src/types.ts` — all signature renames and widening
 - [ ] `src/runtime/engine.ts` — pass new params in all callback sites, remove `prev`
 - [ ] `src/step.ts` — generic param renames
@@ -215,6 +223,7 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 - [ ] Typecheck + test + format
 
 ### Phase 2 — Prompt-less and output-less steps
+
 - [ ] `src/types.ts` — make `output` optional
 - [ ] `src/step.ts` — remove `output` required check
 - [ ] `src/runtime/engine.ts` — auto-advance logic, skip validation when no output
@@ -222,6 +231,7 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 - [ ] Tests for prompt-less, output-less, combined, chaining, infinite loop protection
 
 ### Phase 3 — Guardrails and type polish
+
 - [ ] `src/runtime/stash.ts` — schema validation on merge (warn mode)
 - [ ] `src/terminal.ts` + `src/types.ts` — `Terminal` type, `NextTarget` union
 - [ ] `src/skill-builder.ts` — build-time action input schema check
@@ -229,4 +239,4 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 
 ## Notes
 
-*(Running log of decisions made during implementation)*
+_(Running log of decisions made during implementation)_

@@ -36,7 +36,7 @@ test('engine routes conditionally based on output', async () => {
     .step('check', {
       prompt: 'Check status',
       output: z.object({ ok: z.boolean() }),
-      next: ({ output }) => (output.ok ? 'done' : 'fix'),
+      next: ({ stepOutput }) => (stepOutput.ok ? 'done' : 'fix'),
     })
     .step('fix', { prompt: 'Fix it', output: z.object({ fixed: z.boolean() }), next: { terminal: true } })
     .step('done', { prompt: 'All good', output: z.object({}), next: { terminal: true } })
@@ -67,11 +67,11 @@ test('engine returns validation error for bad output', async () => {
 });
 
 test('engine validates context schema on construction', () => {
-  const s = skill({ name: 'ctx', entry: 'a', context: z.object({ path: z.string() }) })
+  const s = skill({ name: 'ctx', entry: 'a', params: z.object({ path: z.string() }) })
     .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
     .build();
 
-  assert.throws(() => new WorkflowEngine(s, genericHost, { path: 123 }), /Invalid context/);
+  assert.throws(() => new WorkflowEngine(s, genericHost, { path: 123 }), /Invalid params/);
   assert.doesNotThrow(() => new WorkflowEngine(s, genericHost, { path: '/src' }));
 });
 
@@ -80,7 +80,7 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
     .step('loop', {
       prompt: 'Retry',
       output: z.object({ confidence: z.number() }),
-      next: ({ output }) => (output.confidence < 0.7 ? 'loop' : 'report'),
+      next: ({ stepOutput }) => (stepOutput.confidence < 0.7 ? 'loop' : 'report'),
       maxVisits: 2,
       onMaxVisits: 'report',
     })
@@ -100,12 +100,12 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
 test('engine provides dynamic prompt context', async () => {
   let capturedCtx: unknown = null;
 
-  const s = skill({ name: 'dynamic', entry: 'a', context: z.object({ name: z.string() }) })
+  const s = skill({ name: 'dynamic', entry: 'a', params: z.object({ name: z.string() }) })
     .step('a', { prompt: 'First', output: z.object({ val: z.number() }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
         capturedCtx = ctx;
-        return `Previous: ${JSON.stringify(ctx.prev)}`;
+        return `Previous: ${JSON.stringify(ctx.history.at(-1)?.stepOutput)}`;
       },
       output: z.object({}),
       next: { terminal: true },
@@ -125,7 +125,7 @@ test('engine replays history for single-invocation mode', () => {
     .step('a', {
       prompt: 'A',
       output: z.object({ val: z.string() }),
-      stash: ({ output }) => ({ memo: output.val }),
+      updateStash: ({ stepOutput }) => ({ memo: stepOutput.val }),
       next: 'b',
     })
     .step('b', {
@@ -136,7 +136,7 @@ test('engine replays history for single-invocation mode', () => {
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'a', output: { val: 'hello' } }]);
+  engine.replayHistory([{ step: 'a', stepOutput: { val: 'hello' } }]);
   const prompt = engine.start();
   assert.ok(prompt);
 });
@@ -169,7 +169,7 @@ test('engine runs action after validation, before transition', async () => {
   const result = await engine.advance('a', { content: 'hello' });
   assert.ok(actionRan);
   assert.equal((result as DoneResult).done, true);
-  assert.deepEqual((result as DoneResult).completed?.action, { written: true });
+  assert.deepEqual((result as DoneResult).completed?.actionOutput, { written: true });
 });
 
 test('engine fires observers at lifecycle points', async () => {
@@ -247,7 +247,7 @@ test('actionInput mapping decouples step output from action input', async () => 
       output: z.object({ fileName: z.string(), body: z.string() }),
       action: {
         run: writeAction,
-        input: ({ output }) => ({ path: `/out/${output.fileName}`, content: output.body }),
+        input: ({ stepOutput }) => ({ path: `/out/${stepOutput.fileName}`, content: stepOutput.body }),
       },
       next: { terminal: true },
     })
@@ -276,7 +276,7 @@ test('actionInput receives current stash', async () => {
     .step('setup', {
       prompt: 'Setup',
       output: z.object({}),
-      stash: () => ({ prefix: 'pre' }),
+      updateStash: () => ({ prefix: 'pre' }),
       next: 'a',
     })
     .step('a', {
@@ -284,7 +284,7 @@ test('actionInput receives current stash', async () => {
       output: z.object({ val: z.string() }),
       action: {
         run: myAction,
-        input: ({ output, stash }) => ({ prefix: stash.prefix, val: output.val }),
+        input: ({ stepOutput, stash }) => ({ prefix: stash.prefix, val: stepOutput.val }),
       },
       next: { terminal: true },
     })
@@ -310,7 +310,7 @@ test('action output is passed to transition function', async () => {
       prompt: 'Call the API',
       output: z.object({ url: z.string() }),
       action: { run: apiAction },
-      next: ({ action }) => ((action as { status: number }).status === 200 ? 'success' : 'failure'),
+      next: ({ actionOutput }) => ((actionOutput as { status: number }).status === 200 ? 'success' : 'failure'),
     })
     .step('success', { prompt: 'OK', output: z.object({}), next: { terminal: true } })
     .step('failure', { prompt: 'Fail', output: z.object({}), next: { terminal: true } })
@@ -329,8 +329,8 @@ test('action is undefined in next when no action configured', async () => {
     .step('a', {
       prompt: 'Go',
       output: z.object({ ok: z.boolean() }),
-      next: ({ action }) => {
-        capturedAction = action;
+      next: ({ actionOutput }) => {
+        capturedAction = actionOutput;
         return 'b';
       },
     })
@@ -359,7 +359,7 @@ test('afterAction stashes action result', async () => {
       output: z.object({ url: z.string() }),
       action: {
         run: apiAction,
-        stash: ({ result }) => ({ lastCode: result.responseCode }),
+        updateStash: ({ actionOutput }) => ({ lastCode: actionOutput.responseCode }),
       },
       next: 'report',
     })
@@ -398,7 +398,7 @@ test('afterAction is replayed correctly from history', () => {
       output: z.object({ url: z.string() }),
       action: {
         run: apiAction,
-        stash: ({ result }) => ({ code: result.code }),
+        updateStash: ({ actionOutput }) => ({ code: actionOutput.code }),
       },
       next: 'report',
     })
@@ -411,7 +411,7 @@ test('afterAction is replayed correctly from history', () => {
 
   // Replay history with action output → afterAction should populate stash
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'call', output: { url: 'https://x.com' }, action: { code: 404 } }]);
+  engine.replayHistory([{ step: 'call', stepOutput: { url: 'https://x.com' }, actionOutput: { code: 404 } }]);
   // start() builds prompt for entry step 'call', which captures stash
   engine.start();
   assert.deepEqual(capturedStash, { code: 404 });
@@ -435,10 +435,10 @@ test('action stash vs step stash: both survive replay into next prompt', async (
     .step('explore', {
       prompt: 'Explore',
       output: z.object({ url: z.string() }),
-      stash: ({ output }) => ({ fromStep: output.url }),
+      updateStash: ({ stepOutput }) => ({ fromStep: stepOutput.url }),
       action: {
         run: fetchAction,
-        stash: ({ result }) => ({ fromAction: result.spaceId }),
+        updateStash: ({ actionOutput }) => ({ fromAction: actionOutput.spaceId }),
       },
       next: 'triage',
     })
@@ -459,7 +459,9 @@ test('action stash vs step stash: both survive replay into next prompt', async (
 
   // Simulate: explore completed (with action), triage being advanced → report prompt built
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'explore', output: { url: 'https://x.com' }, action: { spaceId: 'abc123' } }]);
+  engine.replayHistory([
+    { step: 'explore', stepOutput: { url: 'https://x.com' }, actionOutput: { spaceId: 'abc123' } },
+  ]);
   engine.start();
   await engine.advance('triage', { decision: 'go' });
 
@@ -482,7 +484,7 @@ test('action stash survives cross-process replay into next step prompt', async (
       output: z.object({ url: z.string() }),
       action: {
         run: fetchAction,
-        stash: ({ result }) => ({ spaceId: result.spaceId }),
+        updateStash: ({ actionOutput }) => ({ spaceId: actionOutput.spaceId }),
       },
       next: 'triage',
     })
@@ -504,8 +506,8 @@ test('action stash survives cross-process replay into next step prompt', async (
   // Simulate process 3: explore and triage completed, advancing triage builds report prompt
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([
-    { step: 'explore', output: { url: 'https://x.com' }, action: { spaceId: '58j6jt5cfhic' } },
-    { step: 'triage', output: { decision: 'fix' } },
+    { step: 'explore', stepOutput: { url: 'https://x.com' }, actionOutput: { spaceId: '58j6jt5cfhic' } },
+    { step: 'triage', stepOutput: { decision: 'fix' } },
   ]);
   engine.start();
   const result = await engine.advance('triage', { decision: 'fix' });
@@ -532,7 +534,7 @@ test('getStep provides typed history access', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('a', { val: 42 });
-  assert.deepEqual(stepAResult, { output: { val: 42 }, action: undefined });
+  assert.deepEqual(stepAResult, { stepOutput: { val: 42 }, actionOutput: undefined });
 });
 
 test('getStep returns undefined for missing step', async () => {
@@ -559,8 +561,8 @@ test('engine returns RedirectResult when next target is not a local step', async
     .step('classify', {
       prompt: 'Classify',
       output: z.object({ intent: z.string() }),
-      stash: ({ output }) => ({ intent: output.intent }),
-      next: ({ output }) => `subskill:${output.intent}`,
+      updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
+      next: ({ stepOutput }) => `subskill:${stepOutput.intent}`,
     })
     .build();
 
@@ -570,7 +572,11 @@ test('engine returns RedirectResult when next target is not a local step', async
 
   const redirect = result as RedirectResult;
   assert.equal(redirect.redirect, 'subskill:doctor');
-  assert.deepEqual(redirect.completed, { step: 'classify', output: { intent: 'doctor' }, action: undefined });
+  assert.deepEqual(redirect.completed, {
+    step: 'classify',
+    stepOutput: { intent: 'doctor' },
+    actionOutput: undefined,
+  });
   assert.deepEqual(redirect.stash, { intent: 'doctor' });
 });
 
@@ -579,7 +585,7 @@ test('engine returns RedirectResult for topic targets', async () => {
     .step('ask', {
       prompt: 'What topic?',
       output: z.object({ topic: z.string() }),
-      next: ({ output }) => `topic:${output.topic}`,
+      next: ({ stepOutput }) => `topic:${stepOutput.topic}`,
     })
     .build();
 

@@ -169,7 +169,9 @@ export interface StepResult<TOutput = unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface PromptContext<TParams = any, TStash = any> {
   history: readonly StepResult[];
-  getStep: <TOutput = unknown, TAction = unknown>(stepName: string) => { stepOutput: TOutput; actionOutput: TAction } | undefined;
+  getStep: <TOutput = unknown, TAction = unknown>(
+    stepName: string,
+  ) => { stepOutput: TOutput; actionOutput: TAction } | undefined;
   params: TParams;
   refs: ReferenceLoader;
   attempts: number;
@@ -208,7 +210,12 @@ export interface StepConfig<
     input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: TParams }) => unknown;
     updateStash?: (ctx: { actionOutput: TActionOutput }) => Partial<TStash>;
   };
-  updateStash?: (ctx: { stepOutput: z.infer<TOutput>; actionOutput: TActionOutput; stash: Readonly<TStash>; params: TParams }) => Partial<TStash>;
+  updateStash?: (ctx: {
+    stepOutput: z.infer<TOutput>;
+    actionOutput: TActionOutput;
+    stash: Readonly<TStash>;
+    params: TParams;
+  }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
 }

@@ -16,7 +16,9 @@ export class History {
     return this.results[this.results.length - 1];
   }
 
-  get<TOutput = unknown, TAction = unknown>(stepName: string): { stepOutput: TOutput; actionOutput: TAction } | undefined {
+  get<TOutput = unknown, TAction = unknown>(
+    stepName: string,
+  ): { stepOutput: TOutput; actionOutput: TAction } | undefined {
     const result = this.results.find((r) => r.step === stepName);
     if (!result) return undefined;
     return { stepOutput: result.stepOutput as TOutput, actionOutput: result.actionOutput as TAction };

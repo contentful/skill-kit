@@ -27,7 +27,7 @@ test('step() supports terminal next', () => {
 });
 
 test('step() supports function next', () => {
-  const fn = ({ output }: { output: { ok: boolean } }) => (output.ok ? 'done' : 'retry');
+  const fn = ({ stepOutput }: { stepOutput: { ok: boolean } }) => (stepOutput.ok ? 'done' : 'retry');
   const s = step({
     prompt: 'Check.',
     output: z.object({ ok: z.boolean() }),

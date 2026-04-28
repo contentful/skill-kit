@@ -106,7 +106,9 @@ export class WorkflowEngine {
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
       const { run: actionDef, input: inputFn, updateStash: actionUpdateStash } = stepDef.config.action;
-      const rawActionInput = inputFn ? inputFn({ stepOutput, stash: this.stash.all(), params: this.skillParams }) : stepOutput;
+      const rawActionInput = inputFn
+        ? inputFn({ stepOutput, stash: this.stash.all(), params: this.skillParams })
+        : stepOutput;
       const actionInput = actionDef.input.parse(rawActionInput);
       actionOutput = await actionDef.run({
         input: actionInput,
@@ -119,7 +121,14 @@ export class WorkflowEngine {
     }
 
     if (stepDef.config.updateStash) {
-      this.stash.merge(stepDef.config.updateStash({ stepOutput, actionOutput, stash: this.stash.all(), params: this.skillParams }) as Record<string, unknown>);
+      this.stash.merge(
+        stepDef.config.updateStash({
+          stepOutput,
+          actionOutput,
+          stash: this.stash.all(),
+          params: this.skillParams,
+        }) as Record<string, unknown>,
+      );
     }
 
     this.history.append(stepName, stepOutput, actionOutput);
@@ -167,11 +176,20 @@ export class WorkflowEngine {
       const stepOutput = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.stepOutput);
 
       if (stepDef.config.action?.updateStash && entry.actionOutput !== undefined) {
-        this.stash.merge(stepDef.config.action.updateStash({ actionOutput: entry.actionOutput }) as Record<string, unknown>);
+        this.stash.merge(
+          stepDef.config.action.updateStash({ actionOutput: entry.actionOutput }) as Record<string, unknown>,
+        );
       }
 
       if (stepDef.config.updateStash) {
-        this.stash.merge(stepDef.config.updateStash({ stepOutput, actionOutput: entry.actionOutput, stash: this.stash.all(), params: this.skillParams }) as Record<string, unknown>);
+        this.stash.merge(
+          stepDef.config.updateStash({
+            stepOutput,
+            actionOutput: entry.actionOutput,
+            stash: this.stash.all(),
+            params: this.skillParams,
+          }) as Record<string, unknown>,
+        );
       }
 
       this.history.append(entry.step, stepOutput, entry.actionOutput);

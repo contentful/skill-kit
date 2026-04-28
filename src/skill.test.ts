@@ -75,15 +75,15 @@ test('skill().build() throws on empty steps', () => {
   assert.throws(() => skill({ name: 'x', entry: 'start' }).build(), /at least one step/);
 });
 
-test('context type flows into step prompt callbacks', () => {
+test('params type flows into step prompt callbacks', () => {
   const s = skill({
     name: 'typed',
     entry: 'a',
-    context: z.object({ greeting: z.string() }),
+    params: z.object({ greeting: z.string() }),
   })
     .step('a', {
-      prompt: ({ context }) => {
-        const _check: string = context.greeting;
+      prompt: ({ params }) => {
+        const _check: string = params.greeting;
         void _check;
         return 'hi';
       },
@@ -189,17 +189,17 @@ test('.subskill() registers a sub-skill on the definition', () => {
 
   const parent = skill({ name: 'parent', entry: 'start' })
     .step('start', { prompt: 'go', output: z.object({ target: z.string() }), next: 'subskill:child' })
-    .subskill('child', child, { context: (output) => ({ from: output }) })
+    .subskill('child', child, { params: (output) => ({ from: output }) })
     .build();
 
   assert.ok(parent.subskills);
   assert.ok(parent.subskills['child']);
   assert.equal(parent.subskills['child'].definition.name, 'child');
-  assert.equal(typeof parent.subskills['child'].contextMap, 'function');
+  assert.equal(typeof parent.subskills['child'].paramsMap, 'function');
   assert.ok(Object.isFrozen(parent.subskills));
 });
 
-test('.subskill() without context mapping', () => {
+test('.subskill() without params mapping', () => {
   const child = skill({ name: 'child', entry: 'a' })
     .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
     .build();
@@ -209,7 +209,7 @@ test('.subskill() without context mapping', () => {
     .subskill('child', child)
     .build();
 
-  assert.equal(parent.subskills!['child']!.contextMap, undefined);
+  assert.equal(parent.subskills!['child']!.paramsMap, undefined);
 });
 
 test('.subskill() throws on nested sub-skills', () => {
