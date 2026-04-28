@@ -116,7 +116,7 @@ test('composite: dispatcher advance with topic redirect returns done with conten
 test('composite: sub-skill advance with namespaced step', async () => {
   const history = JSON.stringify([
     { step: 'classify', output: { intent: 'doctor' } },
-    { step: 'doctor/diagnose', output: { issue: 'broken' } },
+    { step: 'doctor/diagnose', output: { issue: 'broken' }, action: { found: 'scanned:broken' } },
   ]);
   const { stdout } = await run(
     'advance',
@@ -128,8 +128,9 @@ test('composite: sub-skill advance with namespaced step', async () => {
     history,
   );
   const result = JSON.parse(stdout.trim());
-  assert.equal(result.done, true);
-  assert.deepEqual(result.finalOutput, { issue: 'fixed' });
+  assert.equal(result.step, 'doctor/triage');
+  assert.ok(result.completed);
+  assert.equal(result.completed.step, 'doctor/diagnose');
 });
 
 test('composite: direct sub-skill start bypasses dispatcher', async () => {
@@ -140,7 +141,9 @@ test('composite: direct sub-skill start bypasses dispatcher', async () => {
 });
 
 test('composite: direct sub-skill advance', async () => {
-  const history = JSON.stringify([{ step: 'doctor/diagnose', output: { issue: 'test' } }]);
+  const history = JSON.stringify([
+    { step: 'doctor/diagnose', output: { issue: 'test' }, action: { found: 'scanned:test' } },
+  ]);
   const { stdout } = await run(
     'doctor',
     'advance',
@@ -152,7 +155,7 @@ test('composite: direct sub-skill advance', async () => {
     history,
   );
   const result = JSON.parse(stdout.trim());
-  assert.equal(result.done, true);
+  assert.equal(result.step, 'doctor/triage');
 });
 
 test('composite: topics command lists available topics', async () => {
@@ -246,6 +249,7 @@ test('composite session: full lifecycle dispatcher → subskill (file mode)', as
   const subskillPrompt = linesAfterRedirect[line1 - 1]!;
   assert.equal(subskillPrompt.step, 'doctor/diagnose');
 
+  // Advance doctor/diagnose → action runs → transitions to doctor/triage
   appendFileSync(
     pointer.file,
     JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: 'fixed' } }) + '\n',
@@ -253,10 +257,76 @@ test('composite session: full lifecycle dispatcher → subskill (file mode)', as
   const { stdout: adv2 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
   const line2 = parseInt(adv2.trim(), 10);
 
+  const linesAfterDiagnose = readSessionLines(pointer.file);
+  const triagePrompt = linesAfterDiagnose[line2 - 1]!;
+  assert.equal(triagePrompt.type, 'prompt');
+  assert.equal(triagePrompt.step, 'doctor/triage');
+
+  // Advance doctor/triage → transitions to doctor/report (prompt needs stash from diagnose action)
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'doctor/triage', output: { priority: 'high' } }) + '\n',
+  );
+  const { stdout: adv3 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line3 = parseInt(adv3.trim(), 10);
+
+  const linesAfterTriage = readSessionLines(pointer.file);
+  const reportPrompt = linesAfterTriage[line3 - 1]!;
+  assert.equal(reportPrompt.type, 'prompt');
+  assert.equal(reportPrompt.step, 'doctor/report');
+
+  // Advance doctor/report → terminal
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'doctor/report', output: { summary: 'all good' } }) + '\n',
+  );
+  const { stdout: adv4 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line4 = parseInt(adv4.trim(), 10);
+
   const finalLines = readSessionLines(pointer.file);
-  const doneLine = finalLines[line2 - 1]!;
+  const doneLine = finalLines[line4 - 1]!;
   assert.equal(doneLine.type, 'done');
-  assert.deepEqual(doneLine.finalOutput, { issue: 'fixed' });
+  assert.deepEqual(doneLine.finalOutput, { summary: 'all good' });
+});
+
+test('composite session: subskill action stash survives across advances', async () => {
+  const dir = createTempDir();
+
+  // Start dispatcher
+  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const pointer = JSON.parse(startOut.trim());
+
+  // Advance classify → redirects to doctor subskill, prompts for doctor/diagnose
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'doctor' } }) + '\n',
+  );
+  await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+
+  // Advance doctor/diagnose — action runs, stash populated, transitions to doctor/triage
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: '/src' } }) + '\n',
+  );
+  await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+
+  // Advance doctor/triage — THIS is the cross-process replay:
+  // Engine replays diagnose from history, must restore action stash,
+  // then builds doctor/report prompt which reads stash.scanResult
+  appendFileSync(
+    pointer.file,
+    JSON.stringify({ type: 'output', step: 'doctor/triage', output: { priority: 'high' } }) + '\n',
+  );
+  const { stdout: adv3 } = await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
+  const line3 = parseInt(adv3.trim(), 10);
+
+  const lines = readSessionLines(pointer.file);
+  const reportLine = lines[line3 - 1]!;
+  assert.equal(reportLine.step, 'doctor/report');
+  assert.ok(
+    (reportLine.prompt as string).includes('scanned:/src'),
+    `report prompt should contain action stash value from diagnose, got: ${reportLine.prompt}`,
+  );
 });
 
 test('composite session: direct subskill start (file mode)', async () => {
