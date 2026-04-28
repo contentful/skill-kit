@@ -245,12 +245,12 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 
 ### Phase 5 — Documentation
 
-- [ ] `SPEC.md` — all renames, new features (prompt-less, output-less, typed getStep)
-- [ ] `docs/api.md` — all renames, remove legacy comments, new features
-- [ ] `docs/architecture.md` — lifecycle diagram, auto-advance, composite routing
-- [ ] `README.md` — hero example, API table, brief new features
-- [ ] `docs-site/src/components/Hero.astro` — fix broken landing page example
-- [ ] `docs-site/src/pages/` — all MDX pages mirroring docs/ changes
+- [x] `SPEC.md` — all renames, new features (prompt-less, output-less, typed getStep)
+- [x] `docs/api.md` — all renames, remove legacy comments, new features
+- [x] `docs/architecture.md` — lifecycle diagram, auto-advance, composite routing
+- [x] `README.md` — hero example, API table, brief new features
+- [x] `docs-site/src/components/Hero.astro` — fix broken landing page example
+- [x] `docs-site/src/pages/` — all 14 MDX pages updated, docs-site builds clean
 
 ## Notes
 
