@@ -36,7 +36,7 @@ const NOOP_REFS: ReferenceLoader = {
 export class WorkflowEngine {
   private readonly skill: SkillDefinition;
   private readonly handshake: Handshake;
-  private readonly skillParams: unknown;
+  private readonly skillParams: Readonly<unknown>;
   private readonly history: History;
   private readonly stash: StashStore;
   private readonly refs: ReferenceLoader;
@@ -53,7 +53,7 @@ export class WorkflowEngine {
     this.observers = new ObserverDispatcher(skill.observers ?? {});
     this.abortController = new AbortController();
     this.history = new History();
-    this.stash = new StashStore();
+    this.stash = new StashStore(skill.stash ?? undefined);
     this.currentStep = skill.entry;
 
     if (skill.params) {

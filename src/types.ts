@@ -188,7 +188,7 @@ export type TransitionFn<TOutput = unknown, TActionOutput = unknown, TParams = u
   stepOutput: TOutput;
   attempts: number;
   actionOutput: TActionOutput;
-  params: TParams;
+  params: Readonly<TParams>;
   stash: Readonly<TStash>;
 }) => string;
 
@@ -210,14 +210,14 @@ export interface StepConfig<
   next: string | TransitionFn<z.infer<TOutput>, TActionOutput, TParams, TStash> | { terminal: true };
   action?: {
     run: ActionDefinition;
-    input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: TParams }) => unknown;
+    input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: Readonly<TParams> }) => unknown;
     updateStash?: (ctx: { actionOutput: TActionOutput }) => Partial<TStash>;
   };
   updateStash?: (ctx: {
     stepOutput: z.infer<TOutput>;
     actionOutput: TActionOutput;
     stash: Readonly<TStash>;
-    params: TParams;
+    params: Readonly<TParams>;
   }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
