@@ -5,22 +5,35 @@ import type { Handshake } from '../types.js';
 import { checklist } from './checklist.js';
 import { confirm } from './confirm.js';
 
-test('resolveTools: explicit tools are authoritative — no registry merge', () => {
+test('resolveTools: subagent explicit tools are authoritative — no registry merge', () => {
   const handshake: Handshake = {
     host: 'claude-code',
     toolsAvailable: ['ask_followup_question'],
+    isSubagent: true,
   };
   const resolved = resolveTools(handshake);
-  // Explicit tool matched for ask-user
   assert.equal(resolved['ask-user'], 'ask_followup_question');
-  // No match for plan in the explicit list — undefined, not registry fallback
   assert.equal(resolved['plan'], undefined);
+});
+
+test('resolveTools: top-level agent with partial tools gets union with registry', () => {
+  const handshake: Handshake = {
+    host: 'claude-code',
+    toolsAvailable: ['Read', 'Bash', 'Agent'],
+    isSubagent: false,
+  };
+  const resolved = resolveTools(handshake);
+  assert.equal(resolved['ask-user'], 'AskUserQuestion');
+  assert.equal(resolved['plan'], 'EnterPlanMode');
+  assert.equal(resolved['checklist'], 'TaskCreate');
+  assert.equal(resolved['subagent'], 'Agent');
 });
 
 test('resolveTools: registry fallback per-primitive when no explicit tools', () => {
   const handshake: Handshake = {
     host: 'claude-code',
     toolsAvailable: [],
+    isSubagent: false,
   };
   const resolved = resolveTools(handshake);
   assert.equal(resolved['ask-user'], 'AskUserQuestion');
@@ -33,6 +46,7 @@ test('resolveTools: unknown host with no tools gets all undefined', () => {
   const handshake: Handshake = {
     host: 'unknown-agent',
     toolsAvailable: [],
+    isSubagent: false,
   };
   const resolved = resolveTools(handshake);
   assert.equal(resolved['ask-user'], undefined);
@@ -41,16 +55,15 @@ test('resolveTools: unknown host with no tools gets all undefined', () => {
   assert.equal(resolved['subagent'], undefined);
 });
 
-test('resolveTools: partial explicit tools — unmatched primitives get undefined', () => {
+test('resolveTools: subagent partial explicit tools — unmatched primitives get undefined', () => {
   const handshake: Handshake = {
     host: 'cline',
     toolsAvailable: ['AskUserQuestion', 'Agent'],
+    isSubagent: true,
   };
   const resolved = resolveTools(handshake);
-  // Explicit matches
   assert.equal(resolved['ask-user'], 'AskUserQuestion');
   assert.equal(resolved['subagent'], 'Agent');
-  // No match in explicit list — undefined, not registry fallback
   assert.equal(resolved['plan'], undefined);
   assert.equal(resolved['checklist'], undefined);
 });
@@ -59,9 +72,34 @@ test('resolveTools: explicit tool not in any primitive is ignored', () => {
   const handshake: Handshake = {
     host: 'generic',
     toolsAvailable: ['SomeUnknownTool'],
+    isSubagent: false,
   };
   const resolved = resolveTools(handshake);
   assert.equal(resolved['ask-user'], undefined);
+});
+
+test('resolveTools: unknown host with explicit tools uses only explicit (no registry)', () => {
+  const handshake: Handshake = {
+    host: 'unknown-agent',
+    toolsAvailable: ['AskUserQuestion', 'Agent'],
+    isSubagent: false,
+  };
+  const resolved = resolveTools(handshake);
+  assert.equal(resolved['ask-user'], 'AskUserQuestion');
+  assert.equal(resolved['subagent'], 'Agent');
+  assert.equal(resolved['plan'], undefined);
+});
+
+test('resolveTools: union deduplicates tools from both sources', () => {
+  const handshake: Handshake = {
+    host: 'claude-code',
+    toolsAvailable: ['AskUserQuestion', 'Read', 'CustomMcpTool'],
+    isSubagent: false,
+  };
+  const resolved = resolveTools(handshake);
+  assert.equal(resolved['ask-user'], 'AskUserQuestion');
+  assert.equal(resolved['plan'], 'EnterPlanMode');
+  assert.equal(resolved['checklist'], 'TaskCreate');
 });
 
 test('renderPrimitive: checklist produces XML', () => {
@@ -89,7 +127,7 @@ test('renderPrimitive: confirm produces XML with attributes', () => {
 });
 
 test('preambleRows: includes all tags with tool names for Claude Code', () => {
-  const resolved = resolveTools({ host: 'claude-code', toolsAvailable: [] });
+  const resolved = resolveTools({ host: 'claude-code', toolsAvailable: [], isSubagent: false });
   const rows = preambleRows(resolved);
 
   const tags = rows.map((r) => r.tag);
@@ -107,7 +145,7 @@ test('preambleRows: includes all tags with tool names for Claude Code', () => {
 });
 
 test('preambleRows: generic host shows dashes', () => {
-  const resolved = resolveTools({ host: 'generic', toolsAvailable: [] });
+  const resolved = resolveTools({ host: 'generic', toolsAvailable: [], isSubagent: false });
   const rows = preambleRows(resolved);
 
   const askRow = rows.find((r) => r.tag.includes('<ask-user>'));

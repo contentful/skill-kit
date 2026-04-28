@@ -29,14 +29,17 @@ const HOST_REGISTRY: Record<string, string[]> = {
   ],
   codex: [
     'shell',
+    'exec_command',
+    'write_stdin',
     'apply_patch',
     'update_plan',
     'web_search',
     'view_image',
-    'exec_command',
-    'write_stdin',
-    'ToolRequestUserInput',
-    'CollabAgent',
+    'request_user_input',
+    'spawn_agent',
+    'send_input',
+    'wait_agent',
+    'close_agent',
   ],
   opencode: [
     'bash',
@@ -154,11 +157,12 @@ const HOST_REGISTRY: Record<string, string[]> = {
   amp: ['shell', 'read', 'write', 'edit'],
 };
 
-export function resolveHost(hostName?: string, explicitTools?: string[]): Handshake {
+export function resolveHost(hostName?: string, explicitTools?: string[], isSubagent?: boolean): Handshake {
   const name = hostName ?? 'generic';
   return {
     host: name,
     toolsAvailable: explicitTools ?? [],
+    isSubagent: isSubagent ?? false,
   };
 }
 

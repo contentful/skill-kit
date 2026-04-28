@@ -9,8 +9,9 @@ export async function handleStart(
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
+  isSubagent?: boolean,
 ): Promise<void> {
-  const handshake = resolveHost(hostName, tools);
+  const handshake = resolveHost(hostName, tools, isSubagent);
   const engine = new WorkflowEngine(skill, handshake, context);
   const result = engine.start();
 
@@ -30,8 +31,9 @@ export async function handleAdvance(
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
+  isSubagent?: boolean,
 ): Promise<void> {
-  const handshake = resolveHost(hostName, tools);
+  const handshake = resolveHost(hostName, tools, isSubagent);
   const engine = new WorkflowEngine(skill, handshake, {});
 
   if (history.length > 0) {
@@ -69,7 +71,8 @@ function printHelp(skillName: string): void {
     '  --output       JSON string. The agent response for the step. (advance only)',
     '  --history      JSON array of {step, output, action?} objects. (advance only)',
     '  --host         Host identifier for tool resolution. Default: generic.',
-    '  --tools        Comma-separated list of available tools (overrides host registry).',
+    '  --tools        Comma-separated list of available tools (merged with host registry).',
+    '  --subagent     Indicates a subagent with a genuine tool subset (no registry merge).',
     '  --session      "new" to create a session (start), or session ID (advance).',
     '  --session-dir  Directory for session files. Default: OS temp directory.',
     '  --output-mode  "file" (default) or "flag". How the agent passes step output.',
@@ -78,14 +81,17 @@ function printHelp(skillName: string): void {
   process.stderr.write(help.join('\n') + '\n');
 }
 
+const BOOLEAN_FLAGS = new Set(['subagent']);
+
 export function parseArgs(argv: string[]): {
   command: 'start' | 'advance' | 'help';
   flags: Record<string, string>;
+  booleans: Set<string>;
 } {
   const args = argv.slice(2);
 
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
-    return { command: 'help', flags: {} };
+    return { command: 'help', flags: {}, booleans: new Set() };
   }
 
   let command: 'start' | 'advance';
@@ -99,19 +105,25 @@ export function parseArgs(argv: string[]): {
     command = 'start';
     flagStart = 0;
   } else {
-    return { command: 'help', flags: {} };
+    return { command: 'help', flags: {}, booleans: new Set() };
   }
 
   const flags: Record<string, string> = {};
+  const booleans = new Set<string>();
   for (let i = flagStart; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg.startsWith('--') && i + 1 < args.length) {
-      flags[arg.slice(2)] = args[i + 1]!;
-      i++;
+    if (arg.startsWith('--')) {
+      const name = arg.slice(2);
+      if (BOOLEAN_FLAGS.has(name)) {
+        booleans.add(name);
+      } else if (i + 1 < args.length) {
+        flags[name] = args[i + 1]!;
+        i++;
+      }
     }
   }
 
-  return { command, flags };
+  return { command, flags, booleans };
 }
 
 export { printHelp };

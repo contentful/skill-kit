@@ -6,12 +6,19 @@ const MAX_HEADER_LENGTH = 12;
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 4;
 
-const BATCH_TOOLS = ['AskUserQuestion', 'ToolRequestUserInput', 'question', 'ask-user'];
+const BATCH_TOOLS = ['AskUserQuestion', 'request_user_input', 'ToolRequestUserInput', 'question', 'ask-user'];
 
 export const surveyPrimitive = definePrimitive({
   tag: 'survey',
 
-  tools: ['AskUserQuestion', 'ToolRequestUserInput', 'question', 'ask-user', 'ask_followup_question'] as const,
+  tools: [
+    'AskUserQuestion',
+    'request_user_input',
+    'ToolRequestUserInput',
+    'question',
+    'ask-user',
+    'ask_followup_question',
+  ] as const,
 
   create(input: { questions: SurveyQuestion[] }): SurveyConfig {
     if (input.questions.length < 1) {

@@ -103,17 +103,18 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 ### CLI Flags
 
-| Flag            | Required     | Description                                                                                                                                                                  |
-| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                                     |
-| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                   |
-| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                 |
-| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                       |
-| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`, `generic`                                              |
-| `--tools`       | Optional     | Comma-separated list of available tools (overrides host registry). Only needed on `start` — session mode stores tools in the session header and reads them back on `advance` |
-| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                                  |
-| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                      |
-| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                                     |
+| Flag            | Required     | Description                                                                                                                                                            |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--context`     | On `start`   | JSON string validated against the skill's context schema                                                                                                               |
+| `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                             |
+| `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                           |
+| `--history`     | On `advance` | JSON array of `{ step, output, action? }`. Not needed with `--session`                                                                                                 |
+| `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`, `generic`                                        |
+| `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). Only needed on `start` — session mode stores tools in the header |
+| `--subagent`    | Optional     | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge)                                                    |
+| `--session`     | Optional     | `new` (start) or session ID (advance). Enables session mode                                                                                                            |
+| `--session-dir` | Optional     | Directory for session files. Default: OS temp directory                                                                                                                |
+| `--output-mode` | Optional     | `file` (default) or `flag`. How agent passes step output in session mode                                                                                               |
 
 ### Why stateless is still supported
 
@@ -181,9 +182,9 @@ The `render` method accepts an optional `RenderContext`. The engine passes `{ sk
 The registry (`src/primitives/registry.ts`) manages all five primitives and exposes two functions:
 
 - **`renderPrimitive(config, ctx?)`** — dispatches to the correct primitive's `render()` method by `config.kind`, forwarding an optional `RenderContext` (e.g., `{ skillName }`). Returns the XML string.
-- **`resolveTools(handshake)`** — either/or resolution at the whole-handshake level: if the agent reports any explicit tools (via `--tools`), those are authoritative for all primitives (no registry merge); if no tools are reported, the host registry provides the tool list. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
+- **`resolveTools(handshake)`** — three-way tool resolution: (1) no explicit tools → use host registry; (2) explicit tools + `isSubagent` → authoritative, no registry merge; (3) explicit tools without `isSubagent` → union with host registry. Returns a `ToolResolver` map from tag name to matched tool (or `undefined`).
 
-Tool resolution is either/or at the whole-handshake level: if the agent reports any explicit tools (via `--tools`), those are the authoritative tool list for all primitives — no registry fallback. If no explicit tools are reported, the `HOST_REGISTRY` for the given host name provides the tool list. This prevents subagents (which report a subset of tools but still identify as a known host) from being told to use tools they don't actually have.
+Tool resolution uses a three-way strategy based on the `isSubagent` flag on the `Handshake`. Top-level agents that under-report their tools (common in practice) get the registry union, so their preamble includes all known host tools. Subagents that pass `--subagent` get authoritative resolution — only their explicitly reported tools are used, preventing the preamble from referencing tools the subagent does not actually have.
 
 To add a new primitive, define it with `definePrimitive()` and add it to the `ALL_PRIMITIVES` array in the registry.
 

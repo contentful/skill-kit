@@ -11,6 +11,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
   const handshake: Handshake = {
     host: opts.host?.host ?? 'generic',
     toolsAvailable: opts.host?.toolsAvailable ?? [],
+    isSubagent: opts.host?.isSubagent ?? false,
   };
 
   const engine = new WorkflowEngine(skill, handshake, opts.context ?? {});

@@ -7,7 +7,7 @@ import { view } from '../view.js';
 import { WorkflowEngine } from './engine.js';
 import type { Handshake, PromptResult, DoneResult, ValidationErrorResult, RedirectResult } from '../types.js';
 
-const genericHost: Handshake = { host: 'generic', toolsAvailable: [] };
+const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
 
 test('engine runs a 3-step linear skill to completion', async () => {
   const s = skill({ name: 'linear', entry: 'a' })

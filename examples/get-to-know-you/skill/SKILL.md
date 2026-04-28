@@ -68,8 +68,20 @@ Determine which agent host you are running in, and pass it as `--host`:
 
 Pass the tools you have available as a comma-separated `--tools` flag on the **start**
 command. The session remembers them — you don't need to pass `--tools` on advance.
-If omitted, the skill infers tools from `--host`. If both are omitted, all
-interactions use generic fallbacks.
+
+When `--host` is provided, `--tools` is merged with the host's known tool registry.
+This means partial reporting is handled gracefully — the registry fills in any tools
+you omit. If `--tools` is omitted entirely, the skill infers tools from `--host`.
+If both are omitted, all interactions use generic fallbacks.
+
+### Subagent invocations
+
+If you are a **subagent** (spawned by another agent, not the top-level agent the user
+is talking to), add `--subagent` to the start command. This tells the skill that your
+reported tools are a genuine subset — the skill will not merge them with the host registry.
+
+Without `--subagent`, the skill assumes you are a top-level agent and merges your tools
+with the registry (since top-level agents often under-report their tools).
 
 ### Step 1: Start with a session
 
@@ -122,9 +134,9 @@ contains the skill's result. Present it to the user.
 - **greet**: (dynamic)
 - **ask-role**: (dynamic)
 - **ask-stack**: (dynamic)
-- **ask-tools**: A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?
-- **ask-team-size**: A manager! Ask about their team — how big, what they work on.
-- **ask-specialty**: Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.
+- **ask-tools**: (dynamic)
+- **ask-team-size**: (dynamic)
+- **ask-specialty**: (dynamic)
 - **ask-hobby**: (dynamic)
 - **confirm-profile**: (dynamic)
-- **profile-card**: Present the rendered trading card verbatim.
+- **profile-card**: (dynamic)
