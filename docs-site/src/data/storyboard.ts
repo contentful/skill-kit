@@ -215,7 +215,6 @@ export const securityAudit: HeroStoryboard = {
                 { heading: 'Executive Summary', detail: 'High-level overview of auth posture' },
                 { heading: 'Auth Flow Analysis', detail: 'Token lifecycle, session management' },
                 { heading: 'Vulnerability Assessment', detail: 'XSS vectors, CSRF, injection risks' },
-                { heading: 'Recommendations', detail: 'Prioritized remediation steps' },
               ],
               approval: {
                 question: 'Does this plan look good?',
