@@ -71,13 +71,15 @@ paths:
 ## Steps
 
 - [x] Create branch and task file
-- [ ] Add fields to `SkillBuilderConfig` and `SkillDefinition` in `src/types.ts`
-- [ ] Wire fields through `build()` in `src/skill-builder.ts`, add builder tests in `src/skill.test.ts`
-- [ ] Add `yamlField` helper and emit logic in `src/build/skillmd-template.ts`, add generation tests in `src/build/index.test.ts`
-- [ ] Update docs: SPEC.md, docs/api.md, docs-site workflow-skills.mdx
-- [ ] Verify: typecheck + all tests + prettier + build an example
+- [x] Add fields to `SkillBuilderConfig` and `SkillDefinition` in `src/types.ts`
+- [x] Wire fields through `build()` in `src/skill-builder.ts`, add builder tests in `src/skill.test.ts`
+- [x] Add `yamlStringOrList` helper and emit logic in `src/build/skillmd-template.ts`, add generation tests in `src/build/index.test.ts`
+- [x] Add fields to `ReferenceBuilderConfig`, `ReferenceDefinition`, and `generateReferenceMd` (user follow-up request)
+- [x] Update docs: SPEC.md, docs/api.md, docs-site workflow-skills.mdx, reference-skills.mdx, api/index.mdx
+- [x] Verify: typecheck + all tests + prettier + build an example
 
 ## Notes
 
 - `compatibility` is mentioned in SPEC.md line 1246 but not implemented. Leaving as-is since it wasn't requested.
 - `skillMd` custom override is not wired in `buildSkill()` — the build always calls `generateSkillMd()`. Separate issue; new fields are still accessible to custom `skillMd` functions via the `skill` parameter.
+- Added reference skill support per user follow-up request after initial plan was approved.
