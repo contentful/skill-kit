@@ -119,6 +119,22 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     frontmatter.push(`  version: "${skill.version}"`);
   }
 
+  if (skill.argumentHint !== undefined) {
+    frontmatter.push(`argument-hint: ${yamlDoubleQuoted(skill.argumentHint)}`);
+  }
+
+  if (skill.allowedTools !== undefined && !(Array.isArray(skill.allowedTools) && skill.allowedTools.length === 0)) {
+    frontmatter.push(yamlStringOrList('allowed-tools', skill.allowedTools));
+  }
+
+  if (skill.paths !== undefined && !(Array.isArray(skill.paths) && skill.paths.length === 0)) {
+    frontmatter.push(yamlStringOrList('paths', skill.paths));
+  }
+
+  if (skill.context !== undefined) {
+    frontmatter.push(`context: ${yamlDoubleQuoted(skill.context)}`);
+  }
+
   frontmatter.push('---');
 
   const stepDescriptions = Object.entries(skill.steps)
@@ -249,6 +265,14 @@ ${generateSubskillSection(skill, protocol)}${generateTopicSection(skill)}`.trim(
 
 function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
+}
+
+function yamlStringOrList(key: string, value: string | string[]): string {
+  if (typeof value === 'string') {
+    return `${key}: ${yamlDoubleQuoted(value)}`;
+  }
+  const items = value.map((v) => `  - ${yamlDoubleQuoted(v)}`).join('\n');
+  return `${key}:\n${items}`;
 }
 
 function generateSessionInstructions(paramsFlag: string): string {
