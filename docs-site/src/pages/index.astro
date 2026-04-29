@@ -127,7 +127,9 @@ const base = import.meta.env.BASE_URL;
   </section>
 
   <div class="story-cta">
+    <p class="story-cta-lead">Ready to build your first skill?</p>
     <a href={`${base}getting-started/`} class="story-cta-btn">Get Started</a>
+    <code class="story-cta-install">$ npm install @contentful/skill-kit</code>
   </div>
 
   <section class="features">
@@ -506,16 +508,28 @@ const base = import.meta.env.BASE_URL;
   /* Story CTA */
   .story-cta {
     text-align: center;
-    padding: var(--space-5) 0 var(--space-7);
+    padding: var(--space-6) 0 var(--space-8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .story-cta-lead {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
   }
 
   .story-cta-btn {
     font-family: var(--font-display);
-    font-size: var(--text-base);
+    font-size: var(--text-lg);
     font-weight: 600;
     text-decoration: none;
-    padding: var(--space-3) var(--space-6);
-    border-radius: 6px;
+    padding: var(--space-4) var(--space-8);
+    border-radius: 8px;
     background: var(--color-accent);
     color: #ffffff;
     border: 1px solid var(--color-accent);
@@ -527,7 +541,17 @@ const base = import.meta.env.BASE_URL;
   .story-cta-btn:hover {
     background: var(--color-accent-bright);
     color: #ffffff;
-    box-shadow: 0 4px 12px rgba(13, 115, 119, 0.3);
+    box-shadow: 0 4px 16px rgba(13, 115, 119, 0.3);
+  }
+
+  .story-cta-install {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    padding: var(--space-2) var(--space-5);
+    border-radius: 6px;
   }
 
   /* Features */
