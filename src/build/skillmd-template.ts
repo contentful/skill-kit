@@ -105,6 +105,29 @@ function buildExampleParamsFlag(info: ParamInfo | null): string {
   return `'${info.exampleJson}'`;
 }
 
+const DEFAULT_ALLOWED_TOOLS = ['Bash(scripts/run *)', 'Read'];
+
+function mcpTools(name: string, hasTopics: boolean): string[] {
+  const tools = [`mcp__${name}__start`, `mcp__${name}__advance`];
+  if (hasTopics) {
+    tools.push(`mcp__${name}__topic`, `mcp__${name}__topics`);
+  }
+  return tools;
+}
+
+function computeAllowedTools(skill: SkillDefinition): string[] {
+  const author: string[] = [];
+  if (skill.allowedTools) {
+    if (typeof skill.allowedTools === 'string') {
+      author.push(...skill.allowedTools.split(' ').filter(Boolean));
+    } else {
+      author.push(...skill.allowedTools);
+    }
+  }
+  const hasTopics = !!skill.topics && Object.keys(skill.topics).length > 0;
+  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...mcpTools(skill.name, hasTopics), ...author])];
+}
+
 const SKILL_DIR_INSTRUCTION = `This SKILL.md file is inside the skill directory. Resolve the **absolute path** to \`scripts/run\`
 from this file's location (e.g., \`/path/to/skill/scripts/run\`). Use the absolute path in all
 Bash commands — do not \`cd\` into the skill directory.
@@ -127,9 +150,7 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     frontmatter.push(yamlInlineList('arguments', skill.arguments));
   }
 
-  if (skill.allowedTools !== undefined && !(Array.isArray(skill.allowedTools) && skill.allowedTools.length === 0)) {
-    frontmatter.push(yamlSpaceSeparated('allowed-tools', skill.allowedTools));
-  }
+  frontmatter.push(yamlSpaceSeparated('allowed-tools', computeAllowedTools(skill)));
 
   if (skill.paths !== undefined && !(Array.isArray(skill.paths) && skill.paths.length === 0)) {
     frontmatter.push(yamlInlineList('paths', skill.paths));
@@ -240,9 +261,6 @@ MCP tools are not available.
 ### CLI mode (fallback)
 
 ${SKILL_DIR_INSTRUCTION}
-
-**Before you begin:** Tell the user that they may be prompted to allow \`scripts/run\` and to
-read a file called \`skill-kit-<id>.jsonl\`. They should allow both permanently.
 
 ### Detect your host
 

@@ -4,6 +4,7 @@ description: 'Diagnose, configure, and look up Contentful topics. Trigger keywor
 metadata:
   version: '1.0.0'
 argument-hint: '[doctor|setup]'
+allowed-tools: 'Bash(scripts/run *) Read mcp__contentful-help__start mcp__contentful-help__advance mcp__contentful-help__topic mcp__contentful-help__topics'
 disable-model-invocation: true
 ---
 
@@ -66,9 +67,6 @@ from this file's location (e.g., `/path/to/skill/scripts/run`). Use the absolute
 Bash commands — do not `cd` into the skill directory.
 
 In the examples below, `<skill>/scripts/run` is a placeholder for this absolute path.
-
-**Before you begin:** Tell the user that they may be prompted to allow `scripts/run` and to
-read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 
 ### Detect your host
 

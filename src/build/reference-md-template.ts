@@ -1,5 +1,20 @@
 import type { ReferenceDefinition } from '../types.js';
 
+const DEFAULT_ALLOWED_TOOLS = ['Bash(scripts/run *)', 'Read'];
+
+function computeReferenceAllowedTools(def: ReferenceDefinition): string[] {
+  const author: string[] = [];
+  if (def.allowedTools) {
+    if (typeof def.allowedTools === 'string') {
+      author.push(...def.allowedTools.split(' ').filter(Boolean));
+    } else {
+      author.push(...def.allowedTools);
+    }
+  }
+  const mcp = [`mcp__${def.name}__topic`, `mcp__${def.name}__topics`];
+  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...mcp, ...author])];
+}
+
 export function generateReferenceMd(def: ReferenceDefinition): string {
   const frontmatter = ['---', `name: ${def.name}`, `description: ${yamlDoubleQuoted(def.description)}`];
 
@@ -16,9 +31,7 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
     frontmatter.push(yamlInlineList('arguments', def.arguments));
   }
 
-  if (def.allowedTools !== undefined && !(Array.isArray(def.allowedTools) && def.allowedTools.length === 0)) {
-    frontmatter.push(yamlSpaceSeparated('allowed-tools', def.allowedTools));
-  }
+  frontmatter.push(yamlSpaceSeparated('allowed-tools', computeReferenceAllowedTools(def)));
 
   if (def.paths !== undefined && !(Array.isArray(def.paths) && def.paths.length === 0)) {
     frontmatter.push(yamlInlineList('paths', def.paths));

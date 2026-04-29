@@ -38,7 +38,7 @@ skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd
 | `package`                | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                  |
 | `argumentHint`           | `string`                                       | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter                                           |
 | `arguments`              | `string \| string[]`                           | no       | Named positional arguments for `$name` substitution in skill content. Emitted as `arguments` in SKILL.md frontmatter |
-| `allowedTools`           | `string \| string[]`                           | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                                               |
+| `allowedTools`           | `string \| string[]`                           | no       | Additional pre-approved tools. Build auto-includes CLI and MCP defaults; author tools are merged                     |
 | `paths`                  | `string \| string[]`                           | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter                             |
 | `context`                | `string`                                       | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter                                      |
 | `license`                | `string`                                       | no       | License name or reference. Emitted as `license` in SKILL.md frontmatter                                              |
@@ -204,7 +204,7 @@ reference({ name, description, version?, resolveVersion?, package? })
 | `package`                | `PackageConfig`      | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                  |
 | `argumentHint`           | `string`             | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter                                           |
 | `arguments`              | `string \| string[]` | no       | Named positional arguments for `$name` substitution in skill content. Emitted as `arguments` in SKILL.md frontmatter |
-| `allowedTools`           | `string \| string[]` | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                                               |
+| `allowedTools`           | `string \| string[]` | no       | Additional pre-approved tools. Build auto-includes CLI and MCP defaults; author tools are merged                     |
 | `paths`                  | `string \| string[]` | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter                             |
 | `context`                | `string`             | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter                                      |
 | `license`                | `string`             | no       | License name or reference. Emitted as `license` in SKILL.md frontmatter                                              |
