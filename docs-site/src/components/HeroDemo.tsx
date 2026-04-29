@@ -556,25 +556,13 @@ export default function HeroDemo() {
   }, [frameIndex, paused, advance]);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el || startedRef.current) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setFrameIndex(allFrames.length - 1);
       startedRef.current = true;
       return;
     }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !startedRef.current) {
-          startedRef.current = true;
-          setFrameIndex(0);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.3 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    startedRef.current = true;
+    setFrameIndex(0);
   }, []);
 
   const safeFrameIndex = Math.max(0, frameIndex);
