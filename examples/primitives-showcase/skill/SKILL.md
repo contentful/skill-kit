@@ -1,10 +1,10 @@
 ---
 name: primitives-showcase
-description: 'Exercises every SDK primitive in a single skill. Used as a reference and integration test.'
+description: "Exercises every SDK primitive in a single skill. Used as a reference and integration test."
 metadata:
-  version: '1.0.0'
-argument-hint: '[theme]'
-allowed-tools: 'Bash(scripts/run *) Read mcp__primitives-showcase__start mcp__primitives-showcase__advance'
+  version: "1.0.0"
+argument-hint: "[theme]"
+allowed-tools: "Bash(scripts/run *) Read mcp__primitives-showcase__start mcp__primitives-showcase__advance"
 ---
 
 # primitives-showcase
@@ -67,13 +67,9 @@ Bash commands — do not `cd` into the skill directory.
 
 In the examples below, `<skill>/scripts/run` is a placeholder for this absolute path.
 
-**Before you begin:** Tell the user that they may be prompted to allow `scripts/run` and to
-read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
-
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
-
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`

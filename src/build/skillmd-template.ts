@@ -262,9 +262,6 @@ MCP tools are not available.
 
 ${SKILL_DIR_INSTRUCTION}
 
-**Before you begin:** Tell the user that they may be prompted to allow \`scripts/run\` and to
-read a file called \`skill-kit-<id>.jsonl\`. They should allow both permanently.
-
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as \`--host\`:
