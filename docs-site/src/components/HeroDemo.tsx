@@ -106,14 +106,18 @@ function CodePanel({ activeStep }: { activeStep: string | null }) {
   return (
     <div style={{
       background: c.codeBg, border: `1px solid ${c.codeBorder}`, borderRadius: 10,
-      overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+      overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
       fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, lineHeight: 1.65,
     }}>
+      {/* Window chrome */}
       <div style={{
-        padding: '8px 16px', borderBottom: `1px solid ${c.codeBorder}`,
-        background: 'rgba(0,0,0,0.2)', color: '#64748b', fontSize: 12,
+        padding: '10px 16px', borderBottom: `1px solid ${c.codeBorder}`,
+        background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        security-audit.ts
+        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', flexShrink: 0 }} />
+        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', flexShrink: 0 }} />
+        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', flexShrink: 0 }} />
+        <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: 12 }}>security-audit.ts</span>
       </div>
       <div style={{ padding: '14px 0', overflowX: 'auto' }}>
         {codeTokens.map((tokens, i) => {
@@ -121,14 +125,22 @@ function CodePanel({ activeStep }: { activeStep: string | null }) {
           const isActive = step !== undefined && step === activeStep;
           return (
             <div key={i} style={{
-              padding: '0 16px', minHeight: 21, whiteSpace: 'pre',
+              display: 'flex', minHeight: 21, whiteSpace: 'pre',
               borderLeft: isActive ? `3px solid ${c.accent}` : '3px solid transparent',
               background: isActive ? 'rgba(15,145,153,0.08)' : 'transparent',
               transition: 'background 400ms ease, border-color 400ms ease',
             }}>
-              {tokens.length === 0 ? ' ' : tokens.map((t, j) =>
-                t.color ? <span key={j} style={{ color: t.color }}>{t.text}</span> : <span key={j}>{t.text}</span>
-              )}
+              {/* Line number */}
+              <span style={{
+                width: 36, flexShrink: 0, textAlign: 'right', paddingRight: 12,
+                color: isActive ? '#64748b' : '#3e4a5c', userSelect: 'none', fontSize: 12,
+              }}>{i + 1}</span>
+              {/* Code content */}
+              <span style={{ paddingRight: 16 }}>
+                {tokens.length === 0 ? ' ' : tokens.map((t, j) =>
+                  t.color ? <span key={j} style={{ color: t.color }}>{t.text}</span> : <span key={j}>{t.text}</span>
+                )}
+              </span>
             </div>
           );
         })}
@@ -406,12 +418,18 @@ function TerminalPanel({ frameIndex, activeSceneIdx }: { frameIndex: number; act
       background: c.termBg, border: `1px solid ${c.termBorder}`, borderRadius: 10,
       overflow: 'hidden', fontFamily: "'IBM Plex Mono', monospace",
       fontSize: 13, lineHeight: 1.55, color: c.termText,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+      boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.2)',
       display: 'flex', flexDirection: 'column', height: '100%',
     }}>
-      {/* Command header */}
-      <div style={{ padding: '12px 20px', borderBottom: `1px solid ${c.termBorder}` }}>
-        <span style={{ color: c.dim, marginRight: 8 }}>▸</span>
+      {/* Window chrome + command */}
+      <div style={{
+        padding: '10px 20px', borderBottom: `1px solid ${c.termBorder}`,
+        background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', flexShrink: 0 }} />
+        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', flexShrink: 0 }} />
+        <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', flexShrink: 0 }} />
+        <span style={{ marginLeft: 12, color: c.dim }}>▸</span>
         <span style={{ color: '#fff', fontWeight: 600 }}>{storyboard.command}</span>
       </div>
 
@@ -545,9 +563,11 @@ export default function HeroDemo() {
       onMouseLeave={() => setPaused(false)}
       className="hero-demo"
     >
+      {/* Code editor: full width base layer */}
       <div className="hero-demo-code">
         <CodePanel activeStep={activeStep} />
       </div>
+      {/* Terminal: floating overlay, offset top-right */}
       <div className="hero-demo-terminal">
         <TerminalPanel frameIndex={safeFrameIndex} activeSceneIdx={activeScene} />
         <StepDots activeScene={activeScene} onClickScene={jumpToScene} />

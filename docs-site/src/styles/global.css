@@ -294,29 +294,43 @@ details[open] summary {
 }
 
 
-/* ─── Hero Demo Layout ─── */
+/* ─── Hero Demo Layout: layered windows ─── */
 .hero-demo {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: var(--space-5);
+  position: relative;
   width: 100%;
   max-width: 72rem;
-  align-items: stretch;
+  /* Bottom padding to make room for the terminal overflow */
+  padding-bottom: 60px;
 }
 
 .hero-demo-code {
+  width: 65%;
   min-width: 0;
 }
 
 .hero-demo-terminal {
-  position: relative;
-  min-width: 0;
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 50%;
+  z-index: 2;
 }
 
 @media (max-width: 1024px) {
   .hero-demo {
-    grid-template-columns: 1fr;
-    max-width: 40rem;
+    padding-bottom: 0;
+  }
+
+  .hero-demo-code {
+    width: 100%;
+  }
+
+  .hero-demo-terminal {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    margin-top: var(--space-5);
   }
 }
 
