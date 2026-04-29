@@ -126,6 +126,10 @@ const base = import.meta.env.BASE_URL;
     </div>
   </section>
 
+  <div class="story-cta">
+    <a href={`${base}getting-started/`} class="story-cta-btn">Get Started</a>
+  </div>
+
   <section class="features">
     <div class="section-inner">
       <h2 class="section-heading">Why skill-kit</h2>
@@ -497,6 +501,33 @@ const base = import.meta.env.BASE_URL;
     .story-title {
       font-size: var(--text-xl);
     }
+  }
+
+  /* Story CTA */
+  .story-cta {
+    text-align: center;
+    padding: var(--space-5) 0 var(--space-7);
+  }
+
+  .story-cta-btn {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-decoration: none;
+    padding: var(--space-3) var(--space-6);
+    border-radius: 6px;
+    background: var(--color-accent);
+    color: #ffffff;
+    border: 1px solid var(--color-accent);
+    transition:
+      background var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .story-cta-btn:hover {
+    background: var(--color-accent-bright);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(13, 115, 119, 0.3);
   }
 
   /* Features */
