@@ -2,19 +2,12 @@ import type { SkillDefinition } from '../types.js';
 import type { SessionOutputMode } from '../types.js';
 import { parseArgs, handleStart, handleAdvance, printHelp } from './single-invocation.js';
 import { SessionManager } from './session.js';
+import { resolveStartContext, resolveAdvanceContext, parseTools, parseJsonFlag } from './invocation-context.js';
 
-function parseToolsFlag(raw?: string): string[] | undefined {
-  if (!raw) return undefined;
-  return raw
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
-}
+const NOOP_REFS = { load: () => '', asset: (p: string) => p };
 
 export async function main(skill: SkillDefinition): Promise<void> {
   const { command, flags, booleans } = parseArgs(process.argv);
-  const tools = parseToolsFlag(flags['tools']);
-  const isSubagent = booleans.has('subagent');
 
   try {
     switch (command) {
@@ -23,94 +16,37 @@ export async function main(skill: SkillDefinition): Promise<void> {
         break;
 
       case 'start': {
-        const params = flags['params'] ? (JSON.parse(flags['params']) as unknown) : {};
         const sessionFlag = flags['session'];
+        let session;
 
         if (sessionFlag === 'new') {
           const outputMode = (flags['output-mode'] as SessionOutputMode) ?? 'file';
-          const session = SessionManager.create({
+          session = SessionManager.create({
             sessionDir: flags['session-dir'],
             skill: skill.name,
             host: flags['host'] ?? 'generic',
-            tools,
-            isSubagent: isSubagent || undefined,
-            params,
+            tools: parseTools(flags),
+            isSubagent: booleans.has('subagent') || undefined,
+            params: parseJsonFlag(flags['params'], {}),
             outputMode,
           });
-          await handleStart(skill, params, flags['host'], session, tools, isSubagent);
-        } else {
-          await handleStart(skill, params, flags['host'], undefined, tools, isSubagent);
         }
+
+        const ctx = resolveStartContext(flags, session, NOOP_REFS);
+        await handleStart(skill, ctx);
         break;
       }
 
       case 'advance': {
         const sessionFlag = flags['session'];
+        let session;
 
         if (sessionFlag && sessionFlag !== 'new') {
-          const session = SessionManager.open(sessionFlag, flags['session-dir']);
-          let stepName: string;
-          let output: unknown;
-          let history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>;
-
-          history = session.reconstructHistory();
-
-          if (session.header.outputMode === 'file' && !flags['output']) {
-            const lastOutput = session.readLastOutput();
-            if (!lastOutput) {
-              process.stderr.write(
-                'error: no output found in session file. Write your output to the session file before advancing.\n',
-              );
-              process.exit(1);
-            }
-            stepName = lastOutput.step;
-            output = lastOutput.output;
-          } else {
-            stepName = flags['step']!;
-            output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
-
-            if (!stepName) {
-              process.stderr.write('error: --step is required for advance in flag mode\n');
-              process.exit(1);
-            }
-            if (output === undefined) {
-              process.stderr.write('error: --output is required for advance in flag mode\n');
-              process.exit(1);
-            }
-
-            session.append({ type: 'output', step: stepName, output });
-          }
-
-          await handleAdvance(
-            skill,
-            stepName,
-            output,
-            history,
-            session.header.params,
-            session.header.host,
-            session,
-            session.header.tools,
-            session.header.isSubagent,
-          );
-        } else {
-          const step = flags['step'];
-          const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
-          const history = flags['history']
-            ? (JSON.parse(flags['history']) as Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>)
-            : [];
-          const params = flags['params'] ? (JSON.parse(flags['params']) as unknown) : {};
-
-          if (!step) {
-            process.stderr.write('error: --step is required for advance\n');
-            process.exit(1);
-          }
-          if (output === undefined) {
-            process.stderr.write('error: --output is required for advance\n');
-            process.exit(1);
-          }
-
-          await handleAdvance(skill, step, output, history, params, flags['host'], undefined, tools, isSubagent);
+          session = SessionManager.open(sessionFlag, flags['session-dir']);
         }
+
+        const ctx = resolveAdvanceContext(flags, session, NOOP_REFS);
+        await handleAdvance(skill, ctx);
         break;
       }
     }

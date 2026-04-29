@@ -58,6 +58,7 @@ Returns a `PromptResult`:
 
 ```json
 {
+  "kind": "prompt",
   "preamble": "In this session you will follow a structured workflow...",
   "step": "diagnose",
   "prompt": "Inspect the repository and report failed health checks.",
@@ -81,16 +82,24 @@ scripts/run advance \
 Returns another `PromptResult` (next step) or a `DoneResult`:
 
 ```json
-{ "done": true, "finalOutput": { "summary": "..." }, "completed": { "step": "report", "output": { ... } } }
+{ "kind": "done", "done": true, "finalOutput": { "summary": "..." }, "completed": { "step": "report", "output": { ... } } }
 ```
 
 **3. Validation error** — If the agent's output doesn't match the step schema:
 
 ```json
-{ "error": "validation", "step": "diagnose", "message": "Expected object, received string", "retry": true }
+{
+  "kind": "error",
+  "error": "validation",
+  "step": "diagnose",
+  "message": "Expected object, received string",
+  "retry": true
+}
 ```
 
 The agent retries with corrected output. The `retry: true` flag tells the agent the step hasn't advanced.
+
+**Result type discrimination** — All result types carry a `kind` field (`'prompt'`, `'done'`, `'error'`, `'redirect'`) that serves as a discriminant for the `CliResult` union. The SDK exports type guard helpers: `isPrompt(r)`, `isDone(r)`, `isError(r)`, `isRedirect(r)`.
 
 ### CLI Flags
 

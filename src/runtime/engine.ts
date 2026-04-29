@@ -21,6 +21,8 @@ import { ObserverDispatcher } from './observer-dispatch.js';
 import { generatePreamble } from './preamble.js';
 import { act } from '../act.js';
 import { system } from '../system.js';
+import type { SkillEngine } from '../protocol/skill-engine.js';
+import { HistoryEntrySchema, type HistoryEntry } from '../protocol/types.js';
 
 function normalizePieces(raw: PromptReturn): PromptPiece[] {
   if (typeof raw === 'string') return [raw];
@@ -33,7 +35,7 @@ const NOOP_REFS: ReferenceLoader = {
   asset: (p) => p,
 };
 
-export class WorkflowEngine {
+export class WorkflowEngine implements SkillEngine {
   private readonly skill: SkillDefinition;
   private readonly handshake: Handshake;
   private readonly skillParams: Readonly<unknown>;
@@ -82,7 +84,7 @@ export class WorkflowEngine {
     const rawPreamble = generatePreamble(this.handshake);
     const preamble = this.skill.system ? `${this.skill.system}\n\n${rawPreamble}` : rawPreamble;
     this.observers.fire('onStepStart', { step: this.currentStep, params: this.skillParams });
-    return { step, preamble, prompt, schema };
+    return { kind: 'prompt', step, preamble, prompt, schema };
   }
 
   isPromptless(stepName: string): boolean {
@@ -94,7 +96,13 @@ export class WorkflowEngine {
     const stepStartTime = Date.now();
     const stepDef = this.skill.steps[stepName];
     if (!stepDef) {
-      return { error: 'validation', step: stepName, message: `Unknown step "${stepName}"`, retry: false };
+      return {
+        kind: 'error',
+        error: 'validation',
+        step: stepName,
+        message: `Unknown step "${stepName}"`,
+        retry: false,
+      };
     }
 
     let stepOutput: unknown;
@@ -109,6 +117,7 @@ export class WorkflowEngine {
           attempt: this.history.visitCount(stepName) + 1,
         });
         return {
+          kind: 'error',
           error: 'validation',
           step: stepName,
           message: validation.error!,
@@ -174,7 +183,7 @@ export class WorkflowEngine {
     if (!this.skill.steps[nextStep]) {
       this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'redirect' });
       await this.observers.flush();
-      return { redirect: nextStep, completed, stash: this.stash.all() } satisfies RedirectResult;
+      return { kind: 'redirect', redirect: nextStep, completed, stash: this.stash.all() } satisfies RedirectResult;
     }
 
     this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'next' });
@@ -184,8 +193,15 @@ export class WorkflowEngine {
     return { ...this.buildPrompt(nextStep), completed };
   }
 
-  replayHistory(history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>): void {
-    for (const entry of history) {
+  replayHistory(history: HistoryEntry[]): void {
+    for (const raw of history) {
+      const parsed = HistoryEntrySchema.safeParse(raw);
+      if (!parsed.success) {
+        const issues = parsed.error.issues.map((i: { message: string }) => i.message).join('; ');
+        process.stderr.write(`[skill-kit] skipping malformed history entry: ${issues}\n`);
+        continue;
+      }
+      const entry = parsed.data;
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;
 
@@ -295,7 +311,7 @@ export class WorkflowEngine {
       }
     }
 
-    return { step: stepName, prompt: promptText, schema };
+    return { kind: 'prompt', step: stepName, prompt: promptText, schema };
   }
 
   private validateParentSentinels(): void {
@@ -345,6 +361,6 @@ export class WorkflowEngine {
       }
     }
 
-    return { done: true, finalOutput };
+    return { kind: 'done', done: true, finalOutput };
   }
 }

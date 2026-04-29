@@ -1,60 +1,29 @@
-import type { SkillDefinition, CliResult } from '../types.js';
+import type { SkillDefinition } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
-import { resolveHost } from './host.js';
-import type { SessionFile } from './session.js';
 import { autoAdvance } from './auto-advance.js';
+import type { StartContext, AdvanceContext } from './invocation-context.js';
+import { createOutputWriter } from './output-writer.js';
 
-export async function handleStart(
-  skill: SkillDefinition,
-  params: unknown,
-  hostName?: string,
-  session?: SessionFile,
-  tools?: string[],
-  isSubagent?: boolean,
-): Promise<void> {
-  const handshake = resolveHost(hostName, tools, isSubagent);
-  const engine = new WorkflowEngine(skill, handshake, params);
+export async function handleStart(skill: SkillDefinition, ctx: StartContext): Promise<void> {
+  const writer = createOutputWriter(ctx.session);
+  const engine = new WorkflowEngine(skill, ctx.handshake, ctx.params, ctx.refs);
   const startResult = engine.start();
-  const onIntermediate = session ? (r: CliResult) => session.appendResult(r) : undefined;
-  const result = await autoAdvance(engine, startResult, onIntermediate);
-
-  if (session) {
-    const line = session.appendResult(result);
-    session.writeStartPointer(line);
-  } else {
-    process.stdout.write(JSON.stringify(result) + '\n');
-  }
+  const result = await autoAdvance(engine, startResult, writer.writeIntermediate);
+  writer.writeStart(result);
 }
 
-export async function handleAdvance(
-  skill: SkillDefinition,
-  stepName: string,
-  output: unknown,
-  history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>,
-  params: unknown,
-  hostName?: string,
-  session?: SessionFile,
-  tools?: string[],
-  isSubagent?: boolean,
-): Promise<void> {
-  const handshake = resolveHost(hostName, tools, isSubagent);
-  const engine = new WorkflowEngine(skill, handshake, params);
+export async function handleAdvance(skill: SkillDefinition, ctx: AdvanceContext): Promise<void> {
+  const writer = createOutputWriter(ctx.session);
+  const engine = new WorkflowEngine(skill, ctx.handshake, ctx.params, ctx.refs);
 
-  if (history.length > 0) {
-    engine.replayHistory(history);
+  if (ctx.history.length > 0) {
+    engine.replayHistory(ctx.history);
   }
 
   engine.start();
-  const advanceResult = await engine.advance(stepName, output);
-  const onIntermediate = session ? (r: CliResult) => session.appendResult(r) : undefined;
-  const result = await autoAdvance(engine, advanceResult, onIntermediate);
-
-  if (session) {
-    const line = session.appendResult(result);
-    session.writePointer(line);
-  } else {
-    process.stdout.write(JSON.stringify(result) + '\n');
-  }
+  const advanceResult = await engine.advance(ctx.stepName, ctx.output);
+  const result = await autoAdvance(engine, advanceResult, writer.writeIntermediate);
+  writer.writeAdvance(result);
 }
 
 function printHelp(skillName: string): void {

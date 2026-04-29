@@ -193,7 +193,7 @@ test('SessionFile.appendResult adds type field to PromptResult', () => {
     params: {},
   });
 
-  const result: PromptResult = { step: 'greet', prompt: 'Hello', schema: { type: 'object' } };
+  const result: PromptResult = { kind: 'prompt', step: 'greet', prompt: 'Hello', schema: { type: 'object' } };
   const line = session.appendResult(result);
   assert.equal(line, 2);
 
@@ -213,7 +213,7 @@ test('SessionFile.appendResult adds type field to DoneResult', () => {
     params: {},
   });
 
-  const result: DoneResult = { done: true, finalOutput: { summary: 'done' } };
+  const result: DoneResult = { kind: 'done', done: true, finalOutput: { summary: 'done' } };
   session.appendResult(result);
 
   const content = readFileSync(session.filePath, 'utf-8');
@@ -232,7 +232,13 @@ test('SessionFile.appendResult adds type field to ValidationErrorResult', () => 
     params: {},
   });
 
-  const result: ValidationErrorResult = { error: 'validation', step: 'greet', message: 'bad', retry: true };
+  const result: ValidationErrorResult = {
+    kind: 'error',
+    error: 'validation',
+    step: 'greet',
+    message: 'bad',
+    retry: true,
+  };
   session.appendResult(result);
 
   const content = readFileSync(session.filePath, 'utf-8');

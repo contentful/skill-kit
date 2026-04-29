@@ -83,10 +83,24 @@ reported tools are a genuine subset — the skill will not merge them with the h
 Without `--subagent`, the skill assumes you are a top-level agent and merges your tools
 with the registry (since top-level agents often under-report their tools).
 
+## Parameters
+
+| Name       | Type   | Required | Default        |
+| ---------- | ------ | -------- | -------------- |
+| `greeting` | string | No       | `"Hey there!"` |
+
+All parameters have defaults — `--params '{}'` is valid.
+
+Example:
+
+```json
+{ "greeting": "Hey there!" }
+```
+
 ### Step 1: Start with a session
 
 ```bash
-<skill>/scripts/run --context '{}' --host claude-code --tools <your-tools> --session new 2>/dev/null
+<skill>/scripts/run --params '{}' --host claude-code --tools <your-tools> --session new 2>/dev/null
 ```
 
 This returns a JSON pointer with `sessionId`, `file`, and `line`. The `line` field tells you

@@ -363,6 +363,7 @@ When the engine's `next` resolves to a target not in the local step map, it retu
 
 ```typescript
 interface RedirectResult {
+  kind: 'redirect';
   redirect: string; // e.g. 'subskill:doctor'
   completed: StepResult; // the step that triggered the redirect
   stash: unknown; // dispatcher's accumulated stash
