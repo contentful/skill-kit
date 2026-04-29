@@ -19,6 +19,7 @@ This was surfaced by asking: "Do agents know what the params are that we expect 
 Add a `## Parameters` section to `generateSkillMd()` output:
 
 **No params:**
+
 ```markdown
 ## Parameters
 
@@ -26,21 +27,24 @@ This skill takes no parameters. Pass `--params '{}'`.
 ```
 
 **All optional (all have defaults):**
-```markdown
+
+````markdown
 ## Parameters
 
-| Name | Type | Required | Default |
-|------|------|----------|---------|
-| `greeting` | string | No | `"Hey there!"` |
+| Name       | Type   | Required | Default        |
+| ---------- | ------ | -------- | -------------- |
+| `greeting` | string | No       | `"Hey there!"` |
 
 All parameters have defaults — `--params '{}'` is valid.
 
 Example with custom values:
 
 ```json
-{"greeting": "Hey there!"}
+{ "greeting": "Hey there!" }
 ```
-```
+````
+
+````
 
 **Has required params:**
 ```markdown
@@ -55,7 +59,8 @@ Example:
 
 ```json
 {"repoPath": ".", "strictness": "normal"}
-```
+````
+
 ```
 
 Start command examples use realistic JSON when required params exist. Sub-skill params are documented in the sub-skills section.
@@ -73,19 +78,20 @@ Use Zod 4's `schema.toJSONSchema()` (already used at `skill-builder.ts:17`, `eng
 ## Steps
 
 - [ ] Create task doc (this file)
-- [ ] Add `extractParamInfo()`, `generateParamsSection()`, and `buildExampleParamsFlag()` to `skillmd-template.ts`
-- [ ] Integrate params section into `generateSkillMd()` body template
-- [ ] Pass params example into session/stateless instruction generators
-- [ ] Add sub-skill params to `generateSubskillSection()`
-- [ ] Add tests to `index.test.ts`
-- [ ] Typecheck + tests + prettier
-- [ ] Build example skill and verify SKILL.md output
+- [x] Add `extractParamInfo()`, `generateParamsSection()`, and `buildExampleParamsFlag()` to `skillmd-template.ts`
+- [x] Integrate params section into `generateSkillMd()` body template
+- [x] Pass params example into session/stateless instruction generators
+- [x] Add sub-skill params to `generateSubskillSection()`
+- [x] Add tests to `index.test.ts`
+- [x] Typecheck + tests + prettier
+- [x] Build example skill and verify SKILL.md output
 
 ## Notes
 
-_(Running log of decisions during implementation)_
+- Zod 4's `toJSONSchema()` puts fields with `.default()` in the `required` array but also adds a `default` property. The correct heuristic for "required from the caller's perspective" is: field is in `required` AND has no `default` value. Without this, all-defaults skills would show all fields as required.
 
 ## Files
 
 - `src/build/skillmd-template.ts` — all new logic
 - `src/build/index.test.ts` — new test cases
+```
