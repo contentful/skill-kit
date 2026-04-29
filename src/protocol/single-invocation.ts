@@ -71,7 +71,7 @@ function printHelp(skillName: string): void {
     '  advance     Submit step output. Returns next prompt or done signal.',
     '',
     'Flags:',
-    '  --context      JSON string. Validated against skill params schema. (start only)',
+    '  --params       JSON string. Validated against skill params schema. (start only)',
     '  --step         Name of the step whose output is being submitted. (advance only)',
     '  --output       JSON string. The agent response for the step. (advance only)',
     '  --history      JSON array of {step, stepOutput, actionOutput?} objects. (advance only)',

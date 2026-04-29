@@ -125,7 +125,7 @@ function generateSessionInstructions(): string {
   return `### Step 1: Start with a session
 
 \`\`\`bash
-<skill>/scripts/run --context '{}' --host claude-code --tools <your-tools> --session new 2>/dev/null
+<skill>/scripts/run --params '{}' --host claude-code --tools <your-tools> --session new 2>/dev/null
 \`\`\`
 
 This returns a JSON pointer with \`sessionId\`, \`file\`, and \`line\`. The \`line\` field tells you
@@ -167,7 +167,7 @@ function generateStatelessInstructions(): string {
   return `### Step 1: Start
 
 \`\`\`bash
-<skill>/scripts/run --context '{}' --host claude-code --tools <your-tools> 2>/dev/null
+<skill>/scripts/run --params '{}' --host claude-code --tools <your-tools> 2>/dev/null
 \`\`\`
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
@@ -228,10 +228,10 @@ function generateSubskillSection(skill: SkillDefinition, protocol: BuildProtocol
   lines.push('### Direct sub-skill access', '');
   lines.push('```bash');
   if (protocol === 'session') {
-    lines.push("<skill>/scripts/run <subskill> --context '{}' --session new");
+    lines.push("<skill>/scripts/run <subskill> --params '{}' --session new");
     lines.push('<skill>/scripts/run <subskill> advance --session <id>');
   } else {
-    lines.push("<skill>/scripts/run <subskill> --context '{}'");
+    lines.push("<skill>/scripts/run <subskill> --params '{}'");
     lines.push("<skill>/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
   }
   lines.push('```');

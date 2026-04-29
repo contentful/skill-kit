@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { parseArgs } from './single-invocation.js';
 
 test('parseArgs parses start command', () => {
-  const result = parseArgs(['node', 'skill', 'start', '--context', '{"path":"."}', '--host', 'claude-code']);
+  const result = parseArgs(['node', 'skill', 'start', '--params', '{"path":"."}', '--host', 'claude-code']);
   assert.equal(result.command, 'start');
-  assert.equal(result.flags['context'], '{"path":"."}');
+  assert.equal(result.flags['params'], '{"path":"."}');
   assert.equal(result.flags['host'], 'claude-code');
 });
 
@@ -45,8 +45,8 @@ test('parseArgs returns help for unknown command', () => {
 });
 
 test('parseArgs defaults to start when first arg is a flag', () => {
-  const result = parseArgs(['node', 'skill', '--context', '{}', '--host', 'claude-code']);
+  const result = parseArgs(['node', 'skill', '--params', '{}', '--host', 'claude-code']);
   assert.equal(result.command, 'start');
-  assert.equal(result.flags['context'], '{}');
+  assert.equal(result.flags['params'], '{}');
   assert.equal(result.flags['host'], 'claude-code');
 });

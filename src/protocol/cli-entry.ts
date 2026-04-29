@@ -23,7 +23,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
         break;
 
       case 'start': {
-        const params = flags['context'] ? (JSON.parse(flags['context']) as unknown) : {};
+        const params = flags['params'] ? (JSON.parse(flags['params']) as unknown) : {};
         const sessionFlag = flags['session'];
 
         if (sessionFlag === 'new') {

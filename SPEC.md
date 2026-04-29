@@ -685,10 +685,10 @@ Engines never see prefixes — the composite entry handles prefixing/unprefixing
 All commands go through `scripts/run`:
 
 ```bash
-scripts/run --context '{...}'                          # dispatcher start
+scripts/run --params '{...}'                          # dispatcher start
 scripts/run advance --step classify --output '{...}'   # dispatcher advance
 scripts/run advance --step doctor/diagnose --output ..  # sub-skill advance
-scripts/run doctor --context '{...}'                   # direct sub-skill start
+scripts/run doctor --params '{...}'                   # direct sub-skill start
 scripts/run topics                                     # list reference topics
 scripts/run topic rate-limits                          # load a topic
 ```
@@ -950,7 +950,7 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 **`start`** (default) — Begin the workflow. Returns the first step's prompt and schema. The `start` subcommand is implicit — omitting it defaults to `start`, so agents see `run *` as the base permission pattern.
 
 ```bash
-./scripts/run --context '{"repoPath":"."}' --host claude-code
+./scripts/run --params '{"repoPath":"."}' --host claude-code
 ```
 
 ```json
@@ -987,7 +987,7 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 
 | Flag            | Required     | Description                                                                                                                                                                    |
 | --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--context`     | On `start`   | JSON string. Validated against the skill's params schema.                                                                                                                      |
+| `--params`     | On `start`   | JSON string. Validated against the skill's params schema.                                                                                                                      |
 | `--step`        | On `advance` | Name of the step whose output is being submitted. Not needed with `--session` in file mode.                                                                                    |
 | `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                                                                      |
 | `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.                                                           |
@@ -1012,7 +1012,7 @@ Skills with registered sub-skills and/or topics accept additional commands. All 
 **Direct sub-skill access** — bypass the dispatcher and start a sub-skill directly:
 
 ```bash
-./scripts/run doctor --context '{"spaceId":"abc"}' --host claude-code
+./scripts/run doctor --params '{"spaceId":"abc"}' --host claude-code
 ./scripts/run doctor advance --step diagnose --output '{...}' --history '[...]'
 ```
 
@@ -1044,7 +1044,7 @@ The stateless protocol works but produces noisy UX — every invocation dumps ve
 **Creating a session:**
 
 ```bash
-./scripts/run --context '{"repoPath":"."}' --host claude-code --session new
+./scripts/run --params '{"repoPath":"."}' --host claude-code --session new
 ```
 
 Returns a `SessionPointer` to stdout:
