@@ -31,13 +31,14 @@ export async function handleAdvance(
   stepName: string,
   output: unknown,
   history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>,
+  params: unknown,
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
   isSubagent?: boolean,
 ): Promise<void> {
   const handshake = resolveHost(hostName, tools, isSubagent);
-  const engine = new WorkflowEngine(skill, handshake, {});
+  const engine = new WorkflowEngine(skill, handshake, params);
 
   if (history.length > 0) {
     engine.replayHistory(history);
@@ -63,7 +64,7 @@ function printHelp(skillName: string): void {
     'Usage:',
     `  ${skillName} --params '{"key":"value"}' [--host claude-code] [--session new]`,
     `  ${skillName} advance --session <id>`,
-    `  ${skillName} advance --step <name> --output '{"key":"value"}' --history '[...]' [--host claude-code]`,
+    `  ${skillName} advance --step <name> --output '{"key":"value"}' --params '{"key":"value"}' --history '[...]' [--host claude-code]`,
     '',
     'Subcommands:',
     '  (default)   Begin the workflow (same as start). Returns first step prompt as JSON.',
@@ -71,7 +72,7 @@ function printHelp(skillName: string): void {
     '  advance     Submit step output. Returns next prompt or done signal.',
     '',
     'Flags:',
-    '  --params       JSON string. Validated against skill params schema. (start only)',
+    '  --params       JSON string. Validated against skill params schema. (start, and advance without session)',
     '  --step         Name of the step whose output is being submitted. (advance only)',
     '  --output       JSON string. The agent response for the step. (advance only)',
     '  --history      JSON array of {step, stepOutput, actionOutput?} objects. (advance only)',
