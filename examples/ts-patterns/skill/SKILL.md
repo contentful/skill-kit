@@ -1,11 +1,11 @@
 ---
 name: ts-patterns
-description: "TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick refresher on generics, discriminated unions, builder patterns, or error handling."
+description: 'TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick refresher on generics, discriminated unions, builder patterns, or error handling.'
 metadata:
-  version: "1.0.0"
-argument-hint: "[topic]"
-allowed-tools: "Bash(scripts/run *) Read mcp__ts-patterns__topic mcp__ts-patterns__topics"
-paths: "**/*.ts"
+  version: '1.0.0'
+argument-hint: '[topic]'
+allowed-tools: 'Bash(scripts/run *) Read mcp__ts-patterns__topic mcp__ts-patterns__topics'
+paths: '**/*.ts'
 ---
 
 # ts-patterns

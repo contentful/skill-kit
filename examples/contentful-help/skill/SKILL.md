@@ -1,10 +1,10 @@
 ---
 name: contentful-help
-description: "Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup"
+description: 'Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup'
 metadata:
-  version: "1.0.0"
-argument-hint: "[doctor|setup]"
-allowed-tools: "Bash(scripts/run *) Read mcp__contentful-help__start mcp__contentful-help__advance mcp__contentful-help__topic mcp__contentful-help__topics"
+  version: '1.0.0'
+argument-hint: '[doctor|setup]'
+allowed-tools: 'Bash(scripts/run *) Read mcp__contentful-help__start mcp__contentful-help__advance mcp__contentful-help__topic mcp__contentful-help__topics'
 disable-model-invocation: true
 ---
 
@@ -71,6 +71,7 @@ In the examples below, `<skill>/scripts/run` is a placeholder for this absolute 
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -156,7 +157,6 @@ contains the skill's result. Present it to the user.
 - **choose**: (dynamic)
 - **get-space**: Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environm...
 - **ask-topic**: (dynamic)
-
 
 ## Sub-skills
 
