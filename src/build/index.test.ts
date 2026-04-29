@@ -265,6 +265,73 @@ test('generateSkillMd includes sub-skills and topics sections', () => {
   assert.ok(result.includes('scripts/run topic <name>'));
 });
 
+test('generateSkillMd documents params with defaults', () => {
+  const s = skill({
+    name: 'greeter',
+    entry: 'greet',
+    params: z.object({
+      greeting: z.string().default('Hey there!'),
+    }),
+  })
+    .step('greet', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('## Parameters'));
+  assert.ok(result.includes('| `greeting` | string | No | `"Hey there!"` |'));
+  assert.ok(result.includes('All parameters have defaults'));
+  assert.ok(result.includes("--params '{}'"));
+});
+
+test('generateSkillMd documents required params and uses them in start example', () => {
+  const s = skill({
+    name: 'doctor',
+    entry: 'diagnose',
+    params: z.object({
+      repoPath: z.string(),
+      strictness: z.enum(['lenient', 'normal', 'strict']).default('normal'),
+    }),
+  })
+    .step('diagnose', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('| `repoPath` | string | **Yes** | — |'));
+  assert.ok(result.includes('`"lenient"` \\| `"normal"` \\| `"strict"`'));
+  assert.ok(result.includes('| `strictness` |'));
+  assert.ok(result.includes('"repoPath":"<repoPath>"'));
+});
+
+test('generateSkillMd shows no-params message when skill has no params', () => {
+  const s = skill({ name: 'minimal', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('## Parameters'));
+  assert.ok(result.includes('This skill takes no parameters'));
+});
+
+test('generateSkillMd documents sub-skill params', () => {
+  const child = skill({
+    name: 'doctor',
+    description: 'Diagnose issues.',
+    entry: 'a',
+    params: z.object({ spaceId: z.string() }),
+  })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const s = skill({ name: 'composite', entry: 'start' })
+    .step('start', { prompt: 'Classify.', output: z.object({}), next: 'subskill:doctor' })
+    .subskill('doctor', child)
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('**doctor**: Diagnose issues.'));
+  assert.ok(result.includes('`spaceId` (string, required)'));
+});
+
 test('generateNodeScriptsRun produces valid bash delegator with Node version check', () => {
   const result = generateNodeScriptsRun('repo-doctor');
   assert.ok(result.startsWith('#!/usr/bin/env bash'));

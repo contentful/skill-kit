@@ -1,6 +1,110 @@
 import type { SkillDefinition } from '../types.js';
 import type { BuildProtocol } from './index.js';
 
+interface ParamField {
+  name: string;
+  type: string;
+  required: boolean;
+  default?: unknown;
+}
+
+interface ParamInfo {
+  fields: ParamField[];
+  hasRequired: boolean;
+  exampleJson: string;
+}
+
+function formatType(prop: Record<string, unknown>): string {
+  if (Array.isArray(prop['enum'])) {
+    return (prop['enum'] as unknown[]).map((v) => `\`${JSON.stringify(v)}\``).join(' \\| ');
+  }
+  if (prop['type'] === 'array') return 'array';
+  if (prop['type'] === 'object') return 'object';
+  return String(prop['type'] ?? 'unknown');
+}
+
+function exampleValue(prop: Record<string, unknown>, name: string): unknown {
+  if ('default' in prop) return prop['default'];
+  if (Array.isArray(prop['enum'])) return prop['enum'][0];
+  switch (prop['type']) {
+    case 'string':
+      return `<${name}>`;
+    case 'number':
+    case 'integer':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'array':
+      return [];
+    case 'object':
+      return {};
+    default:
+      return null;
+  }
+}
+
+function extractParamInfo(params: unknown): ParamInfo | null {
+  if (!params || typeof params !== 'object' || !('toJSONSchema' in params)) return null;
+
+  try {
+    const schema = (params as { toJSONSchema: () => Record<string, unknown> }).toJSONSchema() as Record<
+      string,
+      unknown
+    >;
+    const properties = (schema['properties'] as Record<string, Record<string, unknown>>) ?? {};
+    const requiredArr = (schema['required'] as string[]) ?? [];
+
+    const names = Object.keys(properties);
+    if (names.length === 0) return null;
+
+    const fields: ParamField[] = names.map((name) => {
+      const prop = properties[name] ?? {};
+      // A field is required from the caller's perspective only if it's
+      // in the JSON Schema `required` array AND has no `default` value.
+      const hasDefault = 'default' in prop;
+      return {
+        name,
+        type: formatType(prop),
+        required: requiredArr.includes(name) && !hasDefault,
+        ...(hasDefault ? { default: prop['default'] } : {}),
+      };
+    });
+
+    const hasRequired = fields.some((f) => f.required);
+
+    const example: Record<string, unknown> = {};
+    for (const name of names) {
+      example[name] = exampleValue(properties[name] ?? {}, name);
+    }
+    const exampleJson = JSON.stringify(example);
+
+    return { fields, hasRequired, exampleJson };
+  } catch {
+    return null;
+  }
+}
+
+function generateParamsSection(info: ParamInfo | null): string {
+  if (!info) return "## Parameters\n\nThis skill takes no parameters. Pass `--params '{}'`.";
+
+  const rows = info.fields.map((f) => {
+    const req = f.required ? '**Yes**' : 'No';
+    const def = 'default' in f ? `\`${JSON.stringify(f.default)}\`` : '—';
+    return `| \`${f.name}\` | ${f.type} | ${req} | ${def} |`;
+  });
+
+  const table = ['| Name | Type | Required | Default |', '|------|------|----------|---------|', ...rows].join('\n');
+
+  const note = info.hasRequired ? '' : "\nAll parameters have defaults — `--params '{}'` is valid.\n";
+
+  return `## Parameters\n\n${table}\n${note}\nExample:\n\n\`\`\`json\n${info.exampleJson}\n\`\`\``;
+}
+
+function buildExampleParamsFlag(info: ParamInfo | null): string {
+  if (!info || !info.hasRequired) return "'{}'";
+  return `'${info.exampleJson}'`;
+}
+
 const SKILL_DIR_INSTRUCTION = `This SKILL.md file is inside the skill directory. Resolve the **absolute path** to \`scripts/run\`
 from this file's location (e.g., \`/path/to/skill/scripts/run\`). Use the absolute path in all
 Bash commands — do not \`cd\` into the skill directory.
@@ -25,7 +129,12 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     })
     .join('\n');
 
-  const protocolInstructions = protocol === 'session' ? generateSessionInstructions() : generateStatelessInstructions();
+  const paramInfo = extractParamInfo(skill.params);
+  const paramsFlag = buildExampleParamsFlag(paramInfo);
+  const paramsSection = generateParamsSection(paramInfo);
+
+  const protocolInstructions =
+    protocol === 'session' ? generateSessionInstructions(paramsFlag) : generateStatelessInstructions(paramsFlag);
 
   const body = `
 # ${skill.name}
@@ -101,6 +210,8 @@ reported tools are a genuine subset — the skill will not merge them with the h
 Without \`--subagent\`, the skill assumes you are a top-level agent and merges your tools
 with the registry (since top-level agents often under-report their tools).
 
+${paramsSection}
+
 ${protocolInstructions}
 ### Important
 
@@ -121,11 +232,11 @@ function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
 }
 
-function generateSessionInstructions(): string {
+function generateSessionInstructions(paramsFlag: string): string {
   return `### Step 1: Start with a session
 
 \`\`\`bash
-<skill>/scripts/run --params '{}' --host claude-code --tools <your-tools> --session new 2>/dev/null
+<skill>/scripts/run --params ${paramsFlag} --host claude-code --tools <your-tools> --session new 2>/dev/null
 \`\`\`
 
 This returns a JSON pointer with \`sessionId\`, \`file\`, and \`line\`. The \`line\` field tells you
@@ -163,11 +274,11 @@ contains the skill's result. Present it to the user.
 `;
 }
 
-function generateStatelessInstructions(): string {
+function generateStatelessInstructions(paramsFlag: string): string {
   return `### Step 1: Start
 
 \`\`\`bash
-<skill>/scripts/run --params '{}' --host claude-code --tools <your-tools> 2>/dev/null
+<skill>/scripts/run --params ${paramsFlag} --host claude-code --tools <your-tools> 2>/dev/null
 \`\`\`
 
 The output is JSON with: \`preamble\`, \`step\`, \`prompt\`, \`schema\`.
@@ -228,10 +339,10 @@ function generateSubskillSection(skill: SkillDefinition, protocol: BuildProtocol
   lines.push('### Direct sub-skill access', '');
   lines.push('```bash');
   if (protocol === 'session') {
-    lines.push("<skill>/scripts/run <subskill> --params '{}' --session new");
+    lines.push("<skill>/scripts/run <subskill> --params '<json>' --session new");
     lines.push('<skill>/scripts/run <subskill> advance --session <id>');
   } else {
-    lines.push("<skill>/scripts/run <subskill> --params '{}'");
+    lines.push("<skill>/scripts/run <subskill> --params '<json>'");
     lines.push("<skill>/scripts/run <subskill> advance --step <step> --output '...' --history '[...]'");
   }
   lines.push('```');
@@ -239,7 +350,15 @@ function generateSubskillSection(skill: SkillDefinition, protocol: BuildProtocol
 
   for (const [name, reg] of Object.entries(skill.subskills)) {
     const desc = reg.definition.description || '(no description)';
-    lines.push(`- **${name}**: ${desc}`);
+    const subParamInfo = extractParamInfo(reg.definition.params);
+    if (subParamInfo) {
+      const paramSummary = subParamInfo.fields
+        .map((f) => `\`${f.name}\` (${f.type}${f.required ? ', required' : ''})`)
+        .join(', ');
+      lines.push(`- **${name}**: ${desc} — params: ${paramSummary}`);
+    } else {
+      lines.push(`- **${name}**: ${desc}`);
+    }
   }
 
   return lines.join('\n');
