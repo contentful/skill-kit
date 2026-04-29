@@ -191,6 +191,41 @@ test('generateReferenceMd double-quotes YAML description content', () => {
   assert.ok(result.includes('description: "Reference topics: setup and \\\"debug\\\"."'));
 });
 
+test('generateReferenceMd emits frontmatter extension fields', () => {
+  const ref = reference({
+    name: 'ref-with-fm',
+    description: 'Reference with extensions.',
+    argumentHint: 'topic name',
+    allowedTools: ['Read', 'Bash'],
+    paths: 'docs/**/*.md',
+    context: 'fork',
+  })
+    .topic('setup', { label: 'Setup', content: () => 'Setup docs.' })
+    .build();
+
+  const result = generateReferenceMd(ref);
+  assert.ok(result.includes('argument-hint: "topic name"'));
+  assert.ok(result.includes('allowed-tools:\n  - "Read"\n  - "Bash"'));
+  assert.ok(result.includes('paths: "docs/**/*.md"'));
+  assert.ok(result.includes('context: "fork"'));
+});
+
+test('generateReferenceMd omits frontmatter extension fields when not set', () => {
+  const ref = reference({
+    name: 'ref-minimal',
+    description: 'Minimal reference.',
+  })
+    .topic('info', { label: 'Info', content: () => 'Info.' })
+    .build();
+
+  const result = generateReferenceMd(ref);
+  const frontmatter = result.split('---')[1]!;
+  assert.ok(!frontmatter.includes('argument-hint'));
+  assert.ok(!frontmatter.includes('allowed-tools'));
+  assert.ok(!frontmatter.includes('paths'));
+  assert.ok(!frontmatter.includes('context'));
+});
+
 test('generateSkillMd with protocol=session omits stateless instructions', () => {
   const s = skill({ name: 'test', entry: 'a' })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })

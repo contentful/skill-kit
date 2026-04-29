@@ -344,6 +344,10 @@ export type ReferenceBuilderConfig = {
   name: string;
   description: string;
   package?: PackageConfig;
+  argumentHint?: string;
+  allowedTools?: string | string[];
+  paths?: string | string[];
+  context?: string;
 } & VersionStrategy;
 
 export interface ReferenceDefinition {
@@ -353,6 +357,10 @@ export interface ReferenceDefinition {
   readonly resolveVersion: boolean;
   readonly description: string;
   readonly package: PackageConfig | undefined;
+  readonly argumentHint: string | undefined;
+  readonly allowedTools: string | string[] | undefined;
+  readonly paths: string | string[] | undefined;
+  readonly context: string | undefined;
   readonly topics: Readonly<Record<string, TopicConfig>>;
 }
 

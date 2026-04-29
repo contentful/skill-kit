@@ -8,6 +8,22 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
     frontmatter.push(`  version: "${def.version}"`);
   }
 
+  if (def.argumentHint !== undefined) {
+    frontmatter.push(`argument-hint: ${yamlDoubleQuoted(def.argumentHint)}`);
+  }
+
+  if (def.allowedTools !== undefined && !(Array.isArray(def.allowedTools) && def.allowedTools.length === 0)) {
+    frontmatter.push(yamlStringOrList('allowed-tools', def.allowedTools));
+  }
+
+  if (def.paths !== undefined && !(Array.isArray(def.paths) && def.paths.length === 0)) {
+    frontmatter.push(yamlStringOrList('paths', def.paths));
+  }
+
+  if (def.context !== undefined) {
+    frontmatter.push(`context: ${yamlDoubleQuoted(def.context)}`);
+  }
+
   frontmatter.push('---');
 
   const topicList = Object.entries(def.topics)
@@ -44,4 +60,12 @@ To list all available topics: \`<skill>/scripts/run\`
 
 function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
+}
+
+function yamlStringOrList(key: string, value: string | string[]): string {
+  if (typeof value === 'string') {
+    return `${key}: ${yamlDoubleQuoted(value)}`;
+  }
+  const items = value.map((v) => `  - ${yamlDoubleQuoted(v)}`).join('\n');
+  return `${key}:\n${items}`;
 }

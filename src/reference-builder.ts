@@ -27,6 +27,10 @@ export class ReferenceBuilder {
       resolveVersion: this.config.resolveVersion ?? false,
       description,
       package: this.config.package,
+      argumentHint: this.config.argumentHint,
+      allowedTools: this.config.allowedTools,
+      paths: this.config.paths,
+      context: this.config.context,
       topics: Object.freeze({ ...this.topics }),
     });
   }
