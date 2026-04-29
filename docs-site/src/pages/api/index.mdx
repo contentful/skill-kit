@@ -21,25 +21,32 @@ skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd
 
 ### `skill()` config
 
-| Field            | Type                                           | Required | Description                                                                              |
-| ---------------- | ---------------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `name`           | `string`                                       | yes      | Skill identifier                                                                         |
-| `entry`          | `string`                                       | yes      | Name of the first step                                                                   |
-| `system`         | `string`                                       | no       | System-level directive prepended to the preamble (persona, constraints, tone)            |
-| `version`        | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                          |
-| `resolveVersion` | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`  |
-| `description`    | `string`                                       | no       | Used in generated SKILL.md                                                               |
-| `triggers`       | `string[]`                                     | no       | Keywords appended to description for agent discoverability                               |
-| `params`         | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide params                                               |
-| `stash`          | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                  |
-| `finalOutput`    | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                    |
-| `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                            |
-| `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                        |
-| `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))      |
-| `argumentHint`   | `string`                                       | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter               |
-| `allowedTools`   | `string \| string[]`                           | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                   |
-| `paths`          | `string \| string[]`                           | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter |
-| `context`        | `string`                                       | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter          |
+| Field                    | Type                                           | Required | Description                                                                              |
+| ------------------------ | ---------------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `name`                   | `string`                                       | yes      | Skill identifier                                                                         |
+| `entry`                  | `string`                                       | yes      | Name of the first step                                                                   |
+| `system`                 | `string`                                       | no       | System-level directive prepended to the preamble (persona, constraints, tone)            |
+| `version`                | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                          |
+| `resolveVersion`         | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`  |
+| `description`            | `string`                                       | no       | Used in generated SKILL.md                                                               |
+| `triggers`               | `string[]`                                     | no       | Keywords appended to description for agent discoverability                               |
+| `params`                 | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide params                                               |
+| `stash`                  | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                  |
+| `finalOutput`            | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                    |
+| `observers`              | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                            |
+| `skillMd`                | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                        |
+| `package`                | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))      |
+| `argumentHint`           | `string`                                       | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter               |
+| `allowedTools`           | `string \| string[]`                           | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                   |
+| `paths`                  | `string \| string[]`                           | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter |
+| `context`                | `string`                                       | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter          |
+| `license`                | `string`                                       | no       | License name or reference. Emitted as `license` in SKILL.md frontmatter                  |
+| `compatibility`          | `string`                                       | no       | Environment requirements. Emitted as `compatibility` in SKILL.md frontmatter             |
+| `agent`                  | `string`                                       | no       | Subagent type when `context: 'fork'`. Emitted as `agent` in SKILL.md frontmatter         |
+| `model`                  | `string`                                       | no       | Model override while skill is active. Emitted as `model` in SKILL.md frontmatter         |
+| `effort`                 | `string`                                       | no       | Effort level override. Emitted as `effort` in SKILL.md frontmatter                       |
+| `disableModelInvocation` | `boolean`                                      | no       | Prevent auto-loading by the agent. Emitted as `disable-model-invocation`                 |
+| `userInvocable`          | `boolean`                                      | no       | Whether visible in `/` menu. Emitted as `user-invocable`                                 |
 
 Params and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
@@ -187,17 +194,24 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 ### `reference()` config
 
-| Field            | Type                 | Required | Description                                                                              |
-| ---------------- | -------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `name`           | `string`             | yes      | Reference skill identifier                                                               |
-| `description`    | `string`             | yes      | Used in generated SKILL.md                                                               |
-| `version`        | `string`             | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                          |
-| `resolveVersion` | `true`               | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`  |
-| `package`        | `PackageConfig`      | no       | Fields written to the output `package.json` (see [Package Config](#package-config))      |
-| `argumentHint`   | `string`             | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter               |
-| `allowedTools`   | `string \| string[]` | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                   |
-| `paths`          | `string \| string[]` | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter |
-| `context`        | `string`             | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter          |
+| Field                    | Type                 | Required | Description                                                                              |
+| ------------------------ | -------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `name`                   | `string`             | yes      | Reference skill identifier                                                               |
+| `description`            | `string`             | yes      | Used in generated SKILL.md                                                               |
+| `version`                | `string`             | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                          |
+| `resolveVersion`         | `true`               | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`  |
+| `package`                | `PackageConfig`      | no       | Fields written to the output `package.json` (see [Package Config](#package-config))      |
+| `argumentHint`           | `string`             | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter               |
+| `allowedTools`           | `string \| string[]` | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                   |
+| `paths`                  | `string \| string[]` | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter |
+| `context`                | `string`             | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter          |
+| `license`                | `string`             | no       | License name or reference. Emitted as `license` in SKILL.md frontmatter                  |
+| `compatibility`          | `string`             | no       | Environment requirements. Emitted as `compatibility` in SKILL.md frontmatter             |
+| `agent`                  | `string`             | no       | Subagent type when `context: 'fork'`. Emitted as `agent` in SKILL.md frontmatter         |
+| `model`                  | `string`             | no       | Model override while skill is active. Emitted as `model` in SKILL.md frontmatter         |
+| `effort`                 | `string`             | no       | Effort level override. Emitted as `effort` in SKILL.md frontmatter                       |
+| `disableModelInvocation` | `boolean`            | no       | Prevent auto-loading by the agent. Emitted as `disable-model-invocation`                 |
+| `userInvocable`          | `boolean`            | no       | Whether visible in `/` menu. Emitted as `user-invocable`                                 |
 
 ### `.topic(name, config)`
 
