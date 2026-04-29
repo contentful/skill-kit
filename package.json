@@ -64,13 +64,14 @@
     "build:examples:primitives-showcase:bun": "node --import tsx/esm bin/skill-kit.js build examples/primitives-showcase/src/skill.ts -o examples/primitives-showcase/skill"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "esbuild": "^0.28.0",
     "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.2.3",
     "@release-it/conventional-changelog": "^10.0.6",
+    "@types/node": "^25.2.3",
     "prettier": "^3.8.1",
     "release-it": "^19.0.0",
     "typescript": "^5.9.3"

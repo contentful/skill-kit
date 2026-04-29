@@ -117,4 +117,5 @@ When `engine.advance()` returns a `RedirectResult`:
 
 ## Notes
 
-(Running log of decisions made during implementation)
+- MCP SDK v1.29 has native Zod 4 support via `zod/v4/core` compat layer. `AnySchema = z3.ZodTypeAny | z4.$ZodType`. We can use `McpServer.registerTool()` with Zod 4 schemas directly — no raw JSON Schema needed.
+- SDK's `registerTool` accepts `inputSchema` as either `ZodRawShapeCompat` (raw shape) or `AnySchema` (full Zod schema). We'll use full Zod 4 object schemas.
