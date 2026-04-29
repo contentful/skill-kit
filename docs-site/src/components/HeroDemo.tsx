@@ -214,7 +214,7 @@ function TabBar({ tabs }: { tabs: SurveyPicker['tabs'] }) {
           color: t.active ? c.blue : t.done ? c.muted : c.dim,
           border: t.active ? '1px solid rgba(96,165,250,0.3)' : '1px solid transparent',
         }}>
-          {t.done ? '✕ ' : '☐ '}{t.label}
+          {t.done ? '✓ ' : '☐ '}{t.label}
         </span>
       ))}
       <span style={{ color: c.dim }}>→</span>

@@ -107,7 +107,7 @@ export const securityAudit: HeroStoryboard = {
       ],
       frames: [
         {
-          duration: 2500,
+          duration: 3800,
           content: {
             type: 'survey-picker',
             data: {
@@ -127,7 +127,7 @@ export const securityAudit: HeroStoryboard = {
           },
         },
         {
-          duration: 2000,
+          duration: 3000,
           content: {
             type: 'survey-review',
             data: {
@@ -148,7 +148,7 @@ export const securityAudit: HeroStoryboard = {
           },
         },
         {
-          duration: 1500,
+          duration: 2200,
           content: {
             type: 'answers-summary',
             data: {
@@ -170,7 +170,7 @@ export const securityAudit: HeroStoryboard = {
       ],
       frames: [
         {
-          duration: 2000,
+          duration: 3000,
           content: {
             type: 'subagent-running',
             data: {
@@ -183,7 +183,7 @@ export const securityAudit: HeroStoryboard = {
           },
         },
         {
-          duration: 1500,
+          duration: 2200,
           content: {
             type: 'subagent-done',
             data: {
@@ -206,7 +206,7 @@ export const securityAudit: HeroStoryboard = {
       ],
       frames: [
         {
-          duration: 3500,
+          duration: 5000,
           content: {
             type: 'plan',
             data: {
@@ -238,7 +238,7 @@ export const securityAudit: HeroStoryboard = {
       ],
       frames: [
         {
-          duration: 2000,
+          duration: 3000,
           content: {
             type: 'action-running',
             data: {
@@ -248,7 +248,7 @@ export const securityAudit: HeroStoryboard = {
           },
         },
         {
-          duration: 2500,
+          duration: 3500,
           content: {
             type: 'action-done',
             data: {
