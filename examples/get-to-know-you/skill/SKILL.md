@@ -1,9 +1,9 @@
 ---
 name: get-to-know-you
-description: "A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker"
+description: 'A playful interview that gets to know the user and produces a profile trading card. Use when the user wants to introduce themselves or when you want to break the ice. Trigger keywords: introduce myself, trading card, get to know me, ice breaker'
 metadata:
-  version: "1.0.0"
-argument-hint: "[name]"
+  version: '1.0.0'
+argument-hint: '[name]'
 ---
 
 # get-to-know-you
@@ -72,6 +72,7 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -104,16 +105,16 @@ with the registry (since top-level agents often under-report their tools).
 
 ## Parameters
 
-| Name | Type | Required | Default |
-|------|------|----------|---------|
-| `greeting` | string | No | `"Hey there!"` |
+| Name       | Type   | Required | Default        |
+| ---------- | ------ | -------- | -------------- |
+| `greeting` | string | No       | `"Hey there!"` |
 
 All parameters have defaults — `--params '{}'` is valid.
 
 Example:
 
 ```json
-{"greeting":"Hey there!"}
+{ "greeting": "Hey there!" }
 ```
 
 ### Step 1: Start with a session
