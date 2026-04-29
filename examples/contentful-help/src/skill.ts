@@ -7,6 +7,7 @@ export default skill({
   version: '1.0.0',
   description: 'Diagnose, configure, and look up Contentful topics.',
   triggers: ['contentful help', 'contentful doctor', 'contentful setup'],
+  argumentHint: '[doctor|setup]',
   entry: 'choose',
   stash: z.object({ intent: z.string(), spaceId: z.string() }),
 })

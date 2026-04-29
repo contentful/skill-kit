@@ -20,6 +20,7 @@ export default skill({
   name: 'primitives-showcase',
   version: '1.0.0',
   description: 'Exercises every SDK primitive in a single skill. Used as a reference and integration test.',
+  argumentHint: '[theme]',
   entry: 'gather-preferences',
 
   stash: z.object({

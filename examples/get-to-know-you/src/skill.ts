@@ -40,6 +40,7 @@ export default skill({
     'A playful interview that gets to know the user and produces a profile trading card. ' +
     'Use when the user wants to introduce themselves or when you want to break the ice.',
   triggers: ['introduce myself', 'trading card', 'get to know me', 'ice breaker'],
+  argumentHint: '[name]',
   entry: 'greet',
   system:
     "Keep it light and fun. Use casual language. Throw in the occasional joke or pun if it fits. You're a friendly interviewer, not a form.",

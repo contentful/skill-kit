@@ -6,6 +6,8 @@ export default reference({
   description:
     'TypeScript patterns and idioms reference. Use when writing TypeScript and need a quick ' +
     'refresher on generics, discriminated unions, builder patterns, or error handling.',
+  argumentHint: '[topic]',
+  paths: '**/*.ts',
 })
   .topic('generics', {
     label: 'Generics cheat sheet — constraints, conditional types, mapped types, infer',
