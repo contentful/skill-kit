@@ -299,11 +299,12 @@ Produce a JSON object matching the \`schema\`.
 ### Step 3: Advance
 
 \`\`\`bash
-<skill>/scripts/run advance --step <step-name> --output '<your-json>' --history '<history>' --host claude-code 2>/dev/null
+<skill>/scripts/run advance --step <step-name> --output '<your-json>' --params ${paramsFlag} --history '<history>' --host claude-code 2>/dev/null
 \`\`\`
 
 - \`--step\`: the step name from the previous response
 - \`--output\`: your JSON response matching the schema
+- \`--params\`: same params JSON you passed on start (required for stateless mode)
 - \`--history\`: a JSON array tracking the conversation. Start with \`[]\`. After each advance,
   the response includes a \`completed\` field — append it to the array for the next call.
 
