@@ -38,6 +38,8 @@ export default skill({
     'A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. ' +
     'Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent.',
   triggers: ['game jam', 'build a game', 'tetris', 'game tutorial'],
+  argumentHint: '[game-type]',
+  compatibility: 'Requires a modern browser for the game preview',
   entry: 'choose-variant',
   system:
     "You're a friendly game development mentor guiding someone through building their first Tetris game. Be encouraging and practical.",

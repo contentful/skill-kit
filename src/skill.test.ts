@@ -318,3 +318,56 @@ test('step with action.input mapper skips compat check', () => {
       .build(),
   );
 });
+
+test('skill().build() preserves frontmatter extension fields', () => {
+  const s = skill({
+    name: 'frontmatter-test',
+    entry: 'start',
+    argumentHint: 'hint text',
+    arguments: ['issue', 'branch'],
+    allowedTools: ['Bash', 'Read'],
+    paths: '**/*.ts',
+    context: 'fork',
+    license: 'MIT',
+    compatibility: 'Requires git',
+    agent: 'Explore',
+    model: 'sonnet',
+    effort: 'high',
+    disableModelInvocation: true,
+    userInvocable: false,
+  })
+    .step('start', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  assert.equal(s.argumentHint, 'hint text');
+  assert.deepEqual(s.arguments, ['issue', 'branch']);
+  assert.deepEqual(s.allowedTools, ['Bash', 'Read']);
+  assert.equal(s.paths, '**/*.ts');
+  assert.equal(s.context, 'fork');
+  assert.equal(s.license, 'MIT');
+  assert.equal(s.compatibility, 'Requires git');
+  assert.equal(s.agent, 'Explore');
+  assert.equal(s.model, 'sonnet');
+  assert.equal(s.effort, 'high');
+  assert.equal(s.disableModelInvocation, true);
+  assert.equal(s.userInvocable, false);
+});
+
+test('skill().build() defaults frontmatter extension fields to undefined', () => {
+  const s = skill({ name: 'no-fm', entry: 'start' })
+    .step('start', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  assert.equal(s.argumentHint, undefined);
+  assert.equal(s.arguments, undefined);
+  assert.equal(s.allowedTools, undefined);
+  assert.equal(s.paths, undefined);
+  assert.equal(s.context, undefined);
+  assert.equal(s.license, undefined);
+  assert.equal(s.compatibility, undefined);
+  assert.equal(s.agent, undefined);
+  assert.equal(s.model, undefined);
+  assert.equal(s.effort, undefined);
+  assert.equal(s.disableModelInvocation, undefined);
+  assert.equal(s.userInvocable, undefined);
+});

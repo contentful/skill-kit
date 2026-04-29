@@ -90,6 +90,186 @@ test('generateSkillMd double-quotes YAML description content', () => {
   assert.ok(result.includes('description: "Trigger keywords: debug, fix and \\\"repair\\\"."'));
 });
 
+test('generateSkillMd emits argument-hint in frontmatter', () => {
+  const s = skill({ name: 'hinted', entry: 'a', argumentHint: 'Describe the issue to diagnose' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('argument-hint: "Describe the issue to diagnose"'));
+});
+
+test('generateSkillMd emits arguments as inline array in frontmatter', () => {
+  const s = skill({ name: 'with-args', entry: 'a', arguments: ['issue', 'branch'] })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('arguments: ["issue", "branch"]'));
+});
+
+test('generateSkillMd emits arguments as string in frontmatter', () => {
+  const s = skill({ name: 'args-str', entry: 'a', arguments: 'issue branch' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('arguments: "issue branch"'));
+});
+
+test('generateSkillMd emits allowed-tools as string in frontmatter', () => {
+  const s = skill({ name: 'tools-str', entry: 'a', allowedTools: 'Bash Read Write' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('allowed-tools: "Bash Read Write"'));
+});
+
+test('generateSkillMd emits allowed-tools array as space-separated string', () => {
+  const s = skill({ name: 'tools-arr', entry: 'a', allowedTools: ['Bash', 'Read', 'Write'] })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('allowed-tools: "Bash Read Write"'));
+});
+
+test('generateSkillMd emits paths as string in frontmatter', () => {
+  const s = skill({ name: 'paths-str', entry: 'a', paths: '**/*.config.ts' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('paths: "**/*.config.ts"'));
+});
+
+test('generateSkillMd emits paths array as inline YAML list', () => {
+  const s = skill({ name: 'paths-arr', entry: 'a', paths: ['src/**/*.ts', 'tests/**/*.test.ts'] })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('paths: ["src/**/*.ts", "tests/**/*.test.ts"]'));
+});
+
+test('generateSkillMd emits context in frontmatter', () => {
+  const s = skill({ name: 'forked', entry: 'a', context: 'fork' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('context: "fork"'));
+});
+
+test('generateSkillMd emits license in frontmatter', () => {
+  const s = skill({ name: 'licensed', entry: 'a', license: 'Apache-2.0' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('license: "Apache-2.0"'));
+});
+
+test('generateSkillMd emits compatibility in frontmatter', () => {
+  const s = skill({ name: 'compat', entry: 'a', compatibility: 'Requires git and docker' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('compatibility: "Requires git and docker"'));
+});
+
+test('generateSkillMd emits agent in frontmatter', () => {
+  const s = skill({ name: 'agented', entry: 'a', agent: 'Explore' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('agent: "Explore"'));
+});
+
+test('generateSkillMd emits model in frontmatter', () => {
+  const s = skill({ name: 'modeled', entry: 'a', model: 'sonnet' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('model: "sonnet"'));
+});
+
+test('generateSkillMd emits effort in frontmatter', () => {
+  const s = skill({ name: 'effortful', entry: 'a', effort: 'high' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('effort: "high"'));
+});
+
+test('generateSkillMd emits disable-model-invocation in frontmatter', () => {
+  const s = skill({ name: 'manual-only', entry: 'a', disableModelInvocation: true })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('disable-model-invocation: true'));
+});
+
+test('generateSkillMd emits user-invocable in frontmatter', () => {
+  const s = skill({ name: 'hidden', entry: 'a', userInvocable: false })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+  assert.ok(generateSkillMd(s).includes('user-invocable: false'));
+});
+
+test('generateSkillMd omits frontmatter extension fields when not set', () => {
+  const s = skill({ name: 'minimal', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  const frontmatter = result.split('---')[1]!;
+  assert.ok(!frontmatter.includes('argument-hint'));
+  assert.ok(!frontmatter.includes('arguments'));
+  assert.ok(!frontmatter.includes('allowed-tools'));
+  assert.ok(!frontmatter.includes('paths'));
+  assert.ok(!frontmatter.includes('context'));
+  assert.ok(!frontmatter.includes('license'));
+  assert.ok(!frontmatter.includes('compatibility'));
+  assert.ok(!frontmatter.includes('agent'));
+  assert.ok(!frontmatter.includes('model'));
+  assert.ok(!frontmatter.includes('effort'));
+  assert.ok(!frontmatter.includes('disable-model-invocation'));
+  assert.ok(!frontmatter.includes('user-invocable'));
+});
+
+test('generateSkillMd emits all frontmatter extension fields together', () => {
+  const s = skill({
+    name: 'full',
+    version: '2.0.0',
+    description: 'Full featured skill.',
+    entry: 'a',
+    argumentHint: 'What to check',
+    arguments: ['target', 'level'],
+    allowedTools: ['Bash', 'Read'],
+    paths: ['*.config.ts'],
+    context: 'fork',
+    license: 'MIT',
+    compatibility: 'Requires Node 24+',
+    agent: 'Explore',
+    model: 'opus',
+    effort: 'max',
+    disableModelInvocation: true,
+    userInvocable: false,
+  })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('argument-hint: "What to check"'));
+  assert.ok(result.includes('arguments: ["target", "level"]'));
+  assert.ok(result.includes('allowed-tools: "Bash Read"'));
+  assert.ok(result.includes('paths: ["*.config.ts"]'));
+  assert.ok(result.includes('context: "fork"'));
+  assert.ok(result.includes('version: "2.0.0"'));
+  assert.ok(result.includes('license: "MIT"'));
+  assert.ok(result.includes('compatibility: "Requires Node 24+"'));
+  assert.ok(result.includes('agent: "Explore"'));
+  assert.ok(result.includes('model: "opus"'));
+  assert.ok(result.includes('effort: "max"'));
+  assert.ok(result.includes('disable-model-invocation: true'));
+  assert.ok(result.includes('user-invocable: false'));
+});
+
 test('generateReferenceMd double-quotes YAML description content', () => {
   const ref = reference({
     name: 'docs-ref',
@@ -100,6 +280,63 @@ test('generateReferenceMd double-quotes YAML description content', () => {
 
   const result = generateReferenceMd(ref);
   assert.ok(result.includes('description: "Reference topics: setup and \\\"debug\\\"."'));
+});
+
+test('generateReferenceMd emits frontmatter extension fields', () => {
+  const ref = reference({
+    name: 'ref-with-fm',
+    description: 'Reference with extensions.',
+    argumentHint: 'topic name',
+    allowedTools: ['Read', 'Bash'],
+    paths: 'docs/**/*.md',
+    context: 'fork',
+    license: 'MIT',
+    compatibility: 'Requires Node 24+',
+    agent: 'Explore',
+    model: 'haiku',
+    effort: 'low',
+    disableModelInvocation: true,
+    userInvocable: false,
+  })
+    .topic('setup', { label: 'Setup', content: () => 'Setup docs.' })
+    .build();
+
+  const result = generateReferenceMd(ref);
+  assert.ok(result.includes('argument-hint: "topic name"'));
+  assert.ok(result.includes('allowed-tools: "Read Bash"'));
+  assert.ok(result.includes('paths: "docs/**/*.md"'));
+  assert.ok(result.includes('context: "fork"'));
+  assert.ok(result.includes('license: "MIT"'));
+  assert.ok(result.includes('compatibility: "Requires Node 24+"'));
+  assert.ok(result.includes('agent: "Explore"'));
+  assert.ok(result.includes('model: "haiku"'));
+  assert.ok(result.includes('effort: "low"'));
+  assert.ok(result.includes('disable-model-invocation: true'));
+  assert.ok(result.includes('user-invocable: false'));
+});
+
+test('generateReferenceMd omits frontmatter extension fields when not set', () => {
+  const ref = reference({
+    name: 'ref-minimal',
+    description: 'Minimal reference.',
+  })
+    .topic('info', { label: 'Info', content: () => 'Info.' })
+    .build();
+
+  const result = generateReferenceMd(ref);
+  const frontmatter = result.split('---')[1]!;
+  assert.ok(!frontmatter.includes('argument-hint'));
+  assert.ok(!frontmatter.includes('arguments'));
+  assert.ok(!frontmatter.includes('allowed-tools'));
+  assert.ok(!frontmatter.includes('paths'));
+  assert.ok(!frontmatter.includes('context'));
+  assert.ok(!frontmatter.includes('license'));
+  assert.ok(!frontmatter.includes('compatibility'));
+  assert.ok(!frontmatter.includes('agent'));
+  assert.ok(!frontmatter.includes('model'));
+  assert.ok(!frontmatter.includes('effort'));
+  assert.ok(!frontmatter.includes('disable-model-invocation'));
+  assert.ok(!frontmatter.includes('user-invocable'));
 });
 
 test('generateSkillMd with protocol=session omits stateless instructions', () => {

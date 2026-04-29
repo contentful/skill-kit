@@ -27,6 +27,18 @@ export class ReferenceBuilder {
       resolveVersion: this.config.resolveVersion ?? false,
       description,
       package: this.config.package,
+      argumentHint: this.config.argumentHint,
+      arguments: this.config.arguments,
+      allowedTools: this.config.allowedTools,
+      paths: this.config.paths,
+      context: this.config.context,
+      license: this.config.license,
+      compatibility: this.config.compatibility,
+      agent: this.config.agent,
+      model: this.config.model,
+      effort: this.config.effort,
+      disableModelInvocation: this.config.disableModelInvocation,
+      userInvocable: this.config.userInvocable,
       topics: Object.freeze({ ...this.topics }),
     });
   }

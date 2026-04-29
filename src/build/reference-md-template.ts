@@ -8,6 +8,54 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
     frontmatter.push(`  version: "${def.version}"`);
   }
 
+  if (def.argumentHint !== undefined) {
+    frontmatter.push(`argument-hint: ${yamlDoubleQuoted(def.argumentHint)}`);
+  }
+
+  if (def.arguments !== undefined && !(Array.isArray(def.arguments) && def.arguments.length === 0)) {
+    frontmatter.push(yamlInlineList('arguments', def.arguments));
+  }
+
+  if (def.allowedTools !== undefined && !(Array.isArray(def.allowedTools) && def.allowedTools.length === 0)) {
+    frontmatter.push(yamlSpaceSeparated('allowed-tools', def.allowedTools));
+  }
+
+  if (def.paths !== undefined && !(Array.isArray(def.paths) && def.paths.length === 0)) {
+    frontmatter.push(yamlInlineList('paths', def.paths));
+  }
+
+  if (def.context !== undefined) {
+    frontmatter.push(`context: ${yamlDoubleQuoted(def.context)}`);
+  }
+
+  if (def.license !== undefined) {
+    frontmatter.push(`license: ${yamlDoubleQuoted(def.license)}`);
+  }
+
+  if (def.compatibility !== undefined) {
+    frontmatter.push(`compatibility: ${yamlDoubleQuoted(def.compatibility)}`);
+  }
+
+  if (def.agent !== undefined) {
+    frontmatter.push(`agent: ${yamlDoubleQuoted(def.agent)}`);
+  }
+
+  if (def.model !== undefined) {
+    frontmatter.push(`model: ${yamlDoubleQuoted(def.model)}`);
+  }
+
+  if (def.effort !== undefined) {
+    frontmatter.push(`effort: ${yamlDoubleQuoted(def.effort)}`);
+  }
+
+  if (def.disableModelInvocation !== undefined) {
+    frontmatter.push(`disable-model-invocation: ${def.disableModelInvocation}`);
+  }
+
+  if (def.userInvocable !== undefined) {
+    frontmatter.push(`user-invocable: ${def.userInvocable}`);
+  }
+
   frontmatter.push('---');
 
   const topicList = Object.entries(def.topics)
@@ -44,4 +92,17 @@ To list all available topics: \`<skill>/scripts/run\`
 
 function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
+}
+
+function yamlSpaceSeparated(key: string, value: string | string[]): string {
+  const joined = Array.isArray(value) ? value.join(' ') : value;
+  return `${key}: ${yamlDoubleQuoted(joined)}`;
+}
+
+function yamlInlineList(key: string, value: string | string[]): string {
+  if (typeof value === 'string') {
+    return `${key}: ${yamlDoubleQuoted(value)}`;
+  }
+  const items = value.map((v) => yamlDoubleQuoted(v)).join(', ');
+  return `${key}: [${items}]`;
 }

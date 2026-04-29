@@ -3,6 +3,8 @@ name: contentful-help
 description: 'Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup'
 metadata:
   version: '1.0.0'
+argument-hint: '[doctor|setup]'
+disable-model-invocation: true
 ---
 
 # contentful-help

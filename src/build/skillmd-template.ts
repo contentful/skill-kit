@@ -119,6 +119,54 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     frontmatter.push(`  version: "${skill.version}"`);
   }
 
+  if (skill.argumentHint !== undefined) {
+    frontmatter.push(`argument-hint: ${yamlDoubleQuoted(skill.argumentHint)}`);
+  }
+
+  if (skill.arguments !== undefined && !(Array.isArray(skill.arguments) && skill.arguments.length === 0)) {
+    frontmatter.push(yamlInlineList('arguments', skill.arguments));
+  }
+
+  if (skill.allowedTools !== undefined && !(Array.isArray(skill.allowedTools) && skill.allowedTools.length === 0)) {
+    frontmatter.push(yamlSpaceSeparated('allowed-tools', skill.allowedTools));
+  }
+
+  if (skill.paths !== undefined && !(Array.isArray(skill.paths) && skill.paths.length === 0)) {
+    frontmatter.push(yamlInlineList('paths', skill.paths));
+  }
+
+  if (skill.context !== undefined) {
+    frontmatter.push(`context: ${yamlDoubleQuoted(skill.context)}`);
+  }
+
+  if (skill.license !== undefined) {
+    frontmatter.push(`license: ${yamlDoubleQuoted(skill.license)}`);
+  }
+
+  if (skill.compatibility !== undefined) {
+    frontmatter.push(`compatibility: ${yamlDoubleQuoted(skill.compatibility)}`);
+  }
+
+  if (skill.agent !== undefined) {
+    frontmatter.push(`agent: ${yamlDoubleQuoted(skill.agent)}`);
+  }
+
+  if (skill.model !== undefined) {
+    frontmatter.push(`model: ${yamlDoubleQuoted(skill.model)}`);
+  }
+
+  if (skill.effort !== undefined) {
+    frontmatter.push(`effort: ${yamlDoubleQuoted(skill.effort)}`);
+  }
+
+  if (skill.disableModelInvocation !== undefined) {
+    frontmatter.push(`disable-model-invocation: ${skill.disableModelInvocation}`);
+  }
+
+  if (skill.userInvocable !== undefined) {
+    frontmatter.push(`user-invocable: ${skill.userInvocable}`);
+  }
+
   frontmatter.push('---');
 
   const stepDescriptions = Object.entries(skill.steps)
@@ -249,6 +297,19 @@ ${generateSubskillSection(skill, protocol)}${generateTopicSection(skill)}`.trim(
 
 function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
+}
+
+function yamlSpaceSeparated(key: string, value: string | string[]): string {
+  const joined = Array.isArray(value) ? value.join(' ') : value;
+  return `${key}: ${yamlDoubleQuoted(joined)}`;
+}
+
+function yamlInlineList(key: string, value: string | string[]): string {
+  if (typeof value === 'string') {
+    return `${key}: ${yamlDoubleQuoted(value)}`;
+  }
+  const items = value.map((v) => yamlDoubleQuoted(v)).join(', ');
+  return `${key}: [${items}]`;
 }
 
 function generateSessionInstructions(paramsFlag: string): string {

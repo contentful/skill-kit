@@ -3,6 +3,7 @@ name: primitives-showcase
 description: 'Exercises every SDK primitive in a single skill. Used as a reference and integration test.'
 metadata:
   version: '1.0.0'
+argument-hint: '[theme]'
 ---
 
 # primitives-showcase

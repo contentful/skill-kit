@@ -292,6 +292,18 @@ export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash ext
   finalOutput?: z.ZodType;
   skillMd?: string | ((skill: SkillDefinition) => string);
   package?: PackageConfig;
+  argumentHint?: string;
+  arguments?: string | string[];
+  allowedTools?: string | string[];
+  paths?: string | string[];
+  context?: string;
+  license?: string;
+  compatibility?: string;
+  agent?: string;
+  model?: string;
+  effort?: string;
+  disableModelInvocation?: boolean;
+  userInvocable?: boolean;
 } & VersionStrategy;
 
 // --- Skill Definition (output of .build()) ---
@@ -311,6 +323,18 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
   readonly finalOutput: z.ZodType | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
   readonly package: PackageConfig | undefined;
+  readonly argumentHint: string | undefined;
+  readonly arguments: string | string[] | undefined;
+  readonly allowedTools: string | string[] | undefined;
+  readonly paths: string | string[] | undefined;
+  readonly context: string | undefined;
+  readonly license: string | undefined;
+  readonly compatibility: string | undefined;
+  readonly agent: string | undefined;
+  readonly model: string | undefined;
+  readonly effort: string | undefined;
+  readonly disableModelInvocation: boolean | undefined;
+  readonly userInvocable: boolean | undefined;
   readonly subskills?: Readonly<Record<string, SubskillRegistration>>;
   readonly topics?: Readonly<Record<string, TopicConfig>>;
 }
@@ -336,6 +360,18 @@ export type ReferenceBuilderConfig = {
   name: string;
   description: string;
   package?: PackageConfig;
+  argumentHint?: string;
+  arguments?: string | string[];
+  allowedTools?: string | string[];
+  paths?: string | string[];
+  context?: string;
+  license?: string;
+  compatibility?: string;
+  agent?: string;
+  model?: string;
+  effort?: string;
+  disableModelInvocation?: boolean;
+  userInvocable?: boolean;
 } & VersionStrategy;
 
 export interface ReferenceDefinition {
@@ -345,6 +381,18 @@ export interface ReferenceDefinition {
   readonly resolveVersion: boolean;
   readonly description: string;
   readonly package: PackageConfig | undefined;
+  readonly argumentHint: string | undefined;
+  readonly arguments: string | string[] | undefined;
+  readonly allowedTools: string | string[] | undefined;
+  readonly paths: string | string[] | undefined;
+  readonly context: string | undefined;
+  readonly license: string | undefined;
+  readonly compatibility: string | undefined;
+  readonly agent: string | undefined;
+  readonly model: string | undefined;
+  readonly effort: string | undefined;
+  readonly disableModelInvocation: boolean | undefined;
+  readonly userInvocable: boolean | undefined;
   readonly topics: Readonly<Record<string, TopicConfig>>;
 }
 
