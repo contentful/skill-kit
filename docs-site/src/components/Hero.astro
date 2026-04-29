@@ -12,8 +12,8 @@ const base = import.meta.env.BASE_URL;
       <span class="hero-title-accent">Rich experiences.</span>
     </h1>
     <p class="hero-subtitle">
-      Define agent workflows as typed step chains. The SDK renders interactive
-      TUI&mdash;surveys, plans, subagents&mdash;in any host.
+      A TypeScript SDK for building multi-step agent skills.
+      You define the workflow. The SDK handles state, validation, and rich terminal UI.
     </p>
     <div class="hero-actions">
       <a href={`${base}getting-started/`} class="hero-btn hero-btn--primary">Get Started</a>
@@ -24,7 +24,7 @@ const base = import.meta.env.BASE_URL;
   <HeroDemo client:visible />
 
   <div class="hero-install">
-    <code class="hero-install-cmd">$ npx @contentful/skill-kit init</code>
+    <code class="hero-install-cmd">$ pnpm add @contentful/skill-kit</code>
   </div>
 </section>
 

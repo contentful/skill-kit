@@ -2,7 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
 import FeatureCard from '../components/FeatureCard.astro';
-import ProtocolDiagram from '../components/ProtocolDiagram.astro';
 
 const base = import.meta.env.BASE_URL;
 ---
@@ -25,26 +24,9 @@ const base = import.meta.env.BASE_URL;
         </FeatureCard>
         <FeatureCard title="Test offline. Ship everywhere.">
           <code>runSkill()</code> + <code>mockModel()</code> drives every step without an agent. Then
-          <code>skill-kit build</code> compiles to an MCP server or standalone CLI. One binary, any host — Claude Code,
-          Codex, any MCP client.
+          <code>skill-kit build</code> compiles to an MCP server or standalone CLI. One binary, any host: Claude Code,
+          Codex, or any MCP client.
         </FeatureCard>
-      </div>
-    </div>
-  </section>
-
-  <section class="how-it-works">
-    <div class="section-inner section-inner--narrow">
-      <h2 class="section-heading">How it works</h2>
-      <ProtocolDiagram />
-      <p class="how-text">
-        The agent calls <code>start</code> to begin a session, receives a prompt and Zod schema for the current step,
-        then calls <code>advance</code> with structured output. The skill validates, updates state, and returns the next
-        prompt — or signals done.
-      </p>
-      <div class="how-actions">
-        <a href={`${base}architecture/`} class="how-link">
-          Read the architecture doc <span aria-hidden="true">&rarr;</span>
-        </a>
       </div>
     </div>
   </section>
@@ -89,10 +71,6 @@ const base = import.meta.env.BASE_URL;
     padding: 0 var(--space-5);
   }
 
-  .section-inner--narrow {
-    max-width: 48rem;
-  }
-
   .section-heading {
     font-family: var(--font-display);
     font-size: var(--text-xl);
@@ -113,42 +91,6 @@ const base = import.meta.env.BASE_URL;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-5);
-  }
-
-  /* How it works */
-  .how-it-works {
-    padding: var(--space-6) 0;
-  }
-
-  .how-text {
-    color: var(--color-text-muted);
-    font-size: var(--text-base);
-    max-width: 38rem;
-    margin: var(--space-4) auto;
-    text-align: center;
-    line-height: 1.7;
-  }
-
-  .how-actions {
-    text-align: center;
-    margin-top: var(--space-4);
-  }
-
-  .how-link {
-    font-family: var(--font-display);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--color-accent);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    transition: gap var(--transition-fast);
-  }
-
-  .how-link:hover {
-    gap: var(--space-3);
-    color: var(--color-accent-bright);
   }
 
   /* Examples */
