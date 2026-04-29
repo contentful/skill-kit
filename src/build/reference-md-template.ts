@@ -12,6 +12,10 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
     frontmatter.push(`argument-hint: ${yamlDoubleQuoted(def.argumentHint)}`);
   }
 
+  if (def.arguments !== undefined && !(Array.isArray(def.arguments) && def.arguments.length === 0)) {
+    frontmatter.push(yamlInlineList('arguments', def.arguments));
+  }
+
   if (def.allowedTools !== undefined && !(Array.isArray(def.allowedTools) && def.allowedTools.length === 0)) {
     frontmatter.push(yamlSpaceSeparated('allowed-tools', def.allowedTools));
   }

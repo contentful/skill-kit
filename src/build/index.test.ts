@@ -99,6 +99,24 @@ test('generateSkillMd emits argument-hint in frontmatter', () => {
   assert.ok(result.includes('argument-hint: "Describe the issue to diagnose"'));
 });
 
+test('generateSkillMd emits arguments as inline array in frontmatter', () => {
+  const s = skill({ name: 'with-args', entry: 'a', arguments: ['issue', 'branch'] })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('arguments: ["issue", "branch"]'));
+});
+
+test('generateSkillMd emits arguments as string in frontmatter', () => {
+  const s = skill({ name: 'args-str', entry: 'a', arguments: 'issue branch' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('arguments: "issue branch"'));
+});
+
 test('generateSkillMd emits allowed-tools as string in frontmatter', () => {
   const s = skill({ name: 'tools-str', entry: 'a', allowedTools: 'Bash Read Write' })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
@@ -201,6 +219,7 @@ test('generateSkillMd omits frontmatter extension fields when not set', () => {
   const result = generateSkillMd(s);
   const frontmatter = result.split('---')[1]!;
   assert.ok(!frontmatter.includes('argument-hint'));
+  assert.ok(!frontmatter.includes('arguments'));
   assert.ok(!frontmatter.includes('allowed-tools'));
   assert.ok(!frontmatter.includes('paths'));
   assert.ok(!frontmatter.includes('context'));
@@ -220,6 +239,7 @@ test('generateSkillMd emits all frontmatter extension fields together', () => {
     description: 'Full featured skill.',
     entry: 'a',
     argumentHint: 'What to check',
+    arguments: ['target', 'level'],
     allowedTools: ['Bash', 'Read'],
     paths: ['*.config.ts'],
     context: 'fork',
@@ -236,6 +256,7 @@ test('generateSkillMd emits all frontmatter extension fields together', () => {
 
   const result = generateSkillMd(s);
   assert.ok(result.includes('argument-hint: "What to check"'));
+  assert.ok(result.includes('arguments: ["target", "level"]'));
   assert.ok(result.includes('allowed-tools: "Bash Read"'));
   assert.ok(result.includes('paths: ["*.config.ts"]'));
   assert.ok(result.includes('context: "fork"'));
@@ -305,6 +326,7 @@ test('generateReferenceMd omits frontmatter extension fields when not set', () =
   const result = generateReferenceMd(ref);
   const frontmatter = result.split('---')[1]!;
   assert.ok(!frontmatter.includes('argument-hint'));
+  assert.ok(!frontmatter.includes('arguments'));
   assert.ok(!frontmatter.includes('allowed-tools'));
   assert.ok(!frontmatter.includes('paths'));
   assert.ok(!frontmatter.includes('context'));

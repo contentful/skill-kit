@@ -123,6 +123,10 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     frontmatter.push(`argument-hint: ${yamlDoubleQuoted(skill.argumentHint)}`);
   }
 
+  if (skill.arguments !== undefined && !(Array.isArray(skill.arguments) && skill.arguments.length === 0)) {
+    frontmatter.push(yamlInlineList('arguments', skill.arguments));
+  }
+
   if (skill.allowedTools !== undefined && !(Array.isArray(skill.allowedTools) && skill.allowedTools.length === 0)) {
     frontmatter.push(yamlSpaceSeparated('allowed-tools', skill.allowedTools));
   }

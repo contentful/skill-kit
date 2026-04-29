@@ -293,6 +293,7 @@ export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash ext
   skillMd?: string | ((skill: SkillDefinition) => string);
   package?: PackageConfig;
   argumentHint?: string;
+  arguments?: string | string[];
   allowedTools?: string | string[];
   paths?: string | string[];
   context?: string;
@@ -323,6 +324,7 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
   readonly package: PackageConfig | undefined;
   readonly argumentHint: string | undefined;
+  readonly arguments: string | string[] | undefined;
   readonly allowedTools: string | string[] | undefined;
   readonly paths: string | string[] | undefined;
   readonly context: string | undefined;
@@ -359,6 +361,7 @@ export type ReferenceBuilderConfig = {
   description: string;
   package?: PackageConfig;
   argumentHint?: string;
+  arguments?: string | string[];
   allowedTools?: string | string[];
   paths?: string | string[];
   context?: string;
@@ -379,6 +382,7 @@ export interface ReferenceDefinition {
   readonly description: string;
   readonly package: PackageConfig | undefined;
   readonly argumentHint: string | undefined;
+  readonly arguments: string | string[] | undefined;
   readonly allowedTools: string | string[] | undefined;
   readonly paths: string | string[] | undefined;
   readonly context: string | undefined;

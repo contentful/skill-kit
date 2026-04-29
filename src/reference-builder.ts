@@ -28,6 +28,7 @@ export class ReferenceBuilder {
       description,
       package: this.config.package,
       argumentHint: this.config.argumentHint,
+      arguments: this.config.arguments,
       allowedTools: this.config.allowedTools,
       paths: this.config.paths,
       context: this.config.context,

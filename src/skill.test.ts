@@ -324,6 +324,7 @@ test('skill().build() preserves frontmatter extension fields', () => {
     name: 'frontmatter-test',
     entry: 'start',
     argumentHint: 'hint text',
+    arguments: ['issue', 'branch'],
     allowedTools: ['Bash', 'Read'],
     paths: '**/*.ts',
     context: 'fork',
@@ -339,6 +340,7 @@ test('skill().build() preserves frontmatter extension fields', () => {
     .build();
 
   assert.equal(s.argumentHint, 'hint text');
+  assert.deepEqual(s.arguments, ['issue', 'branch']);
   assert.deepEqual(s.allowedTools, ['Bash', 'Read']);
   assert.equal(s.paths, '**/*.ts');
   assert.equal(s.context, 'fork');
@@ -357,6 +359,7 @@ test('skill().build() defaults frontmatter extension fields to undefined', () =>
     .build();
 
   assert.equal(s.argumentHint, undefined);
+  assert.equal(s.arguments, undefined);
   assert.equal(s.allowedTools, undefined);
   assert.equal(s.paths, undefined);
   assert.equal(s.context, undefined);
