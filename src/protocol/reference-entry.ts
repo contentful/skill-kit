@@ -10,8 +10,16 @@ function resolveSkillDir(): string {
   return resolve(dirname(binPath), '..');
 }
 
-export function referenceMain(def: ReferenceDefinition, refsBasePath?: string): void {
+export async function referenceMain(def: ReferenceDefinition, refsBasePath?: string): Promise<void> {
   const args = process.argv.slice(2);
+
+  if (args[0] === 'mcp') {
+    const refs = createReferenceLoader(refsBasePath ?? resolveSkillDir());
+    const { mcpReferenceMain } = await import('./mcp-reference.js');
+    await mcpReferenceMain(def, refs);
+    return;
+  }
+
   const command = args[0];
 
   if (command === '--help' || command === '-h') {
