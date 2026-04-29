@@ -4,6 +4,7 @@ description: 'A playful interview that gets to know the user and produces a prof
 metadata:
   version: '1.0.0'
 argument-hint: '[name]'
+allowed-tools: 'Bash(scripts/run *) Read'
 ---
 
 # get-to-know-you

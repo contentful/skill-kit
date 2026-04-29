@@ -4,6 +4,7 @@ description: 'Exercises every SDK primitive in a single skill. Used as a referen
 metadata:
   version: '1.0.0'
 argument-hint: '[theme]'
+allowed-tools: 'Bash(scripts/run *) Read'
 ---
 
 # primitives-showcase

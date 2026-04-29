@@ -4,6 +4,7 @@ description: 'Diagnose, configure, and look up Contentful topics. Trigger keywor
 metadata:
   version: '1.0.0'
 argument-hint: '[doctor|setup]'
+allowed-tools: 'Bash(scripts/run *) Read'
 disable-model-invocation: true
 ---
 

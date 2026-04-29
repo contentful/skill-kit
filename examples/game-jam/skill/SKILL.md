@@ -4,6 +4,7 @@ description: 'A guided game creation skill that walks you through designing, pla
 metadata:
   version: '1.0.0'
 argument-hint: '[game-type]'
+allowed-tools: 'Bash(scripts/run *) Read'
 compatibility: 'Requires a modern browser for the game preview'
 ---
 
