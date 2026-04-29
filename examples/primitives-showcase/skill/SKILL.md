@@ -1,8 +1,9 @@
 ---
 name: primitives-showcase
-description: 'Exercises every SDK primitive in a single skill. Used as a reference and integration test.'
+description: "Exercises every SDK primitive in a single skill. Used as a reference and integration test."
 metadata:
-  version: '1.0.0'
+  version: "1.0.0"
+argument-hint: "[theme]"
 ---
 
 # primitives-showcase
@@ -71,7 +72,6 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
-
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`

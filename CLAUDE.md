@@ -31,6 +31,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill executable (dev, current platform)
 - `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --mode node` — build a skill as a Node.js bundle
 
+Example skills import `@contentful/skill-kit` which resolves via the `exports` field in the local `package.json`, not from a published npm package. After changing SDK source, run `pnpm run build` to compile the library before rebuilding examples.
+
 ## Conventions
 
 - Follow agents-kit project conventions (no Nx)
