@@ -53,6 +53,11 @@ export class SubskillEngine {
     }
   }
 
+  isPromptless(qualifiedStep: string): boolean {
+    const bareStep = this.stripPrefix(qualifiedStep);
+    return this.engine.isPromptless(bareStep);
+  }
+
   async advance(qualifiedStep: string, output: unknown): Promise<CliResult> {
     const bareStep = this.stripPrefix(qualifiedStep);
     return this.qualifyResult(await this.engine.advance(bareStep, output));

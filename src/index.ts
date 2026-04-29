@@ -29,6 +29,7 @@ export type {
   PromptContext,
   PromptFn,
   TransitionFn,
+  NextTarget,
   ObserverMap,
   StepResult,
   SkillRunResult,

@@ -199,6 +199,11 @@ export type TransitionFn<TOutput = unknown, TActionOutput = unknown, TParams = u
   stash: Readonly<TStash>;
 }) => string;
 
+export type NextTarget<TOutput = unknown, TActionOutput = unknown, TParams = unknown, TStash = unknown> =
+  | string
+  | TransitionFn<TOutput, TActionOutput, TParams, TStash>
+  | { terminal: true };
+
 /**
  * Lifecycle: prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next
  *

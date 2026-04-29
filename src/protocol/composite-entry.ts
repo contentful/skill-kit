@@ -5,6 +5,11 @@ import { createReferenceLoader } from '../runtime/reference-loader.js';
 import { resolveHost } from './host.js';
 import { SessionManager, type SessionFile } from './session.js';
 import { SubskillEngine } from './subskill-engine.js';
+import { autoAdvance } from './auto-advance.js';
+
+function sessionWriter(session: SessionFile | undefined): ((r: CliResult) => void) | undefined {
+  return session ? (r) => session.appendResult(r) : undefined;
+}
 
 function resolveSkillDir(): string {
   const binPath = process.execPath;
@@ -287,7 +292,8 @@ async function handleDispatcher(
   if (isStart) {
     const params = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
     const engine = new WorkflowEngine(def, handshake, params, refs);
-    const result = engine.start();
+    const startResult = engine.start();
+    const result = await autoAdvance(engine, startResult, sessionWriter(session));
     writeStartOutput(result, session);
     return;
   }
@@ -301,7 +307,8 @@ async function handleDispatcher(
     const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, subskillName);
     subEngine.replayHistory(history as HistoryEntry[]);
     subEngine.startForReplay();
-    const result = await subEngine.advance(stepName, output);
+    const subResult = await subEngine.advance(stepName, output);
+    const result = await autoAdvance(subEngine, subResult, sessionWriter(session));
     writeOutput(result, session);
     return;
   }
@@ -313,7 +320,8 @@ async function handleDispatcher(
   }
   engine.start();
 
-  const result = await engine.advance(stepName, output);
+  const advanceResult = await engine.advance(stepName, output);
+  const result = await autoAdvance(engine, advanceResult, sessionWriter(session));
 
   if ('redirect' in result) {
     await handleRedirect(def, result as RedirectResult, handshake, refs, session);
@@ -342,7 +350,9 @@ async function handleSubskill(
   if (isStart) {
     const params = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
     const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, parsed.name);
-    writeStartOutput(subEngine.start(), session);
+    const startResult = subEngine.start();
+    const result = await autoAdvance(subEngine, startResult, sessionWriter(session));
+    writeStartOutput(result, session);
     return;
   }
 
@@ -350,7 +360,8 @@ async function handleSubskill(
   const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, parsed.name);
   subEngine.replayHistory(history as HistoryEntry[]);
   subEngine.startForReplay();
-  const result = await subEngine.advance(stepName, output);
+  const advanceResult = await subEngine.advance(stepName, output);
+  const result = await autoAdvance(subEngine, advanceResult, sessionWriter(session));
   writeOutput(result, session);
 }
 
@@ -383,8 +394,8 @@ async function handleRedirect(
 
     const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
     const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, subName);
-    const startResult = subEngine.start();
-    // completed is from the dispatcher step that triggered the redirect — already in session convention
+    const rawStart = subEngine.start();
+    const startResult = await autoAdvance(subEngine, rawStart, sessionWriter(session));
     writeOutput({ ...startResult, completed: redirect.completed }, session);
     return;
   }

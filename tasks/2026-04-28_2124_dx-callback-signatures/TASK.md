@@ -194,7 +194,7 @@ export type NextTarget<TOutput, TActionOutput, TParams, TStash> =
 
 **Build-time action input check:** In `SkillBuilder.step()`, when `action.input` mapper is omitted, attempt to compare step output schema with action input schema. If incompatible, throw at build time with a clear message.
 
-**`Readonly<>` wrappers:** All `stepOutput` params in callbacks typed as `Readonly<z.infer<TOutput>>`.
+**`Readonly<>` wrappers:** `params` and `stash` in all callbacks typed as `Readonly<>`. `stepOutput` and `actionOutput` left unwrapped — `Readonly<unknown>` is not assignable from `unknown` in strict TypeScript, creating more engine noise than developer value. Runtime `Object.freeze()` still prevents mutation.
 
 ## Steps
 
