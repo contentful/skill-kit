@@ -22,10 +22,10 @@ Add a `computeAllowedTools()` helper in both template files that merges defaults
 
 ```typescript
 // In skillmd-template.ts
-function computeAllowedTools(skill: SkillDefinition): string[]
+function computeAllowedTools(skill: SkillDefinition): string[];
 
-// In reference-md-template.ts  
-function computeReferenceAllowedTools(def: ReferenceDefinition): string[]
+// In reference-md-template.ts
+function computeReferenceAllowedTools(def: ReferenceDefinition): string[];
 ```
 
 Both return `[...new Set([...defaults, ...authorTools])]`.
