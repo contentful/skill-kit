@@ -954,7 +954,7 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 ```
 
 ```json
-{ "step": "diagnose", "prompt": "Inspect the repository and report failed health checks.", "schema": {...} }
+{ "kind": "prompt", "step": "diagnose", "prompt": "Inspect the repository and report failed health checks.", "schema": {...} }
 ```
 
 **`advance`** — Submit a step's output and get the next prompt (or done signal).
@@ -968,20 +968,22 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 ```
 
 ```json
-{ "step": "remediate", "prompt": "Fix these issues...", "schema": {...} }
+{ "kind": "prompt", "step": "remediate", "prompt": "Fix these issues...", "schema": {...} }
 ```
 
 **Terminal response:**
 
 ```json
-{ "done": true, "finalOutput": {...} }
+{ "kind": "done", "done": true, "finalOutput": {...} }
 ```
 
 **Validation error:**
 
 ```json
-{ "error": "validation", "step": "diagnose", "message": "Expected object, received string", "retry": true }
+{ "kind": "error", "error": "validation", "step": "diagnose", "message": "Expected object, received string", "retry": true }
 ```
+
+All CLI result types carry a `kind` field that serves as a discriminant for the `CliResult` union: `'prompt'`, `'done'`, `'error'`, or `'redirect'`. The SDK exports type guard helpers (`isPrompt`, `isDone`, `isError`, `isRedirect`) for narrowing.
 
 ### Flags
 
