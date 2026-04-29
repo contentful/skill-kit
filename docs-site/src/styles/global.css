@@ -299,7 +299,6 @@ details[open] summary {
   position: relative;
   width: 100%;
   max-width: 72rem;
-  /* Bottom padding to make room for the terminal overflow */
   padding-bottom: 60px;
 }
 
