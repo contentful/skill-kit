@@ -75,11 +75,17 @@ export class SubskillEngine {
     return { ...completed, step: this.qualify(completed.step) };
   }
 
+  private qualifyAutoAdvanced(results: StepResult[] | undefined): StepResult[] | undefined {
+    if (!results || results.length === 0) return undefined;
+    return results.map((r) => this.qualifyCompleted(r));
+  }
+
   private qualifyPrompt(result: PromptResult): PromptResult {
     return {
       ...result,
       step: this.qualify(result.step),
       ...(result.completed ? { completed: this.qualifyCompleted(result.completed) } : {}),
+      ...(result.autoAdvanced ? { autoAdvanced: this.qualifyAutoAdvanced(result.autoAdvanced) } : {}),
     };
   }
 
@@ -101,6 +107,7 @@ export class SubskillEngine {
       return {
         ...done,
         ...(done.completed ? { completed: this.qualifyCompleted(done.completed) } : {}),
+        ...(done.autoAdvanced ? { autoAdvanced: this.qualifyAutoAdvanced(done.autoAdvanced) } : {}),
       };
     }
 

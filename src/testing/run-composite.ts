@@ -30,6 +30,14 @@ export interface RunCompositeOptions {
 const NOOP_REFS: ReferenceLoader = { load: () => '', asset: (p) => p };
 const MAX_AUTO_ADVANCE = 20;
 
+function collectAutoAdvanced(result: CliResult, history: StepResult[]): void {
+  if ('autoAdvanced' in result && Array.isArray(result.autoAdvanced)) {
+    for (const entry of result.autoAdvanced as StepResult[]) {
+      history.push(entry);
+    }
+  }
+}
+
 interface Advanceable {
   isPromptless(stepName: string): boolean;
   advance(stepName: string, output: unknown): Promise<CliResult>;
@@ -102,6 +110,7 @@ async function runFromDispatcher(
     outputs[current.step] = response;
 
     const drained = await drainPromptless(engine, result, path);
+    collectAutoAdvanced(drained, allHistory);
 
     if ('redirect' in drained) {
       const redirect = drained as RedirectResult;
@@ -215,6 +224,7 @@ async function runSubskillEngine(
     outputs[prefixedStep] = response;
 
     const drained = await drainPromptless(engine, result, path);
+    collectAutoAdvanced(drained, history);
 
     if ('done' in drained && (drained as DoneResult).done) {
       return { path, outputs, output: (drained as DoneResult).finalOutput, history };
