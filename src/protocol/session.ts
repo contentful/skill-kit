@@ -2,9 +2,20 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, appendFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { SessionHeader, SessionOutputMode, SessionPointer, CliResult, StepResult } from '../types.js';
+import type { SessionHeader, SessionOutputMode, SessionPointer, CliResult } from '../types.js';
 
 const SESSION_ID_LENGTH = 4;
+
+function isStepResultShaped(value: unknown): value is { step: string; stepOutput: unknown; actionOutput?: unknown } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'step' in value &&
+    typeof (value as Record<string, unknown>).step === 'string' &&
+    'stepOutput' in value
+  );
+}
+
 const SESSION_FILE_PREFIX = 'skill-kit-';
 const SESSION_FILE_SUFFIX = '.jsonl';
 
@@ -53,18 +64,20 @@ export class SessionFile {
 
     for (const line of lines) {
       if (line.type === 'prompt' || line.type === 'done') {
-        const autoAdvanced = (line as Record<string, unknown>).autoAdvanced as StepResult[] | undefined;
-        if (autoAdvanced) {
+        const autoAdvanced = line.autoAdvanced;
+        if (Array.isArray(autoAdvanced)) {
           for (const entry of autoAdvanced) {
-            history.push({
-              step: entry.step,
-              stepOutput: entry.stepOutput,
-              ...(entry.actionOutput !== undefined ? { actionOutput: entry.actionOutput } : {}),
-            });
+            if (isStepResultShaped(entry)) {
+              history.push({
+                step: entry.step,
+                stepOutput: entry.stepOutput,
+                ...(entry.actionOutput !== undefined ? { actionOutput: entry.actionOutput } : {}),
+              });
+            }
           }
         }
-        const completed = (line as Record<string, unknown>).completed as StepResult | undefined;
-        if (completed) {
+        const completed = line.completed;
+        if (isStepResultShaped(completed)) {
           history.push({
             step: completed.step,
             stepOutput: completed.stepOutput,

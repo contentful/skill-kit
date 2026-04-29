@@ -22,7 +22,7 @@ import { generatePreamble } from './preamble.js';
 import { act } from '../act.js';
 import { system } from '../system.js';
 import type { SkillEngine } from '../protocol/skill-engine.js';
-import type { HistoryEntry } from '../protocol/types.js';
+import { HistoryEntrySchema, type HistoryEntry } from '../protocol/types.js';
 
 function normalizePieces(raw: PromptReturn): PromptPiece[] {
   if (typeof raw === 'string') return [raw];
@@ -194,7 +194,14 @@ export class WorkflowEngine implements SkillEngine {
   }
 
   replayHistory(history: HistoryEntry[]): void {
-    for (const entry of history) {
+    for (const raw of history) {
+      const parsed = HistoryEntrySchema.safeParse(raw);
+      if (!parsed.success) {
+        const issues = parsed.error.issues.map((i: { message: string }) => i.message).join('; ');
+        process.stderr.write(`[skill-kit] skipping malformed history entry: ${issues}\n`);
+        continue;
+      }
+      const entry = parsed.data;
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;
 
