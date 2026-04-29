@@ -102,7 +102,7 @@ function buildStepRanges(code: string): Map<number, string> {
 }
 const stepRanges = buildStepRanges(storyboard.code);
 
-function CodePanel({ activeStep }: { activeStep: string | null }) {
+function CodePanel({ activeStep, onClickStep }: { activeStep: string | null; onClickStep: (step: string) => void }) {
   return (
     <div style={{
       background: c.codeBg, border: `1px solid ${c.codeBorder}`, borderRadius: 10,
@@ -124,11 +124,12 @@ function CodePanel({ activeStep }: { activeStep: string | null }) {
           const step = stepRanges.get(i);
           const isActive = step !== undefined && step === activeStep;
           return (
-            <div key={i} style={{
+            <div key={i} onClick={step ? () => onClickStep(step) : undefined} style={{
               display: 'flex', minHeight: 21, whiteSpace: 'pre',
               borderLeft: isActive ? `3px solid ${c.accent}` : '3px solid transparent',
               background: isActive ? 'rgba(15,145,153,0.08)' : 'transparent',
               transition: 'background 400ms ease, border-color 400ms ease',
+              cursor: step ? 'pointer' : 'default',
             }}>
               {/* Line number */}
               <span style={{
@@ -537,6 +538,11 @@ export default function HeroDemo() {
     setFrameIndex(firstFrameOfScene(sceneIdx));
   }, [firstFrameOfScene]);
 
+  const jumpToStep = useCallback((stepName: string) => {
+    const sceneIdx = SCENES.findIndex((s) => s.stepName === stepName);
+    if (sceneIdx >= 0) jumpToScene(sceneIdx);
+  }, [jumpToScene]);
+
   useEffect(() => {
     if (!startedRef.current || paused) return;
     if (frameIndex === -1) {
@@ -585,7 +591,7 @@ export default function HeroDemo() {
     >
       {/* Code editor: full width base layer */}
       <div className="hero-demo-code">
-        <CodePanel activeStep={activeStep} />
+        <CodePanel activeStep={activeStep} onClickStep={jumpToStep} />
       </div>
       {/* Terminal: floating overlay, offset top-right */}
       <div className="hero-demo-terminal">
