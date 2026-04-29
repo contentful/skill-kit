@@ -419,7 +419,7 @@ function TerminalPanel({ frameIndex, activeSceneIdx }: { frameIndex: number; act
       overflow: 'hidden', fontFamily: "'IBM Plex Mono', monospace",
       fontSize: 13, lineHeight: 1.55, color: c.termText,
       boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.2)',
-      display: 'flex', flexDirection: 'column', height: '100%',
+      display: 'flex', flexDirection: 'column', height: 380,
     }}>
       {/* Window chrome + command */}
       <div style={{
@@ -570,6 +570,9 @@ export default function HeroDemo() {
       {/* Terminal: floating overlay, offset top-right */}
       <div className="hero-demo-terminal">
         <TerminalPanel frameIndex={safeFrameIndex} activeSceneIdx={activeScene} />
+      </div>
+      {/* Step dots below everything */}
+      <div className="hero-demo-dots">
         <StepDots activeScene={activeScene} onClickScene={jumpToScene} />
       </div>
     </div>

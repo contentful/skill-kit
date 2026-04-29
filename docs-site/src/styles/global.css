@@ -304,7 +304,7 @@ details[open] summary {
 }
 
 .hero-demo-code {
-  width: 65%;
+  width: 100%;
   min-width: 0;
 }
 
@@ -314,6 +314,12 @@ details[open] summary {
   right: 0;
   width: 50%;
   z-index: 2;
+}
+
+.hero-demo-dots {
+  position: relative;
+  z-index: 3;
+  margin-top: var(--space-4);
 }
 
 @media (max-width: 1024px) {
