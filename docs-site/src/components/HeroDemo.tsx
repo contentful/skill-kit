@@ -459,10 +459,30 @@ function TerminalPanel({ frameIndex, activeSceneIdx }: { frameIndex: number; act
         )}
       </div>
 
+      {/* Input bar — shown when the terminal isn't showing an interactive picker */}
+      {currentFrame && ['subagent-running', 'subagent-done', 'action-running', 'action-done'].includes(currentFrame.content.type) && (
+        <div style={{
+          borderTop: `1px solid ${c.termBorder}`, padding: '8px 20px',
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'rgba(255,255,255,0.02)',
+        }}>
+          <span style={{ color: c.dim }}>›</span>
+          <span style={{
+            display: 'inline-block', width: 7, height: 16,
+            background: c.dim, verticalAlign: 'middle',
+            animation: 'cursorBlink 1s step-end infinite',
+          }} />
+        </div>
+      )}
+
       <style>{`
         @keyframes fadeSlideIn {
           from { opacity: 0; transform: translateY(6px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cursorBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
         }
       `}</style>
     </div>
