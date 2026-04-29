@@ -102,25 +102,24 @@ When `engine.advance()` returns a `RedirectResult`:
 ## Steps
 
 - [x] Create task file and branch
-- [ ] Install `@modelcontextprotocol/sdk` dependency
-- [ ] Investigate SDK API for raw JSON Schema support
-- [ ] Implement `src/protocol/mcp-session.ts`
-- [ ] Implement `src/protocol/mcp-entry.ts` (simple skills)
-- [ ] Add tests for mcp-session
-- [ ] Add tests for mcp-entry using InMemoryTransport
-- [ ] Implement `src/protocol/mcp-composite.ts`
-- [ ] Add tests for mcp-composite
-- [ ] Wire `mcp` subcommand into `cli-entry.ts`
-- [ ] Wire `mcp` subcommand into `composite-entry.ts`
-- [ ] Export from `src/cli.ts`
-- [ ] Update `skillmd-template.ts` with MCP instructions
-- [ ] Rebuild example skills, verify SKILL.md output
-- [ ] Verify bun and node builds work
-- [ ] Update SPEC.md
-- [ ] Update docs/api.md
-- [ ] Update docs/architecture.md
-- [ ] Update docs-site pages
-- [ ] Update README
+- [x] Install `@modelcontextprotocol/sdk` dependency
+- [x] Investigate SDK API for raw JSON Schema support
+- [x] Implement `src/protocol/mcp-session.ts`
+- [x] Implement `src/protocol/mcp-entry.ts` (simple skills)
+- [x] Add tests for mcp-session (8 tests)
+- [x] Add tests for mcp-entry using InMemoryTransport (6 tests)
+- [x] Implement `src/protocol/mcp-composite.ts` + `mcp-composite-session.ts`
+- [x] Wire `mcp` subcommand into `cli-entry.ts`
+- [x] Wire `mcp` subcommand into `composite-entry.ts`
+- [x] Export from `src/cli.ts`
+- [x] Update `skillmd-template.ts` with MCP instructions
+- [x] Rebuild example skills, verify SKILL.md output
+- [x] Verify node builds work (all 5 examples rebuilt)
+- [x] Update SPEC.md (new §16, updated §15)
+- [x] Update docs/api.md
+- [x] Update docs/architecture.md
+- [x] Update docs-site pages
+- [x] Update README
 
 ## Notes
 
