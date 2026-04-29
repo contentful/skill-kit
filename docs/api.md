@@ -9,7 +9,7 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 ```typescript
 import { skill, z } from '@contentful/skill-kit';
 
-skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd? })
+skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd?, argumentHint?, allowedTools?, paths?, context? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen stash type
@@ -33,6 +33,10 @@ skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd
 | `observers`      | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                                                       |
 | `skillMd`        | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                                                   |
 | `package`        | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                 |
+| `argumentHint`   | `string`                                       | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter                                          |
+| `allowedTools`   | `string \| string[]`                           | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                                              |
+| `paths`          | `string \| string[]`                           | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter                            |
+| `context`        | `string`                                       | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter                                     |
 
 Params and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
 
@@ -193,13 +197,17 @@ reference({ name, description, version?, resolveVersion?, package? })
 
 ### `reference()` config
 
-| Field            | Type            | Required | Description                                                                             |
-| ---------------- | --------------- | -------- | --------------------------------------------------------------------------------------- |
-| `name`           | `string`        | yes      | Reference skill identifier                                                              |
-| `description`    | `string`        | yes      | Used in generated SKILL.md                                                              |
-| `version`        | `string`        | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                         |
-| `resolveVersion` | `true`          | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version` |
-| `package`        | `PackageConfig` | no       | Fields written to the output `package.json` (see [Package Config](#package-config))     |
+| Field            | Type                 | Required | Description                                                                              |
+| ---------------- | -------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `name`           | `string`             | yes      | Reference skill identifier                                                               |
+| `description`    | `string`             | yes      | Used in generated SKILL.md                                                               |
+| `version`        | `string`             | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                          |
+| `resolveVersion` | `true`               | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`  |
+| `package`        | `PackageConfig`      | no       | Fields written to the output `package.json` (see [Package Config](#package-config))      |
+| `argumentHint`   | `string`             | no       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter               |
+| `allowedTools`   | `string \| string[]` | no       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter                   |
+| `paths`          | `string \| string[]` | no       | Glob patterns for file-based auto-activation. Emitted as `paths` in SKILL.md frontmatter |
+| `context`        | `string`             | no       | Execution context (e.g. `'fork'`). Emitted as `context` in SKILL.md frontmatter          |
 
 ### `.topic(name, config)`
 

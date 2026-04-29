@@ -1243,7 +1243,7 @@ exec node "$SKILL_DIR/bin/repo-doctor.mjs" "$@"
 
 The build generates a SKILL.md with:
 
-- **Frontmatter:** `name`, `description`, `compatibility`, optional `metadata.version`
+- **Frontmatter:** `name`, `description`, optional `metadata.version`, and optional host extension fields (`argument-hint`, `allowed-tools`, `paths`, `context`) set via the `skill()` config
 - **Invocation instructions:** step-by-step pattern for the agent (start → advance loop → parse JSON → follow schema)
 - **Step descriptions:** each step's purpose (extracted from the skill definition)
 - **Reference pointers:** links to files in `references/` (loaded on demand)

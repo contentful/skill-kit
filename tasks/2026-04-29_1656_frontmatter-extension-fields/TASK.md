@@ -10,12 +10,12 @@
 
 The `skill()` builder currently emits only `name`, `description`, and optional `metadata.version` in generated SKILL.md frontmatter. Skill authors need four additional fields to control host behavior without hand-writing SKILL.md:
 
-| TypeScript (camelCase) | YAML (kebab-case)  | Type                 | Source spec          |
-| ---------------------- | ------------------ | -------------------- | -------------------- |
-| `argumentHint`         | `argument-hint`    | `string`             | Claude Code          |
-| `allowedTools`         | `allowed-tools`    | `string \| string[]` | agentskills.io       |
-| `paths`                | `paths`            | `string \| string[]` | Claude Code          |
-| `context`              | `context`          | `string`             | Claude Code          |
+| TypeScript (camelCase) | YAML (kebab-case) | Type                 | Source spec    |
+| ---------------------- | ----------------- | -------------------- | -------------- |
+| `argumentHint`         | `argument-hint`   | `string`             | Claude Code    |
+| `allowedTools`         | `allowed-tools`   | `string \| string[]` | agentskills.io |
+| `paths`                | `paths`           | `string \| string[]` | Claude Code    |
+| `context`              | `context`         | `string`             | Claude Code    |
 
 ## Plan
 

@@ -30,11 +30,15 @@ export default reference({
   .build();
 ```
 
-| Field         | Type     | Required | Description                                                             |
-| ------------- | -------- | -------- | ----------------------------------------------------------------------- |
-| `name`        | `string` | Yes      | Reference skill identifier. Used in build output and SKILL.md.          |
-| `description` | `string` | Yes      | Human-readable description. Tells the agent when to use this reference. |
-| `version`     | `string` | No       | Semver version. Defaults to `'0.0.0'`.                                  |
+| Field          | Type                 | Required | Description                                                             |
+| -------------- | -------------------- | -------- | ----------------------------------------------------------------------- |
+| `name`         | `string`             | Yes      | Reference skill identifier. Used in build output and SKILL.md.          |
+| `description`  | `string`             | Yes      | Human-readable description. Tells the agent when to use this reference. |
+| `version`      | `string`             | No       | Semver version. Defaults to `'0.0.0'`.                                  |
+| `argumentHint` | `string`             | No       | Autocomplete hint text. Emitted as `argument-hint` in frontmatter.      |
+| `allowedTools` | `string \| string[]` | No       | Pre-approved tools. Emitted as `allowed-tools` in frontmatter.          |
+| `paths`        | `string \| string[]` | No       | Glob patterns for file-based activation. Emitted as `paths`.            |
+| `context`      | `string`             | No       | Execution context (e.g. `'fork'`). Emitted as `context`.                |
 
 ## `.topic(name, config)`
 

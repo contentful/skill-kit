@@ -33,18 +33,22 @@ export default skill({
   .build();
 ```
 
-| Field         | Type                            | Required | Description                                                                    |
-| ------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `name`        | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
-| `entry`       | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
-| `version`     | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
-| `description` | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
-| `triggers`    | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
-| `params`      | `z.ZodType`                     | No       | Zod schema for global skill params. Validated on `start`, typed everywhere.    |
-| `stash`       | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
-| `finalOutput` | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
-| `observers`   | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
-| `skillMd`     | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
+| Field          | Type                            | Required | Description                                                                    |
+| -------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`         | `string`                        | Yes      | Skill identifier. Used in build output directory name and generated SKILL.md.  |
+| `entry`        | `string`                        | Yes      | Name of the first step to execute. Must match a registered step name.          |
+| `version`      | `string`                        | No       | Semver version string. Defaults to `'0.0.0'`.                                  |
+| `description`  | `string`                        | No       | Human-readable description. Included in generated SKILL.md frontmatter.        |
+| `triggers`     | `string[]`                      | No       | Trigger keywords appended to the description for agent discoverability.        |
+| `params`       | `z.ZodType`                     | No       | Zod schema for global skill params. Validated on `start`, typed everywhere.    |
+| `stash`        | `z.ZodType`                     | No       | Zod schema for cross-step scratchpad state. Shallow-merged after each step.    |
+| `finalOutput`  | `z.ZodType`                     | No       | Schema for the skill's "return value". Validated when the workflow terminates. |
+| `observers`    | `ObserverMap`                   | No       | Read-only lifecycle callbacks for logging, telemetry, and audit.               |
+| `skillMd`      | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                     |
+| `argumentHint` | `string`                        | No       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter.    |
+| `allowedTools` | `string \| string[]`            | No       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter.        |
+| `paths`        | `string \| string[]`            | No       | Glob patterns for file-based activation. Emitted as `paths` in frontmatter.    |
+| `context`      | `string`                        | No       | Execution context (e.g. `'fork'`). Emitted as `context` in frontmatter.        |
 
 ## `.step(name, config)`
 
