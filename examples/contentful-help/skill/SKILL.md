@@ -4,7 +4,7 @@ description: 'Diagnose, configure, and look up Contentful topics. Trigger keywor
 metadata:
   version: '1.0.0'
 argument-hint: '[doctor|setup]'
-allowed-tools: 'Bash(scripts/run *) Read'
+allowed-tools: 'Bash(scripts/run *) Read mcp__contentful-help__start mcp__contentful-help__advance mcp__contentful-help__topic mcp__contentful-help__topics'
 disable-model-invocation: true
 ---
 

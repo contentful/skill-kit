@@ -1243,7 +1243,7 @@ exec node "$SKILL_DIR/bin/repo-doctor.mjs" "$@"
 
 The build generates a SKILL.md with:
 
-- **Frontmatter:** `name`, `description`, optional `metadata.version`, and optional extension fields set via the `skill()` config — including `argument-hint`, `allowed-tools`, `paths`, `context`, `license`, `compatibility`, `agent`, `model`, `effort`, `disable-model-invocation`, `user-invocable`. The build always emits `allowed-tools` with at least `Bash(scripts/run *)` and `Read` (required for CLI mode); author-declared tools are merged with these defaults.
+- **Frontmatter:** `name`, `description`, optional `metadata.version`, and optional extension fields set via the `skill()` config — including `argument-hint`, `allowed-tools`, `paths`, `context`, `license`, `compatibility`, `agent`, `model`, `effort`, `disable-model-invocation`, `user-invocable`. The build always emits `allowed-tools` with at least `Bash(scripts/run *)`, `Read` (required for CLI mode), and the skill's MCP tool names (`mcp__<name>__start`, `mcp__<name>__advance`, plus `mcp__<name>__topic` and `mcp__<name>__topics` when topics exist); author-declared tools are merged with these defaults.
 - **Invocation instructions:** step-by-step pattern for the agent (start → advance loop → parse JSON → follow schema)
 - **Step descriptions:** each step's purpose (extracted from the skill definition)
 - **Reference pointers:** links to files in `references/` (loaded on demand)

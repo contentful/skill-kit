@@ -4,7 +4,7 @@ description: 'TypeScript patterns and idioms reference. Use when writing TypeScr
 metadata:
   version: '1.0.0'
 argument-hint: '[topic]'
-allowed-tools: 'Bash(scripts/run *) Read'
+allowed-tools: 'Bash(scripts/run *) Read mcp__ts-patterns__topic mcp__ts-patterns__topics'
 paths: '**/*.ts'
 ---
 
