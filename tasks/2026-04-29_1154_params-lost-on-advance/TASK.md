@@ -42,13 +42,17 @@ Include skill name and field paths in the params validation error.
 ## Steps
 
 - [x] Create task doc
-- [ ] Fix `handleAdvance` to accept and forward params
-- [ ] Wire params from `cli-entry.ts` callers
-- [ ] Update help text and SKILL.md template
-- [ ] Improve params error message in engine
-- [ ] Update/add tests
-- [ ] Verify: typecheck + tests + format
+- [x] Fix `handleAdvance` to accept and forward params
+- [x] Wire params from `cli-entry.ts` callers
+- [x] Fix same bug in `composite-entry.ts` (dispatcher + direct subskill advance paths)
+- [x] Update help text and SKILL.md template
+- [x] Improve params error message in engine
+- [x] Update/add tests
+- [x] Update docs across all 5 locations
+- [x] Verify: typecheck + tests + format
 
 ## Notes
 
-(running log)
+- The same bug existed in `composite-entry.ts` on three paths: dispatcher advance (line 316), subskill advance via redirect (line 307), and direct subskill advance (line 360). The redirect path intentionally passes `{}` because subskill params are derived from stash during the redirect — only the dispatcher and direct subskill paths needed fixing.
+- Session mode stores params in the header and now reads them back on advance — agents don't need to pass `--params` on session advance. Stateless mode requires `--params` on every call.
+- History does NOT include params — it only stores `{ step, stepOutput, actionOutput }`. Params are validated in the engine constructor and available via `ctx.params` in callbacks.
