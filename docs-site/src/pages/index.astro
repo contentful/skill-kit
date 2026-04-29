@@ -274,12 +274,14 @@ const base = import.meta.env.BASE_URL;
   .prose-blob-header {
     padding: 8px 16px;
     border-bottom: 1px solid var(--color-code-border);
-    background: rgba(0, 0, 0, 0.2);
+    background: #171f2b;
     color: #64748b;
     font-size: 12px;
     display: flex;
     align-items: center;
     gap: 6px;
+    position: relative;
+    z-index: 2;
   }
 
   .prose-blob-icon {
