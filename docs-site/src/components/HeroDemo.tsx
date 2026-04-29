@@ -28,11 +28,25 @@ for (let s = 0; s < SCENES.length; s++) {
 // --- Colors ---
 
 const c = {
-  codeBg: '#1e293b', codeBorder: '#334155', codeText: '#e2e8f0',
-  termBg: '#0e0e0e', termBorder: '#1e1e1e', termText: '#d4d4d4',
-  green: '#4ade80', blue: '#60a5fa', purple: '#c084fc', amber: '#fbbf24',
-  dim: '#525252', muted: '#737373', white: '#e5e5e5', accent: '#0f9199',
-  kw: '#c792ea', str: '#c3e88d', fn: '#82aaff', id: '#89ddff', brace: '#7c8ba0',
+  codeBg: '#1e293b',
+  codeBorder: '#334155',
+  codeText: '#e2e8f0',
+  termBg: '#0e0e0e',
+  termBorder: '#1e1e1e',
+  termText: '#d4d4d4',
+  green: '#4ade80',
+  blue: '#60a5fa',
+  purple: '#c084fc',
+  amber: '#fbbf24',
+  dim: '#525252',
+  muted: '#737373',
+  white: '#e5e5e5',
+  accent: '#0f9199',
+  kw: '#c792ea',
+  str: '#c3e88d',
+  fn: '#82aaff',
+  id: '#89ddff',
+  brace: '#7c8ba0',
 };
 
 // ═══════════════════════════════════════════════════════
@@ -50,21 +64,31 @@ function tokenizeLine(raw: string): Token[] {
   let i = 0;
   while (i < raw.length) {
     if (raw[i] === ' ' || raw[i] === '\t') {
-      let j = i; while (j < raw.length && (raw[j] === ' ' || raw[j] === '\t')) j++;
-      tokens.push({ text: raw.slice(i, j) }); i = j;
+      let j = i;
+      while (j < raw.length && (raw[j] === ' ' || raw[j] === '\t')) j++;
+      tokens.push({ text: raw.slice(i, j) });
+      i = j;
     } else if (raw[i] === "'") {
-      let j = i + 1; while (j < raw.length && raw[j] !== "'") j++; j++;
-      tokens.push({ text: raw.slice(i, j), color: c.str }); i = j;
+      let j = i + 1;
+      while (j < raw.length && raw[j] !== "'") j++;
+      j++;
+      tokens.push({ text: raw.slice(i, j), color: c.str });
+      i = j;
     } else if (raw.slice(i, i + 3) === '...') {
-      tokens.push({ text: '...', color: c.id }); i += 3;
+      tokens.push({ text: '...', color: c.id });
+      i += 3;
     } else if ('{}[]()'.includes(raw[i])) {
-      tokens.push({ text: raw[i], color: c.brace }); i++;
+      tokens.push({ text: raw[i], color: c.brace });
+      i++;
     } else if (',:'.includes(raw[i])) {
-      tokens.push({ text: raw[i], color: c.brace }); i++;
+      tokens.push({ text: raw[i], color: c.brace });
+      i++;
     } else if (raw[i] === '.') {
-      tokens.push({ text: '.', color: c.brace }); i++;
+      tokens.push({ text: '.', color: c.brace });
+      i++;
     } else if (/[a-zA-Z_$]/.test(raw[i])) {
-      let j = i; while (j < raw.length && /[a-zA-Z0-9_$]/.test(raw[j])) j++;
+      let j = i;
+      while (j < raw.length && /[a-zA-Z0-9_$]/.test(raw[j])) j++;
       const word = raw.slice(i, j);
       const rest = raw.slice(j).match(/^(\s*)(.)/);
       const nextChar = rest ? rest[2] : '';
@@ -73,9 +97,11 @@ function tokenizeLine(raw: string): Token[] {
       else if (FN_NAMES.has(word) && (nextChar === '(' || nextChar === '.')) color = c.fn;
       else if (PROPS.has(word) && nextChar === ':') color = c.codeText;
       else if (IDS.has(word)) color = c.id;
-      tokens.push({ text: word, color }); i = j;
+      tokens.push({ text: word, color });
+      i = j;
     } else {
-      tokens.push({ text: raw[i] }); i++;
+      tokens.push({ text: raw[i] });
+      i++;
     }
   }
   return tokens;
@@ -91,10 +117,16 @@ function buildStepRanges(code: string): Map<number, string> {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const m = line.match(/\.step\('([^']+)'/);
-    if (m) { currentStep = m[1]; depth = 0; }
+    if (m) {
+      currentStep = m[1];
+      depth = 0;
+    }
     if (currentStep !== null) {
       map.set(i, currentStep);
-      for (const ch of line) { if (ch === '{' || ch === '(') depth++; if (ch === '}' || ch === ')') depth--; }
+      for (const ch of line) {
+        if (ch === '{' || ch === '(') depth++;
+        if (ch === '}' || ch === ')') depth--;
+      }
       if (depth <= 0) currentStep = null;
     }
   }
@@ -104,16 +136,29 @@ const stepRanges = buildStepRanges(storyboard.code);
 
 function CodePanel({ activeStep, onClickStep }: { activeStep: string | null; onClickStep: (step: string) => void }) {
   return (
-    <div style={{
-      background: c.codeBg, border: `1px solid ${c.codeBorder}`, borderRadius: 10,
-      overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
-      fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, lineHeight: 1.65,
-    }}>
+    <div
+      style={{
+        background: c.codeBg,
+        border: `1px solid ${c.codeBorder}`,
+        borderRadius: 10,
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12)',
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: 13,
+        lineHeight: 1.65,
+      }}
+    >
       {/* Window chrome */}
-      <div style={{
-        padding: '10px 16px', borderBottom: `1px solid ${c.codeBorder}`,
-        background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8,
-      }}>
+      <div
+        style={{
+          padding: '10px 16px',
+          borderBottom: `1px solid ${c.codeBorder}`,
+          background: 'rgba(0,0,0,0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', flexShrink: 0 }} />
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', flexShrink: 0 }} />
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', flexShrink: 0 }} />
@@ -124,23 +169,46 @@ function CodePanel({ activeStep, onClickStep }: { activeStep: string | null; onC
           const step = stepRanges.get(i);
           const isActive = step !== undefined && step === activeStep;
           return (
-            <div key={i} onClick={step ? () => onClickStep(step) : undefined} style={{
-              display: 'flex', minHeight: 21, whiteSpace: 'pre',
-              borderLeft: isActive ? `3px solid ${c.accent}` : '3px solid transparent',
-              background: isActive ? 'rgba(15,145,153,0.08)' : 'transparent',
-              transition: 'background 400ms ease, border-color 400ms ease',
-              cursor: step ? 'pointer' : 'default',
-            }}>
+            <div
+              key={i}
+              onClick={step ? () => onClickStep(step) : undefined}
+              style={{
+                display: 'flex',
+                minHeight: 21,
+                whiteSpace: 'pre',
+                borderLeft: isActive ? `3px solid ${c.accent}` : '3px solid transparent',
+                background: isActive ? 'rgba(15,145,153,0.08)' : 'transparent',
+                transition: 'background 400ms ease, border-color 400ms ease',
+                cursor: step ? 'pointer' : 'default',
+              }}
+            >
               {/* Line number */}
-              <span style={{
-                width: 36, flexShrink: 0, textAlign: 'right', paddingRight: 12,
-                color: isActive ? '#64748b' : '#3e4a5c', userSelect: 'none', fontSize: 12,
-              }}>{i + 1}</span>
+              <span
+                style={{
+                  width: 36,
+                  flexShrink: 0,
+                  textAlign: 'right',
+                  paddingRight: 12,
+                  color: isActive ? '#64748b' : '#3e4a5c',
+                  userSelect: 'none',
+                  fontSize: 12,
+                }}
+              >
+                {i + 1}
+              </span>
               {/* Code content */}
               <span style={{ paddingRight: 16 }}>
-                {tokens.length === 0 ? ' ' : tokens.map((t, j) =>
-                  t.color ? <span key={j} style={{ color: t.color }}>{t.text}</span> : <span key={j}>{t.text}</span>
-                )}
+                {tokens.length === 0
+                  ? ' '
+                  : tokens.map((t, j) =>
+                      t.color ? (
+                        <span key={j} style={{ color: t.color }}>
+                          {t.text}
+                        </span>
+                      ) : (
+                        <span key={j}>{t.text}</span>
+                      ),
+                    )}
               </span>
             </div>
           );
@@ -205,10 +273,14 @@ function SummaryMeta({ text }: { text: string }) {
 
 function RenderSummaryLine({ line }: { line: SummaryLine }) {
   switch (line.type) {
-    case 'agent': return <SummaryAgent text={line.text} />;
-    case 'answers': return <SummaryAnswers answers={line.answers} />;
-    case 'subagent': return <SummarySubagent label={line.label} name={line.name} stats={line.stats} />;
-    case 'meta': return <SummaryMeta text={line.text} />;
+    case 'agent':
+      return <SummaryAgent text={line.text} />;
+    case 'answers':
+      return <SummaryAnswers answers={line.answers} />;
+    case 'subagent':
+      return <SummarySubagent label={line.label} name={line.name} stats={line.stats} />;
+    case 'meta':
+      return <SummaryMeta text={line.text} />;
   }
 }
 
@@ -221,13 +293,20 @@ function TabBar({ tabs }: { tabs: SurveyPicker['tabs'] }) {
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
       <span style={{ color: c.dim }}>←</span>
       {tabs.map((t, i) => (
-        <span key={i} style={{
-          padding: '2px 8px', borderRadius: 3, fontSize: 12, fontWeight: 500,
-          background: t.active ? 'rgba(96,165,250,0.15)' : 'transparent',
-          color: t.active ? c.blue : t.done ? c.muted : c.dim,
-          border: t.active ? '1px solid rgba(96,165,250,0.3)' : '1px solid transparent',
-        }}>
-          {t.done ? '✓ ' : '☐ '}{t.label}
+        <span
+          key={i}
+          style={{
+            padding: '2px 8px',
+            borderRadius: 3,
+            fontSize: 12,
+            fontWeight: 500,
+            background: t.active ? 'rgba(96,165,250,0.15)' : 'transparent',
+            color: t.active ? c.blue : t.done ? c.muted : c.dim,
+            border: t.active ? '1px solid rgba(96,165,250,0.3)' : '1px solid transparent',
+          }}
+        >
+          {t.done ? '✓ ' : '☐ '}
+          {t.label}
         </span>
       ))}
       <span style={{ color: c.dim }}>→</span>
@@ -245,7 +324,9 @@ function FrameSurveyPicker({ data }: { data: SurveyPicker }) {
           <span style={{ color: c.green, fontWeight: 700, width: 14, flexShrink: 0 }}>{opt.selected ? '›' : ' '}</span>
           <span style={{ width: 18, flexShrink: 0 }}>{i + 1}.</span>
           <div>
-            <div style={{ fontWeight: opt.selected ? 600 : 400, color: opt.selected ? '#fff' : 'inherit' }}>{opt.label}</div>
+            <div style={{ fontWeight: opt.selected ? 600 : 400, color: opt.selected ? '#fff' : 'inherit' }}>
+              {opt.label}
+            </div>
             {opt.description && <div style={{ fontSize: 12, color: c.dim }}>{opt.description}</div>}
           </div>
         </div>
@@ -274,7 +355,9 @@ function FrameSurveyReview({ data }: { data: SurveyReview }) {
         <div key={i} style={{ display: 'flex', gap: 6, padding: '1px 0', color: opt.selected ? c.termText : c.dim }}>
           <span style={{ color: c.green, fontWeight: 700, width: 14, flexShrink: 0 }}>{opt.selected ? '›' : ' '}</span>
           <span style={{ width: 18, flexShrink: 0 }}>{i + 1}.</span>
-          <span style={{ fontWeight: opt.selected ? 600 : 400, color: opt.selected ? '#fff' : 'inherit' }}>{opt.label}</span>
+          <span style={{ fontWeight: opt.selected ? 600 : 400, color: opt.selected ? '#fff' : 'inherit' }}>
+            {opt.label}
+          </span>
         </div>
       ))}
     </div>
@@ -340,10 +423,17 @@ function FramePlan({ data }: { data: PlanCard }) {
           <div style={{ height: 1, background: '#262626', margin: '10px 0' }} />
           <div style={{ color: c.muted, marginBottom: 6 }}>{data.approval.question}</div>
           {data.approval.options.map((opt, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, padding: '1px 0', color: opt.selected ? c.termText : c.dim }}>
-              <span style={{ color: c.green, fontWeight: 700, width: 12, flexShrink: 0 }}>{opt.selected ? '›' : ' '}</span>
+            <div
+              key={i}
+              style={{ display: 'flex', gap: 6, padding: '1px 0', color: opt.selected ? c.termText : c.dim }}
+            >
+              <span style={{ color: c.green, fontWeight: 700, width: 12, flexShrink: 0 }}>
+                {opt.selected ? '›' : ' '}
+              </span>
               <span style={{ width: 16, flexShrink: 0 }}>{i + 1}.</span>
-              <span style={{ fontWeight: opt.selected ? 600 : 400, color: opt.selected ? '#fff' : 'inherit' }}>{opt.label}</span>
+              <span style={{ fontWeight: opt.selected ? 600 : 400, color: opt.selected ? '#fff' : 'inherit' }}>
+                {opt.label}
+              </span>
             </div>
           ))}
         </div>
@@ -388,14 +478,22 @@ function FrameActionDone({ data }: { data: ActionDone }) {
 
 function RenderFrame({ frame }: { frame: TerminalFrame }) {
   switch (frame.type) {
-    case 'survey-picker': return <FrameSurveyPicker data={frame.data} />;
-    case 'survey-review': return <FrameSurveyReview data={frame.data} />;
-    case 'answers-summary': return <FrameAnswersSummary data={frame.data} />;
-    case 'subagent-running': return <FrameSubagentRunning data={frame.data} />;
-    case 'subagent-done': return <FrameSubagentDone data={frame.data} />;
-    case 'plan': return <FramePlan data={frame.data} />;
-    case 'action-running': return <FrameActionRunning data={frame.data} />;
-    case 'action-done': return <FrameActionDone data={frame.data} />;
+    case 'survey-picker':
+      return <FrameSurveyPicker data={frame.data} />;
+    case 'survey-review':
+      return <FrameSurveyReview data={frame.data} />;
+    case 'answers-summary':
+      return <FrameAnswersSummary data={frame.data} />;
+    case 'subagent-running':
+      return <FrameSubagentRunning data={frame.data} />;
+    case 'subagent-done':
+      return <FrameSubagentDone data={frame.data} />;
+    case 'plan':
+      return <FramePlan data={frame.data} />;
+    case 'action-running':
+      return <FrameActionRunning data={frame.data} />;
+    case 'action-done':
+      return <FrameActionDone data={frame.data} />;
   }
 }
 
@@ -415,18 +513,33 @@ function TerminalPanel({ frameIndex, activeSceneIdx }: { frameIndex: number; act
   const currentFrame = allFrames[frameIndex];
 
   return (
-    <div style={{
-      background: c.termBg, border: `1px solid ${c.termBorder}`, borderRadius: 10,
-      overflow: 'hidden', fontFamily: "'IBM Plex Mono', monospace",
-      fontSize: 13, lineHeight: 1.55, color: c.termText,
-      boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.2)',
-      display: 'flex', flexDirection: 'column', height: 380,
-    }}>
+    <div
+      style={{
+        background: c.termBg,
+        border: `1px solid ${c.termBorder}`,
+        borderRadius: 10,
+        overflow: 'hidden',
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: 13,
+        lineHeight: 1.55,
+        color: c.termText,
+        boxShadow: '0 12px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.2)',
+        display: 'flex',
+        flexDirection: 'column',
+        height: 380,
+      }}
+    >
       {/* Window chrome + command */}
-      <div style={{
-        padding: '10px 20px', borderBottom: `1px solid ${c.termBorder}`,
-        background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', gap: 8,
-      }}>
+      <div
+        style={{
+          padding: '10px 20px',
+          borderBottom: `1px solid ${c.termBorder}`,
+          background: 'rgba(255,255,255,0.02)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', flexShrink: 0 }} />
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', flexShrink: 0 }} />
         <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', flexShrink: 0 }} />
@@ -435,10 +548,15 @@ function TerminalPanel({ frameIndex, activeSceneIdx }: { frameIndex: number; act
       </div>
 
       {/* Scrolling log body */}
-      <div ref={bodyRef} style={{
-        flex: 1, padding: '12px 20px', overflowY: 'auto',
-        scrollbarWidth: 'none',
-      }}>
+      <div
+        ref={bodyRef}
+        style={{
+          flex: 1,
+          padding: '12px 20px',
+          overflowY: 'auto',
+          scrollbarWidth: 'none',
+        }}
+      >
         {/* Past scenes: render summaries */}
         {SCENES.slice(0, activeSceneIdx).map((scene, sIdx) => (
           <div key={`s-${sIdx}`} style={{ marginBottom: 10 }}>
@@ -452,29 +570,43 @@ function TerminalPanel({ frameIndex, activeSceneIdx }: { frameIndex: number; act
 
         {/* Current scene: rich frame */}
         {currentFrame && (
-          <div key={`active-${frameIndex}`} style={{
-            animation: 'fadeSlideIn 350ms ease both',
-          }}>
+          <div
+            key={`active-${frameIndex}`}
+            style={{
+              animation: 'fadeSlideIn 350ms ease both',
+            }}
+          >
             <RenderFrame frame={currentFrame.content} />
           </div>
         )}
       </div>
 
       {/* Input bar — shown when the terminal isn't showing an interactive picker */}
-      {currentFrame && ['subagent-running', 'subagent-done', 'action-running', 'action-done'].includes(currentFrame.content.type) && (
-        <div style={{
-          borderTop: `1px solid ${c.termBorder}`, padding: '8px 20px',
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: 'rgba(255,255,255,0.02)',
-        }}>
-          <span style={{ color: c.dim }}>›</span>
-          <span style={{
-            display: 'inline-block', width: 7, height: 16,
-            background: c.dim, verticalAlign: 'middle',
-            animation: 'cursorBlink 1s step-end infinite',
-          }} />
-        </div>
-      )}
+      {currentFrame &&
+        ['subagent-running', 'subagent-done', 'action-running', 'action-done'].includes(currentFrame.content.type) && (
+          <div
+            style={{
+              borderTop: `1px solid ${c.termBorder}`,
+              padding: '8px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(255,255,255,0.02)',
+            }}
+          >
+            <span style={{ color: c.dim }}>›</span>
+            <span
+              style={{
+                display: 'inline-block',
+                width: 7,
+                height: 16,
+                background: c.dim,
+                verticalAlign: 'middle',
+                animation: 'cursorBlink 1s step-end infinite',
+              }}
+            />
+          </div>
+        )}
 
       <style>{`
         @keyframes fadeSlideIn {
@@ -498,12 +630,21 @@ function StepDots({ activeScene, onClickScene }: { activeScene: number; onClickS
   return (
     <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', padding: '12px 0' }}>
       {SCENES.map((scene, i) => (
-        <button key={i} onClick={() => onClickScene(i)} title={scene.stepName} style={{
-          width: i === activeScene ? 20 : 8, height: 8, borderRadius: 4,
-          background: i === activeScene ? c.accent : i < activeScene ? c.muted : '#ccc',
-          border: 'none', padding: 0, cursor: 'pointer',
-          transition: 'width 300ms ease, background 300ms ease',
-        }} />
+        <button
+          key={i}
+          onClick={() => onClickScene(i)}
+          title={scene.stepName}
+          style={{
+            width: i === activeScene ? 20 : 8,
+            height: 8,
+            borderRadius: 4,
+            background: i === activeScene ? c.accent : i < activeScene ? c.muted : '#ccc',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            transition: 'width 300ms ease, background 300ms ease',
+          }}
+        />
       ))}
     </div>
   );
@@ -534,24 +675,34 @@ export default function HeroDemo() {
     return idx;
   }, []);
 
-  const jumpToScene = useCallback((sceneIdx: number) => {
-    setFrameIndex(firstFrameOfScene(sceneIdx));
-  }, [firstFrameOfScene]);
+  const jumpToScene = useCallback(
+    (sceneIdx: number) => {
+      setFrameIndex(firstFrameOfScene(sceneIdx));
+    },
+    [firstFrameOfScene],
+  );
 
-  const jumpToStep = useCallback((stepName: string) => {
-    const sceneIdx = SCENES.findIndex((s) => s.stepName === stepName);
-    if (sceneIdx >= 0) jumpToScene(sceneIdx);
-  }, [jumpToScene]);
+  const jumpToStep = useCallback(
+    (stepName: string) => {
+      const sceneIdx = SCENES.findIndex((s) => s.stepName === stepName);
+      if (sceneIdx >= 0) jumpToScene(sceneIdx);
+    },
+    [jumpToScene],
+  );
 
   useEffect(() => {
     if (!startedRef.current || paused) return;
     if (frameIndex === -1) {
       timerRef.current = setTimeout(() => setFrameIndex(0), RESTART_DELAY);
-      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
     }
     if (frameIndex >= 0 && frameIndex < allFrames.length) {
       timerRef.current = setTimeout(advance, allFrames[frameIndex].duration);
-      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
     }
   }, [frameIndex, paused, advance]);
 

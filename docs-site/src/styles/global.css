@@ -112,21 +112,37 @@ h6 {
   color: var(--color-text);
 }
 
-h1 { font-size: var(--text-4xl); }
-h2 { font-size: var(--text-2xl); }
-h3 { font-size: var(--text-xl); }
-h4 { font-size: var(--text-lg); }
+h1 {
+  font-size: var(--text-4xl);
+}
+h2 {
+  font-size: var(--text-2xl);
+}
+h3 {
+  font-size: var(--text-xl);
+}
+h4 {
+  font-size: var(--text-lg);
+}
 
 /* Prose spacing only inside docs pages */
-.docs-content h1 { margin-bottom: var(--space-6); }
+.docs-content h1 {
+  margin-bottom: var(--space-6);
+}
 .docs-content h2 {
   margin-top: var(--space-8);
   margin-bottom: var(--space-4);
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--color-border);
 }
-.docs-content h3 { margin-top: var(--space-6); margin-bottom: var(--space-3); }
-.docs-content h4 { margin-top: var(--space-5); margin-bottom: var(--space-2); }
+.docs-content h3 {
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+}
+.docs-content h4 {
+  margin-top: var(--space-5);
+  margin-bottom: var(--space-2);
+}
 
 p {
   margin-bottom: var(--space-4);
@@ -286,7 +302,6 @@ details[open] summary {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-dim);
 }
-
 
 /* ─── Hero Demo Layout: layered windows ─── */
 .hero-demo {

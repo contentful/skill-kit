@@ -140,10 +140,7 @@ export const securityAudit: HeroStoryboard = {
                 { question: 'What should the audit focus on?', answer: 'Authentication' },
                 { question: 'Which framework?', answer: 'React' },
               ],
-              confirmOptions: [
-                { label: 'Submit answers', selected: true },
-                { label: 'Cancel' },
-              ],
+              confirmOptions: [{ label: 'Submit answers', selected: true }, { label: 'Cancel' }],
             },
           },
         },
@@ -166,7 +163,12 @@ export const securityAudit: HeroStoryboard = {
     {
       stepName: 'research',
       summary: [
-        { type: 'subagent', label: 'Explore', name: 'Research React auth security', stats: '5 tool uses · 10.3k tokens · 20s' },
+        {
+          type: 'subagent',
+          label: 'Explore',
+          name: 'Research React auth security',
+          stats: '5 tool uses · 10.3k tokens · 20s',
+        },
       ],
       frames: [
         {
@@ -201,9 +203,7 @@ export const securityAudit: HeroStoryboard = {
     // --- plan-and-write: plan card ---
     {
       stepName: 'plan-and-write',
-      summary: [
-        { type: 'agent', text: 'Plan approved — proceeding with the audit.' },
-      ],
+      summary: [{ type: 'agent', text: 'Plan approved — proceeding with the audit.' }],
       frames: [
         {
           duration: 5000,
@@ -218,10 +218,7 @@ export const securityAudit: HeroStoryboard = {
               ],
               approval: {
                 question: 'Does this plan look good?',
-                options: [
-                  { label: 'Yes, proceed', selected: true },
-                  { label: 'Suggest changes' },
-                ],
+                options: [{ label: 'Yes, proceed', selected: true }, { label: 'Suggest changes' }],
               },
             },
           },
@@ -232,9 +229,7 @@ export const securityAudit: HeroStoryboard = {
     // --- save-report: action writes file ---
     {
       stepName: 'save-report',
-      summary: [
-        { type: 'agent', text: 'Done — wrote report to security-audit.md' },
-      ],
+      summary: [{ type: 'agent', text: 'Done — wrote report to security-audit.md' }],
       frames: [
         {
           duration: 3000,
@@ -262,29 +257,29 @@ export const securityAudit: HeroStoryboard = {
   ],
 
   code: [
-    "export default skill({",
+    'export default skill({',
     "  name: 'security-audit',",
     "  entry: 'gather-scope',",
-    "})",
+    '})',
     "  .step('gather-scope', {",
-    "    prompt: act.survey([",
+    '    prompt: act.survey([',
     "      { question: 'Focus area?', options: ['Auth', 'XSS', 'Deps'] },",
     "      { question: 'Framework?', options: ['React', 'Vue', 'Svelte'] },",
-    "    ]),",
+    '    ]),',
     "    next: 'research',",
-    "  })",
+    '  })',
     "  .step('research', {",
     "    prompt: act.subagent({ prompt: 'Research best practices' }),",
     "    next: 'plan-and-write',",
-    "  })",
+    '  })',
     "  .step('plan-and-write', {",
     "    prompt: act.plan({ steps: ['Summary', 'Analysis', 'Findings'] }),",
     "    next: 'save-report',",
-    "  })",
+    '  })',
     "  .step('save-report', {",
-    "    action: { run: saveReport },",
-    "    next: terminal,",
-    "  })",
-    "  .build()",
+    '    action: { run: saveReport },',
+    '    next: terminal,',
+    '  })',
+    '  .build()',
   ].join('\n'),
 };
