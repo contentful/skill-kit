@@ -1,0 +1,87 @@
+---
+
+---
+
+<div class="protocol">
+  <div class="protocol-node">
+    <div class="protocol-node-label">Your Skill</div>
+  </div>
+
+  <div class="protocol-arrow">
+    <div class="protocol-arrow-line"></div>
+    <span class="protocol-arrow-text">start / advance</span>
+  </div>
+
+  <div class="protocol-node">
+    <div class="protocol-node-label">Any Agent Host</div>
+  </div>
+</div>
+
+<style>
+  .protocol {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+  }
+
+  .protocol-node {
+    padding: var(--space-3) var(--space-5);
+    border: 2px solid var(--color-border-focus);
+    border-radius: 8px;
+    background: var(--color-bg-elevated);
+  }
+
+  .protocol-node-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    color: var(--color-text);
+  }
+
+  .protocol-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 80px;
+  }
+
+  .protocol-arrow-line {
+    width: 100%;
+    height: 2px;
+    background: var(--color-border-focus);
+    position: relative;
+  }
+
+  .protocol-arrow-line::before,
+  .protocol-arrow-line::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    border: 4px solid transparent;
+  }
+
+  .protocol-arrow-line::after {
+    right: -1px;
+    border-left-color: var(--color-border-focus);
+  }
+
+  .protocol-arrow-line::before {
+    left: -1px;
+    border-right-color: var(--color-border-focus);
+  }
+
+  .protocol-arrow-text {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-text-dim);
+  }
+
+  @media (max-width: 480px) {
+    .protocol {
+      flex-direction: column;
+    }
+  }
+</style>

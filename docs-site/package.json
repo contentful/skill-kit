@@ -9,7 +9,12 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/mdx": "^4.3.0",
+    "@astrojs/react": "^5.0.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "astro": "^5.7.10",
-    "@astrojs/mdx": "^4.3.0"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   }
 }
