@@ -2,11 +2,17 @@ import { dirname, resolve } from 'node:path';
 import type { SkillDefinition, RedirectResult, CliResult, ReferenceLoader, SessionOutputMode } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { createReferenceLoader } from '../runtime/reference-loader.js';
-import { resolveHost } from './host.js';
 import { SessionManager, type SessionFile } from './session.js';
 import { SubskillEngine } from './subskill-engine.js';
 import { autoAdvance } from './auto-advance.js';
 import type { HistoryEntry } from './types.js';
+import {
+  resolveStartContext,
+  resolveAdvanceContext,
+  resolveHandshake,
+  parseTools,
+  parseJsonFlag,
+} from './invocation-context.js';
 
 function sessionWriter(session: SessionFile | undefined): ((r: CliResult) => void) | undefined {
   return session ? (r) => session.appendResult(r) : undefined;
@@ -109,18 +115,18 @@ function extractDispatcherHistory(history: HistoryEntry[]): HistoryEntry[] {
   return history.filter((e) => !e.step.includes('/'));
 }
 
-function writeOutput(data: unknown, session: SessionFile | undefined): void {
+function writeOutput(data: CliResult, session: SessionFile | undefined): void {
   if (session) {
-    const line = session.appendResult(data as CliResult);
+    const line = session.appendResult(data);
     session.writePointer(line);
   } else {
     process.stdout.write(JSON.stringify(data) + '\n');
   }
 }
 
-function writeStartOutput(data: unknown, session: SessionFile | undefined): void {
+function writeStartOutput(data: CliResult, session: SessionFile | undefined): void {
   if (session) {
-    const line = session.appendResult(data as CliResult);
+    const line = session.appendResult(data);
     session.writeStartPointer(line);
   } else {
     process.stdout.write(JSON.stringify(data) + '\n');
@@ -130,6 +136,35 @@ function writeStartOutput(data: unknown, session: SessionFile | undefined): void
 interface SessionContext {
   session: SessionFile | undefined;
   isStart: boolean;
+}
+
+function resolveSessionForCommand(
+  flags: Record<string, string>,
+  command: 'start' | 'advance',
+  skillName: string,
+): SessionContext {
+  const sessionFlag = flags['session'];
+
+  if (command === 'start' && sessionFlag === 'new') {
+    const outputMode = (flags['output-mode'] as SessionOutputMode) ?? 'file';
+    const session = SessionManager.create({
+      sessionDir: flags['session-dir'],
+      skill: skillName,
+      host: flags['host'] ?? 'generic',
+      tools: parseTools(flags),
+      isSubagent: flags['subagent'] === 'true' || undefined,
+      params: parseJsonFlag(flags['params'], {}),
+      outputMode,
+    });
+    return { session, isStart: true };
+  }
+
+  if (command === 'advance' && sessionFlag && sessionFlag !== 'new') {
+    const session = SessionManager.open(sessionFlag, flags['session-dir']);
+    return { session, isStart: false };
+  }
+
+  return { session: undefined, isStart: command === 'start' };
 }
 
 export async function compositeMain(def: SkillDefinition, refsBasePath?: string): Promise<void> {
@@ -187,147 +222,49 @@ function handleTopic(def: SkillDefinition, topicName: string, refs: ReferenceLoa
   if (!content.endsWith('\n')) process.stdout.write('\n');
 }
 
-function resolveSessionForCommand(
-  flags: Record<string, string>,
-  command: 'start' | 'advance',
-  skillName: string,
-): SessionContext {
-  const sessionFlag = flags['session'];
-
-  if (command === 'start' && sessionFlag === 'new') {
-    const outputMode = (flags['output-mode'] as SessionOutputMode) ?? 'file';
-    const toolsRaw = flags['tools'];
-    const sessionTools = toolsRaw
-      ? toolsRaw
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : undefined;
-    const isSubagent = flags['subagent'] === 'true' || undefined;
-    const session = SessionManager.create({
-      sessionDir: flags['session-dir'],
-      skill: skillName,
-      host: flags['host'] ?? 'generic',
-      tools: sessionTools,
-      isSubagent,
-      params: flags['params'] ? (JSON.parse(flags['params']) as unknown) : {},
-      outputMode,
-    });
-    return { session, isStart: true };
-  }
-
-  if (command === 'advance' && sessionFlag && sessionFlag !== 'new') {
-    const session = SessionManager.open(sessionFlag, flags['session-dir']);
-    return { session, isStart: false };
-  }
-
-  return { session: undefined, isStart: command === 'start' };
-}
-
-function resolveAdvanceInput(
-  flags: Record<string, string>,
-  session: SessionFile | undefined,
-): { stepName: string; output: unknown; history: HistoryEntry[] } {
-  if (session) {
-    const history = session.reconstructHistory();
-
-    if (session.header.outputMode === 'file' && !flags['output']) {
-      const lastOutput = session.readLastOutput();
-      if (!lastOutput) {
-        process.stderr.write(
-          'error: no output found in session file. Write your output to the session file before advancing.\n',
-        );
-        process.exit(1);
-      }
-      return { stepName: lastOutput.step, output: lastOutput.output, history };
-    }
-
-    const stepName = flags['step']!;
-    const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
-    if (!stepName || output === undefined) {
-      process.stderr.write('error: --step and --output are required for advance in flag mode\n');
-      process.exit(1);
-    }
-    session.append({ type: 'output', step: stepName, output });
-    return { stepName, output, history };
-  }
-
-  const stepName = flags['step']!;
-  const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
-  const history: HistoryEntry[] = flags['history'] ? (JSON.parse(flags['history']) as HistoryEntry[]) : [];
-
-  if (!stepName) {
-    process.stderr.write('error: --step is required for advance\n');
-    process.exit(1);
-  }
-  if (output === undefined) {
-    process.stderr.write('error: --output is required for advance\n');
-    process.exit(1);
-  }
-
-  return { stepName, output, history };
-}
-
-function parseTools(flags: Record<string, string>): string[] | undefined {
-  const raw = flags['tools'];
-  return raw
-    ? raw
-        .split(',')
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : undefined;
-}
-
 async function handleDispatcher(
   def: SkillDefinition,
   parsed: { command: 'start' | 'advance'; flags: Record<string, string> },
   refs: ReferenceLoader,
 ): Promise<void> {
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
-  const tools = session?.header.tools ?? parseTools(parsed.flags);
-  const isSubagent = session?.header.isSubagent ?? parsed.flags['subagent'] === 'true';
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], tools, isSubagent);
 
   if (isStart) {
-    const params = parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {};
-    const engine = new WorkflowEngine(def, handshake, params, refs);
+    const ctx = resolveStartContext(parsed.flags, session, refs);
+    const engine = new WorkflowEngine(def, ctx.handshake, ctx.params, refs);
     const startResult = engine.start();
     const result = await autoAdvance(engine, startResult, sessionWriter(session));
     writeStartOutput(result, session);
     return;
   }
 
-  const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
-  const params =
-    session?.header.params ?? (parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {});
+  const ctx = resolveAdvanceContext(parsed.flags, session, refs);
 
-  const subskillName = detectSubskill(stepName);
+  const subskillName = detectSubskill(ctx.stepName);
   if (subskillName) {
     const sub = def.subskills?.[subskillName];
     if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
-    // Subskill params are derived from stash during redirect, not from CLI flags.
-    // The subskill engine rebuilds stash from history — pass {} here.
-    const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, subskillName);
-    subEngine.replayHistory(history as HistoryEntry[]);
+    const subEngine = new SubskillEngine(sub.definition, ctx.handshake, {}, refs, subskillName);
+    subEngine.replayHistory(ctx.history);
     subEngine.startForReplay();
-    const subResult = await subEngine.advance(stepName, output);
+    const subResult = await subEngine.advance(ctx.stepName, ctx.output);
     const result = await autoAdvance(subEngine, subResult, sessionWriter(session));
     writeOutput(result, session);
     return;
   }
 
-  const engine = new WorkflowEngine(def, handshake, params, refs);
-  const dispatcherHistory = extractDispatcherHistory(history as HistoryEntry[]);
+  const engine = new WorkflowEngine(def, ctx.handshake, ctx.params, refs);
+  const dispatcherHistory = extractDispatcherHistory(ctx.history);
   if (dispatcherHistory.length > 0) {
     engine.replayHistory(dispatcherHistory);
   }
   engine.start();
 
-  const advanceResult = await engine.advance(stepName, output);
+  const advanceResult = await engine.advance(ctx.stepName, ctx.output);
   const result = await autoAdvance(engine, advanceResult, sessionWriter(session));
 
   if (result.kind === 'redirect') {
-    await handleRedirect(def, result, handshake, refs, session);
+    await handleRedirect(def, result, ctx.handshake, refs, session);
     return;
   }
 
@@ -346,26 +283,21 @@ async function handleSubskill(
   }
 
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
-  const subTools = session?.header.tools ?? parseTools(parsed.flags);
-  const subIsSubagent = session?.header.isSubagent ?? parsed.flags['subagent'] === 'true';
-  const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], subTools, subIsSubagent);
 
   if (isStart) {
-    const params = parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {};
-    const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, parsed.name);
+    const ctx = resolveStartContext(parsed.flags, session, refs);
+    const subEngine = new SubskillEngine(sub.definition, ctx.handshake, ctx.params, refs, parsed.name);
     const startResult = subEngine.start();
     const result = await autoAdvance(subEngine, startResult, sessionWriter(session));
     writeStartOutput(result, session);
     return;
   }
 
-  const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
-  const subParams =
-    session?.header.params ?? (parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {});
-  const subEngine = new SubskillEngine(sub.definition, handshake, subParams, refs, parsed.name);
-  subEngine.replayHistory(history as HistoryEntry[]);
+  const ctx = resolveAdvanceContext(parsed.flags, session, refs);
+  const subEngine = new SubskillEngine(sub.definition, ctx.handshake, ctx.params, refs, parsed.name);
+  subEngine.replayHistory(ctx.history);
   subEngine.startForReplay();
-  const advanceResult = await subEngine.advance(stepName, output);
+  const advanceResult = await subEngine.advance(ctx.stepName, ctx.output);
   const result = await autoAdvance(subEngine, advanceResult, sessionWriter(session));
   writeOutput(result, session);
 }
@@ -373,7 +305,7 @@ async function handleSubskill(
 async function handleRedirect(
   def: SkillDefinition,
   redirect: RedirectResult,
-  handshake: ReturnType<typeof resolveHost>,
+  handshake: ReturnType<typeof resolveHandshake>,
   refs: ReferenceLoader,
   session: SessionFile | undefined,
 ): Promise<void> {
@@ -404,7 +336,11 @@ async function handleRedirect(
     const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, subName);
     const rawStart = subEngine.start();
     const startResult = await autoAdvance(subEngine, rawStart, sessionWriter(session));
-    writeOutput({ ...startResult, completed: redirect.completed }, session);
+    if (startResult.kind === 'prompt' || startResult.kind === 'done') {
+      writeOutput({ ...startResult, completed: redirect.completed }, session);
+    } else {
+      writeOutput(startResult, session);
+    }
     return;
   }
 
