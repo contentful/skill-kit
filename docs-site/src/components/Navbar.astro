@@ -17,7 +17,7 @@ function isActive(href: string) {
 <nav class="navbar">
   <div class="navbar-inner">
     <a href={base} class="navbar-logo">
-      <span class="logo-marker">▸</span>
+      <span class="logo-marker">&#9656;</span>
       <span class="logo-text">skill-kit</span>
     </a>
 
@@ -59,7 +59,7 @@ function isActive(href: string) {
     top: 0;
     z-index: 100;
     height: var(--nav-height);
-    background: rgba(10, 10, 10, 0.9);
+    background: rgba(250, 248, 245, 0.92);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--color-border);
   }
@@ -103,7 +103,10 @@ function isActive(href: string) {
     color: var(--color-text-muted);
     text-decoration: none;
     padding: var(--space-2) var(--space-3);
-    transition: color var(--transition-fast);
+    border-radius: 4px;
+    transition:
+      color var(--transition-fast),
+      background var(--transition-fast);
     display: flex;
     align-items: center;
     gap: var(--space-1);
@@ -111,6 +114,7 @@ function isActive(href: string) {
 
   .nav-link:hover {
     color: var(--color-text);
+    background: var(--color-bg-inset);
   }
 
   .nav-link.active {
@@ -121,12 +125,18 @@ function isActive(href: string) {
     margin-left: var(--space-3);
     padding-left: var(--space-4);
     border-left: 1px solid var(--color-border);
+    border-radius: 0;
+  }
+
+  .nav-link--github:hover {
+    background: none;
   }
 
   .menu-toggle {
     display: none;
     background: none;
     border: 1px solid var(--color-border);
+    border-radius: 4px;
     padding: var(--space-2);
     cursor: pointer;
     flex-direction: column;

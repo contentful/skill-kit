@@ -9,94 +9,177 @@ const base = import.meta.env.BASE_URL;
 <BaseLayout title="skill-kit — TypeScript SDK for Agent Skills">
   <Hero />
 
-  <section class="features">
-    <div class="features-inner">
-      <h2 class="section-label">What you get</h2>
-      <div class="feature-grid">
-        <FeatureCard title="Workflow Skills" icon="◇">
-          Typed state machines — steps with prompts, Zod schemas, branching, cross-step state, and explicit transitions.
-          The agent sees one step at a time.
-        </FeatureCard>
-        <FeatureCard title="Reference Skills" icon="◈">
-          Progressive disclosure for large docs. Agents read the SKILL.md, then load topics on demand. No JSON, no
-          state machine — just <code>topic &lt;name&gt;</code> → text.
-        </FeatureCard>
-        <FeatureCard title="Host-Aware Primitives" icon="◆">
-          Abstract verbs (<code>ASK_STRUCTURED</code>, <code>PRESENT_PLAN</code>) map to host-specific tools. Same
-          skill works in Claude Code, Codex, and OpenCode.
-        </FeatureCard>
-        <FeatureCard title="Build & Ship" icon="▸">
-          Compile to standalone executables (Bun) or lightweight Node.js bundles. Output is an agentskills.io-compliant
-          directory that any agent host can invoke via Bash.
-        </FeatureCard>
-        <FeatureCard title="Test Without an Agent" icon="▹">
-          <code>runSkill()</code> drives your skill through its steps with <code>mockModel()</code> responses. Full
-          path, output, and history assertions — no agent required.
-        </FeatureCard>
-        <FeatureCard title="Compose & Combine" icon="▷">
-          Extract shared steps into modules with <code>.register()</code>. Combine related skills into composites with
-          <code>.subskill()</code> and <code>.topic()</code> — one dispatcher, shared references, independent sub-skills.
-        </FeatureCard>
+  <section class="story">
+    {/* --- Block 1: The problem (prose blob fading out) --- */}
+    <div class="story-block">
+      <div class="story-block-inner">
+        <div class="story-text">
+          <span class="story-num">01</span>
+          <h2 class="story-title">Agent skills are simple. Until they're not.</h2>
+          <p class="story-body">
+            One-shot prompts work great. But multi-step workflows need gathering input, delegating research,
+            getting approval, producing output. A single prompt file gets long, tangled, and fragile fast.
+          </p>
+        </div>
+        <div class="story-visual">
+          <div class="prose-blob">
+            <div class="prose-blob-header">
+              <span class="prose-blob-icon">📄</span> SKILL.md
+            </div>
+            <div class="prose-blob-body">
+              <p>First, greet the user and ask what kind of report they want. If they say "security", ask which framework. If they say "performance", skip straight to the analysis section. But if they previously mentioned accessibility concerns, combine both paths.</p>
+              <p>When gathering preferences, present options one at a time. Wait for confirmation before moving on. If the user changes their mind about a previous answer, go back to that question but keep the answers to questions that came after, unless those answers depended on the changed answer.</p>
+              <p>For the research phase, search the codebase for relevant files. If you find more than 10 files, summarize first and ask the user which to focus on. If fewer than 3, expand the search scope. Do not search node_modules unless explicitly asked.</p>
+              <p>Once research is complete, draft an outline. Present the outline for approval. If rejected, ask what to change, then re-draft. Limit to 3 revision rounds. On the 4th rejection, proceed with the last version and note the disagreement.</p>
+              <p>Write each section one at a time. After each section, confirm with the user. If they want changes, revise that section before continuing. Track which sections are done. If the user asks to skip ahead, mark skipped sections as "TODO" and continue.</p>
+              <p>When all sections are written, compile the final report. Save it to disk. If the save fails, retry once, then report the error. Present a summary with word count, sections completed, and time elapsed.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* --- Block 2: Branching is code --- */}
+    <div class="story-block">
+      <div class="story-block-inner story-block-inner--reverse">
+        <div class="story-text">
+          <span class="story-num">02</span>
+          <h2 class="story-title">Branching is code, not hope.</h2>
+          <p class="story-body">
+            With skill-kit, each step has a typed schema and an explicit transition. Conditional paths,
+            loop guards, and validation are TypeScript. The agent reasons freely within each step.
+            The skill controls where it goes next.
+          </p>
+        </div>
+        <div class="story-visual">
+          <div class="branch-compare">
+            <div class="branch-prose">
+              <div class="branch-label">Prose approach</div>
+              <div class="branch-content branch-content--prose">
+                <p>"If the user chose security, proceed to the security research section. However, if they also mentioned performance concerns earlier, you should combine both into a joint analysis. If neither was selected, ask again, but only up to two more times before defaulting to a general overview..."</p>
+              </div>
+            </div>
+            <div class="branch-code">
+              <div class="branch-label">skill-kit</div>
+              <pre class="branch-content branch-content--code"><code><span class="hl-fn">next</span>: ({ <span class="hl-id">stepOutput</span> }) =>
+  <span class="hl-id">stepOutput</span>.<span class="hl-id">focus</span> === <span class="hl-str">'security'</span>
+    ? <span class="hl-str">'research-security'</span>
+    : <span class="hl-str">'research-general'</span></code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* --- Block 3: Rich UI for free --- */}
+    <div class="story-block">
+      <div class="story-block-inner">
+        <div class="story-text">
+          <span class="story-num">03</span>
+          <h2 class="story-title">Rich UI for free.</h2>
+          <p class="story-body">
+            Surveys, plan approvals, subagent delegation, structured output. One SDK call produces
+            native interactive UI on every host. You write <code>act.plan()</code> once. Claude Code,
+            Codex, and every MCP client render their best version of it.
+          </p>
+        </div>
+        <div class="story-visual">
+          <div class="primitives-grid">
+            <div class="primitive-card">
+              <div class="primitive-label">act.survey()</div>
+              <div class="primitive-preview">
+                <div class="prim-tabs">
+                  <span class="prim-tab prim-tab--done">✓ Theme</span>
+                  <span class="prim-tab prim-tab--active">Framework</span>
+                  <span class="prim-tab">Submit</span>
+                </div>
+                <div class="prim-option prim-option--selected">› React</div>
+                <div class="prim-option">&nbsp; Vue</div>
+                <div class="prim-option">&nbsp; Svelte</div>
+              </div>
+            </div>
+            <div class="primitive-card">
+              <div class="primitive-label">act.plan()</div>
+              <div class="primitive-preview">
+                <div class="prim-plan-title">Audit Plan</div>
+                <div class="prim-plan-item">1. Executive Summary</div>
+                <div class="prim-plan-item">2. Auth Flow Analysis</div>
+                <div class="prim-plan-item">3. Vulnerability Assessment</div>
+                <div class="prim-plan-sep"></div>
+                <div class="prim-option prim-option--selected">› Approve</div>
+              </div>
+            </div>
+            <div class="primitive-card">
+              <div class="primitive-label">act.subagent()</div>
+              <div class="primitive-preview">
+                <div class="prim-subagent">
+                  <span class="prim-dot prim-dot--blue">●</span>
+                  <span class="prim-subagent-label">Explore</span>
+                  <span class="prim-subagent-name">(Research auth)</span>
+                </div>
+                <div class="prim-subagent-status">└ Done (5 tools · 20s)</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="how-it-works">
-    <div class="how-inner">
-      <h2 class="section-label">How it works</h2>
-      <div class="protocol-diagram">
-        <pre><code>┌─────────┐  scripts/run         ┌─────────────┐
-│         │ ───────────────────► │             │
-│  Agent  │  ◄ JSON: prompt,     │  Skill CLI  │
-│         │    schema            │  (bundled)  │
-│         │                      │             │
-│         │  scripts/run advance │             │
-│         │ ───────────────────► │             │
-│         │  ◄ JSON: next prompt │             │
-│         │       ...or done     │             │
-└─────────┘                      └─────────────┘</code></pre>
-      </div>
-      <p class="how-text">
-        Two invocation modes. <strong>Session mode</strong> (recommended) writes protocol data to a temp file — no
-        verbose JSON in stdout. <strong>Stateless mode</strong> passes full conversation history via
-        <code>--history</code> on every call. Both reconstruct state, validate against Zod schemas, and return the next
-        prompt. No persistent processes — just Bash calls.
-      </p>
-      <div class="how-actions">
-        <a href={`${base}architecture/`} class="how-link">
-          Read the architecture doc
-          <span aria-hidden="true">→</span>
-        </a>
+  <div class="story-cta">
+    <p class="story-cta-lead">Ready to build your first skill?</p>
+    <a href={`${base}getting-started/`} class="story-cta-btn">Get Started</a>
+    <code class="story-cta-install">$ npm install @contentful/skill-kit</code>
+  </div>
+
+  <section class="features">
+    <div class="section-inner">
+      <h2 class="section-heading">Why skill-kit</h2>
+      <div class="feature-grid">
+        <FeatureCard icon="terminal" title="One SDK call, a full TUI element.">
+          <code>act.askUser()</code> becomes a structured question. <code>act.plan()</code> becomes an approval flow.
+          <code>act.subagent()</code> spawns a research agent. You define the interaction; every host renders its best
+          UI.
+        </FeatureCard>
+        <FeatureCard icon="git-branch" title="Deterministic routing, intelligent steps.">
+          Steps, schemas, and transitions are TypeScript. Branching is code, not hope. The agent reasons within each
+          step; the skill decides what happens next. Loops have guards. Output has Zod validation.
+        </FeatureCard>
+        <FeatureCard icon="package" title="Test offline. Ship everywhere.">
+          <code>runSkill()</code> + <code>mockModel()</code> drives every step without an agent. Then
+          <code>skill-kit build</code> compiles to an MCP server or standalone CLI. One binary, any host: Claude Code,
+          Codex, or any MCP client.
+        </FeatureCard>
       </div>
     </div>
   </section>
 
   <section class="examples-section">
-    <div class="examples-inner">
-      <h2 class="section-label">Examples</h2>
+    <div class="section-inner">
+      <h2 class="section-heading">Examples</h2>
       <div class="example-grid">
         <a href={`${base}examples/get-to-know-you/`} class="example-card">
           <span class="example-type">workflow</span>
           <h3 class="example-name">get-to-know-you</h3>
           <p class="example-desc">
-            Playful interview that builds a developer trading card. Branching, askUser, confirm, fragments, render
-            helpers, actions, and loop guards.
+            Playful interview that builds a developer trading card. Branching, askUser, confirm, render helpers,
+            actions, and loop guards.
           </p>
         </a>
         <a href={`${base}examples/ts-patterns/`} class="example-card">
           <span class="example-type">reference</span>
           <h3 class="example-name">ts-patterns</h3>
           <p class="example-desc">
-            TypeScript patterns reference with on-demand topic loading. Uses render.table, render.code, and refs.load()
-            for external markdown.
+            TypeScript patterns reference with on-demand topic loading. Progressive disclosure — agents load topics as
+            needed, not all at once.
           </p>
         </a>
         <a href={`${base}examples/contentful-help/`} class="example-card">
           <span class="example-type">composite</span>
           <h3 class="example-name">contentful-help</h3>
           <p class="example-desc">
-            Composite dispatcher that routes to doctor and setup sub-skills or resolves FAQ topics directly. Uses
-            .subskill(), .topic(), context mapping, and runComposite for testing.
+            Composite dispatcher that routes to sub-skills or resolves FAQ topics directly. One entry point, multiple
+            workflows, shared context.
           </p>
         </a>
       </div>
@@ -105,138 +188,429 @@ const base = import.meta.env.BASE_URL;
 </BaseLayout>
 
 <style>
-  /* Shared section styling */
-  .section-label {
+  .section-inner {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+  }
+
+  .section-heading {
     font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-4);
+    border-bottom: none;
+    margin-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* ─── Story section ─── */
+  .story {
+    padding: var(--space-7) 0;
+  }
+
+  .story-block {
+    padding: var(--space-7) 0;
+  }
+
+  .story-block-inner {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: var(--space-7);
+    align-items: center;
+  }
+
+  .story-block-inner--reverse {
+    grid-template-columns: 1.2fr 1fr;
+  }
+
+  .story-block-inner--reverse .story-text {
+    order: 2;
+  }
+
+  .story-block-inner--reverse .story-visual {
+    order: 1;
+  }
+
+  .story-num {
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
     color: var(--color-accent);
-    margin-bottom: var(--space-6);
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: var(--space-3);
+  }
+
+  .story-title {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-4);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .story-body {
+    font-size: var(--text-lg);
+    color: var(--color-text-muted);
+    line-height: 1.7;
+    margin: 0;
+  }
+
+  /* --- Prose blob visual (fading SKILL.md) --- */
+  .prose-blob {
+    background: var(--color-code-bg);
+    border: 1px solid var(--color-code-border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: #94a3b8;
+    position: relative;
+    height: 300px;
+  }
+
+  .prose-blob-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--color-code-border);
+    background: #171f2b;
+    color: #64748b;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .prose-blob-icon {
+    font-size: 14px;
+  }
+
+  .prose-blob-body {
+    padding: 16px;
+    animation: prose-scroll 20s linear infinite;
+  }
+
+  @keyframes prose-scroll {
+    0% { transform: translateY(0); }
+    80% { transform: translateY(-40%); }
+    100% { transform: translateY(-40%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prose-blob-body {
+      animation: none;
+    }
+  }
+
+  .prose-blob::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, transparent, var(--color-code-bg));
+    pointer-events: none;
+  }
+
+  .prose-blob-body p {
+    margin-bottom: 12px;
+    color: #7a8ba0;
+  }
+
+  /* --- Branch comparison visual --- */
+  .branch-compare {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .branch-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-dim);
+    margin-bottom: var(--space-2);
+  }
+
+  .branch-content {
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .branch-content--prose {
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    padding: 14px 16px;
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-style: italic;
+    position: relative;
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  }
+
+  .branch-content--prose p {
+    margin: 0;
+  }
+
+  .branch-content--code {
+    background: var(--color-code-bg);
+    border: 1px solid var(--color-code-border);
+    padding: 14px 16px;
+    color: var(--color-code-text);
+    font-family: var(--font-mono);
+    margin: 0;
+    border-left: 3px solid var(--color-accent);
+  }
+
+  .branch-content--code .hl-fn { color: #82aaff; }
+  .branch-content--code .hl-id { color: #89ddff; }
+  .branch-content--code .hl-str { color: #c3e88d; }
+
+  /* --- Primitives gallery --- */
+  .primitives-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .primitive-card {
+    background: var(--color-terminal-bg);
+    border: 1px solid var(--color-terminal-border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-terminal-text);
+  }
+
+  .primitive-label {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--color-terminal-border);
+    color: #82aaff;
+    font-weight: 500;
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .primitive-preview {
+    padding: 10px 12px;
+  }
+
+  .prim-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
+  .prim-tab {
+    color: #525252;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  .prim-tab--active {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+  }
+
+  .prim-tab--done {
+    color: #737373;
+  }
+
+  .prim-option {
+    color: #525252;
+    padding: 1px 0;
+  }
+
+  .prim-option--selected {
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .prim-plan-title {
+    color: #c084fc;
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .prim-plan-item {
+    color: #e5e5e5;
+    padding: 1px 0;
+  }
+
+  .prim-plan-sep {
+    height: 1px;
+    background: #262626;
+    margin: 6px 0;
+  }
+
+  .prim-subagent {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+
+  .prim-dot {
+    font-size: 8px;
+  }
+
+  .prim-dot--blue {
+    color: #60a5fa;
+  }
+
+  .prim-subagent-label {
+    color: #60a5fa;
+    font-weight: 700;
+  }
+
+  .prim-subagent-name {
+    color: #d4d4d4;
+  }
+
+  .prim-subagent-status {
+    padding-left: 16px;
+    color: #525252;
+    margin-top: 2px;
+  }
+
+  @media (max-width: 768px) {
+    .story-block-inner,
+    .story-block-inner--reverse {
+      grid-template-columns: 1fr;
+    }
+
+    .story-block-inner--reverse .story-text { order: 1; }
+    .story-block-inner--reverse .story-visual { order: 2; }
+
+    .story-title {
+      font-size: var(--text-xl);
+    }
+  }
+
+  /* Story CTA */
+  .story-cta {
+    background: var(--color-code-bg);
+    padding: var(--space-7) var(--space-5);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .story-cta-lead {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    color: #e2e8f0;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  .story-cta-btn {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    text-decoration: none;
+    padding: var(--space-3) var(--space-7);
+    border-radius: 8px;
+    background: var(--color-accent-bright);
+    color: #ffffff;
+    border: 1px solid var(--color-accent-bright);
+    transition:
+      background var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .story-cta-btn:hover {
+    background: #11a5ad;
+    color: #ffffff;
+    box-shadow: 0 4px 20px rgba(15, 145, 153, 0.4);
+  }
+
+  .story-cta-install {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    color: #64748b;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-code-border);
+    padding: var(--space-2) var(--space-5);
+    border-radius: 6px;
   }
 
   /* Features */
   .features {
-    padding: var(--space-8) var(--space-5);
-  }
-
-  .features-inner {
-    max-width: 72rem;
-    margin: 0 auto;
+    padding: var(--space-7) 0 var(--space-6);
   }
 
   .feature-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 1px;
-    background: var(--color-border);
-    border: 1px solid var(--color-border);
-  }
-
-  .feature-grid > :global(.feature-card) {
-    border: none;
-  }
-
-  /* How it works */
-  .how-it-works {
-    padding: var(--space-8) var(--space-5);
-  }
-
-  .how-inner {
-    max-width: 48rem;
-    margin: 0 auto;
-  }
-
-  .protocol-diagram {
-    margin-bottom: var(--space-5);
-  }
-
-  .protocol-diagram pre {
-    text-align: center;
-    border-left-color: var(--color-accent);
-  }
-
-  .protocol-diagram code {
-    font-size: var(--text-sm);
-    color: var(--color-text-muted);
-  }
-
-  .how-text {
-    color: var(--color-text-muted);
-    font-size: var(--text-base);
-    max-width: 40rem;
-    margin: 0 auto var(--space-5);
-    text-align: center;
-  }
-
-  .how-actions {
-    text-align: center;
-  }
-
-  .how-link {
-    font-family: var(--font-display);
-    font-size: var(--text-sm);
-    color: var(--color-accent);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    transition: gap var(--transition-fast);
-  }
-
-  .how-link:hover {
-    gap: var(--space-3);
-    color: var(--color-accent-bright);
+    gap: var(--space-4);
   }
 
   /* Examples */
   .examples-section {
-    padding: var(--space-8) var(--space-5);
-  }
-
-  .examples-inner {
-    max-width: 72rem;
-    margin: 0 auto;
+    padding: var(--space-6) 0;
   }
 
   .example-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-4);
+    gap: var(--space-5);
   }
 
   .example-card {
     display: block;
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
+    border-radius: 8px;
     padding: var(--space-5);
     text-decoration: none;
     transition:
       border-color var(--transition-fast),
-      background var(--transition-fast);
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
 
   .example-card:hover {
-    border-color: var(--color-accent-dim);
-    background: var(--color-bg-inset);
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   }
 
   .example-type {
-    font-family: var(--font-display);
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
-    color: var(--color-text-dim);
+    color: var(--color-secondary);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    font-weight: 500;
   }
 
   .example-name {
     font-family: var(--font-display);
     font-size: var(--text-lg);
     font-weight: 700;
-    color: var(--color-accent);
+    color: var(--color-text);
     margin: var(--space-2) 0;
   }
 
@@ -248,20 +622,14 @@ const base = import.meta.env.BASE_URL;
   }
 
   @media (max-width: 768px) {
-    .feature-grid {
-      grid-template-columns: 1fr;
-    }
-
+    .feature-grid,
     .example-grid {
       grid-template-columns: 1fr;
     }
   }
 
   @media (max-width: 1024px) and (min-width: 769px) {
-    .feature-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
+    .feature-grid,
     .example-grid {
       grid-template-columns: repeat(2, 1fr);
     }

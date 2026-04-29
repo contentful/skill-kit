@@ -1,24 +1,43 @@
 /* ─── Tokens ─── */
 :root {
-  --color-bg: #0a0a0a;
-  --color-bg-elevated: #141414;
-  --color-bg-inset: #1a1a1a;
-  --color-border: #2a2a2a;
-  --color-border-focus: #3a3a3a;
+  /* Backgrounds */
+  --color-bg: #faf8f5;
+  --color-bg-elevated: #ffffff;
+  --color-bg-inset: #f0ece6;
+  --color-border: #e2ddd5;
+  --color-border-focus: #c9c2b8;
 
-  --color-text: #f0f0f0;
-  --color-text-muted: #a0a0a0;
-  --color-text-dim: #707070;
+  /* Text */
+  --color-text: #1a1a1a;
+  --color-text-muted: #5c5650;
+  --color-text-dim: #8a837a;
 
-  --color-accent: #f5a623;
-  --color-accent-bright: #ffc857;
-  --color-accent-dim: #a67c1a;
-  --color-accent-glow: rgba(245, 166, 35, 0.15);
+  /* Primary accent: deep teal */
+  --color-accent: #0d7377;
+  --color-accent-bright: #0f9199;
+  --color-accent-dim: #095557;
+  --color-accent-glow: rgba(13, 115, 119, 0.08);
 
-  --color-success: #4ade80;
-  --color-error: #f87171;
-  --color-warning: #fbbf24;
+  /* Secondary: warm amber */
+  --color-secondary: #d4860a;
+  --color-secondary-glow: rgba(212, 134, 10, 0.1);
 
+  /* Status */
+  --color-success: #2d8a56;
+  --color-error: #c94040;
+  --color-warning: #c08b2a;
+
+  /* Code blocks (dark contrast islands) */
+  --color-code-bg: #1e293b;
+  --color-code-border: #334155;
+  --color-code-text: #e2e8f0;
+
+  /* Terminal mockup */
+  --color-terminal-bg: #0e0e0e;
+  --color-terminal-border: #1e1e1e;
+  --color-terminal-text: #d4d4d4;
+
+  /* Spacing */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -29,6 +48,7 @@
   --space-8: 4rem;
   --space-9: 6rem;
 
+  /* Typography scale */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -39,13 +59,17 @@
   --text-4xl: 2.5rem;
   --text-5xl: 3.5rem;
 
-  --font-display: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
-  --font-body: 'Satoshi', 'DM Sans', system-ui, sans-serif;
+  /* Fonts */
+  --font-display: 'Instrument Sans', 'General Sans', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Source Code Pro', monospace;
 
+  /* Layout */
   --content-width: 52rem;
   --sidebar-width: 16rem;
   --nav-height: 3.5rem;
 
+  /* Motion */
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
 }
@@ -60,7 +84,6 @@
 }
 
 html {
-  color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
@@ -72,11 +95,6 @@ body {
   line-height: 1.7;
   color: var(--color-text);
   background-color: var(--color-bg);
-  background-image:
-    linear-gradient(var(--color-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
-  background-size: 64px 64px;
-  background-position: -1px -1px;
   min-height: 100vh;
 }
 
@@ -96,22 +114,32 @@ h6 {
 
 h1 {
   font-size: var(--text-4xl);
-  margin-bottom: var(--space-6);
 }
 h2 {
   font-size: var(--text-2xl);
+}
+h3 {
+  font-size: var(--text-xl);
+}
+h4 {
+  font-size: var(--text-lg);
+}
+
+/* Prose spacing only inside docs pages */
+.docs-content h1 {
+  margin-bottom: var(--space-6);
+}
+.docs-content h2 {
   margin-top: var(--space-8);
   margin-bottom: var(--space-4);
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--color-border);
 }
-h3 {
-  font-size: var(--text-xl);
+.docs-content h3 {
   margin-top: var(--space-6);
   margin-bottom: var(--space-3);
 }
-h4 {
-  font-size: var(--text-lg);
+.docs-content h4 {
   margin-top: var(--space-5);
   margin-bottom: var(--space-2);
 }
@@ -136,31 +164,36 @@ strong {
 
 /* ─── Code ─── */
 code {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 
 :not(pre) > code {
-  background: var(--color-bg-elevated);
+  background: var(--color-accent-glow);
   border: 1px solid var(--color-border);
+  color: var(--color-accent-dim);
   padding: 0.15em 0.4em;
+  border-radius: 3px;
 }
 
 pre {
-  background: var(--color-bg-elevated) !important;
-  border: 1px solid var(--color-border);
+  background: var(--color-code-bg) !important;
+  border: 1px solid var(--color-code-border);
   border-left: 3px solid var(--color-accent-dim);
   padding: var(--space-4);
   overflow-x: auto;
   margin-bottom: var(--space-5);
   font-size: var(--text-sm);
   line-height: 1.6;
+  border-radius: 6px;
+  color: var(--color-code-text);
 }
 
 pre code {
   background: none;
   border: none;
   padding: 0;
+  color: inherit;
 }
 
 /* ─── Lists ─── */
@@ -213,6 +246,7 @@ blockquote {
   background: var(--color-accent-glow);
   padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-5);
+  border-radius: 0 6px 6px 0;
 }
 
 blockquote p:last-child {
@@ -231,6 +265,7 @@ details {
   border: 1px solid var(--color-border);
   padding: var(--space-4);
   margin-bottom: var(--space-5);
+  border-radius: 6px;
 }
 
 details summary {
@@ -249,7 +284,7 @@ details[open] summary {
 /* ─── Selection ─── */
 ::selection {
   background: var(--color-accent);
-  color: var(--color-bg);
+  color: #ffffff;
 }
 
 /* ─── Scrollbar ─── */
@@ -262,20 +297,54 @@ details[open] summary {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border-focus);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-dim);
 }
 
-/* ─── Scan line animation ─── */
-@keyframes scanline {
-  0% {
-    transform: translateY(-100%);
-    opacity: 1;
+/* ─── Hero Demo Layout: layered windows ─── */
+.hero-demo {
+  position: relative;
+  width: 100%;
+  max-width: 72rem;
+  padding-bottom: 60px;
+}
+
+.hero-demo-code {
+  width: 100%;
+  min-width: 0;
+}
+
+.hero-demo-terminal {
+  position: absolute;
+  top: 32px;
+  right: 24px;
+  width: 46%;
+  z-index: 2;
+}
+
+.hero-demo-dots {
+  position: relative;
+  z-index: 3;
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 1024px) {
+  .hero-demo {
+    padding-bottom: 0;
   }
-  100% {
-    transform: translateY(100vh);
-    opacity: 0;
+
+  .hero-demo-code {
+    width: 100%;
+  }
+
+  .hero-demo-terminal {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    margin-top: var(--space-5);
   }
 }
 
