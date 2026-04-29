@@ -6,6 +6,7 @@ import { resolveHost } from './host.js';
 import { SessionManager, type SessionFile } from './session.js';
 import { SubskillEngine } from './subskill-engine.js';
 import { autoAdvance } from './auto-advance.js';
+import type { HistoryEntry } from './types.js';
 
 function sessionWriter(session: SessionFile | undefined): ((r: CliResult) => void) | undefined {
   return session ? (r) => session.appendResult(r) : undefined;
@@ -15,8 +16,6 @@ function resolveSkillDir(): string {
   const binPath = process.execPath;
   return resolve(dirname(binPath), '..');
 }
-
-type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown };
 
 export type CompositeCommand =
   | { mode: 'dispatcher'; command: 'start' | 'advance'; flags: Record<string, string> }

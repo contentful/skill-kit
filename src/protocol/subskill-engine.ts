@@ -1,7 +1,7 @@
 import type { CliResult, PromptResult, StepResult, Handshake, SkillDefinition, ReferenceLoader } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
-
-type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown };
+import type { SkillEngine } from './skill-engine.js';
+import type { HistoryEntry } from './types.js';
 
 /**
  * Wraps a WorkflowEngine for a subskill, transparently qualifying step names
@@ -9,7 +9,7 @@ type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown 
  *
  * Callers never prefix or unprefix manually — the boundary lives here.
  */
-export class SubskillEngine {
+export class SubskillEngine implements SkillEngine {
   private readonly engine: WorkflowEngine;
   private readonly prefix: string;
 

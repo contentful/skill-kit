@@ -21,6 +21,8 @@ import { ObserverDispatcher } from './observer-dispatch.js';
 import { generatePreamble } from './preamble.js';
 import { act } from '../act.js';
 import { system } from '../system.js';
+import type { SkillEngine } from '../protocol/skill-engine.js';
+import type { HistoryEntry } from '../protocol/types.js';
 
 function normalizePieces(raw: PromptReturn): PromptPiece[] {
   if (typeof raw === 'string') return [raw];
@@ -33,7 +35,7 @@ const NOOP_REFS: ReferenceLoader = {
   asset: (p) => p,
 };
 
-export class WorkflowEngine {
+export class WorkflowEngine implements SkillEngine {
   private readonly skill: SkillDefinition;
   private readonly handshake: Handshake;
   private readonly skillParams: Readonly<unknown>;
@@ -191,7 +193,7 @@ export class WorkflowEngine {
     return { ...this.buildPrompt(nextStep), completed };
   }
 
-  replayHistory(history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>): void {
+  replayHistory(history: HistoryEntry[]): void {
     for (const entry of history) {
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;

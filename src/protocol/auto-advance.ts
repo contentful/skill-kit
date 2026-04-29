@@ -1,14 +1,10 @@
 import type { CliResult, StepResult } from '../types.js';
+import type { SkillEngine } from './skill-engine.js';
 
 const MAX_AUTO_ADVANCE = 20;
 
-export interface Advanceable {
-  isPromptless(stepName: string): boolean;
-  advance(stepName: string, output: unknown): Promise<CliResult>;
-}
-
 export async function autoAdvance(
-  engine: Advanceable,
+  engine: SkillEngine,
   result: CliResult,
   onIntermediateResult?: (result: CliResult) => void,
 ): Promise<CliResult> {

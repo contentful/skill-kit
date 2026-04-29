@@ -36,12 +36,7 @@ function collectAutoAdvanced(result: CliResult, history: StepResult[]): void {
   }
 }
 
-interface Advanceable {
-  isPromptless(stepName: string): boolean;
-  advance(stepName: string, output: unknown): Promise<CliResult>;
-}
-
-async function drainPromptless(engine: Advanceable, result: CliResult, path: string[]): Promise<CliResult> {
+async function drainPromptless(engine: WorkflowEngine, result: CliResult, path: string[]): Promise<CliResult> {
   let current = result;
   let depth = 0;
   while (current.kind === 'prompt') {
