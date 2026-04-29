@@ -10,39 +10,117 @@ const base = import.meta.env.BASE_URL;
   <Hero />
 
   <section class="story">
-    <div class="story-inner">
-      <div class="story-lead">
-        <h2 class="story-lead-headline">Agent skills are simple. Until they're not.</h2>
-        <p class="story-lead-body">
-          One-shot prompts work great. But multi-step workflows need gathering input, delegating research,
-          getting approval, producing output. Prompt blobs fall apart here. You need structure.
-        </p>
-      </div>
-
-      <div class="story-grid">
-        <div class="story-card">
+    {/* --- Block 1: The problem (prose blob fading out) --- */}
+    <div class="story-block">
+      <div class="story-block-inner">
+        <div class="story-text">
           <span class="story-num">01</span>
-          <h3 class="story-card-title">Steps, not blobs</h3>
-          <p class="story-card-body">
-            Each step has a typed schema, a prompt, and an explicit transition to the next step.
-            The agent reasons freely within the step. The skill controls the flow.
+          <h2 class="story-title">Agent skills are simple. Until they're not.</h2>
+          <p class="story-body">
+            One-shot prompts work great. But multi-step workflows need gathering input, delegating research,
+            getting approval, producing output. A single prompt file gets long, tangled, and fragile fast.
           </p>
         </div>
-        <div class="story-card">
+        <div class="story-visual">
+          <div class="prose-blob">
+            <div class="prose-blob-header">
+              <span class="prose-blob-icon">📄</span> SKILL.md
+            </div>
+            <div class="prose-blob-body">
+              <p>First, greet the user and ask what kind of report they want. If they say "security", ask which framework. If they say "performance", skip straight to the analysis section. But if they previously mentioned accessibility concerns, combine both paths.</p>
+              <p>When gathering preferences, present options one at a time. Wait for confirmation before moving on. If the user changes their mind about a previous answer, go back to that question but keep the answers to questions that came after, unless those answers depended on the changed answer.</p>
+              <p>For the research phase, search the codebase for relevant files. If you find more than 10 files, summarize first and ask the user which to focus on. If fewer than 3, expand the search scope. Do not search node_modules unless explicitly asked.</p>
+              <p>Once research is complete, draft an outline. Present the outline for approval. If rejected, ask what to change, then re-draft. Limit to 3 revision rounds. On the 4th rejection, proceed with the last version and note the disagreement.</p>
+              <p>Write each section one at a time. After each section, confirm with the user. If they want changes, revise that section before continuing. Track which sections are done. If the user asks to skip ahead, mark skipped sections as "TODO" and continue.</p>
+              <p>When all sections are written, compile the final report. Save it to disk. If the save fails, retry once, then report the error. Present a summary with word count, sections completed, and time elapsed.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* --- Block 2: Branching is code --- */}
+    <div class="story-block">
+      <div class="story-block-inner story-block-inner--reverse">
+        <div class="story-text">
           <span class="story-num">02</span>
-          <h3 class="story-card-title">Branching is code</h3>
-          <p class="story-card-body">
-            Conditional transitions, loop guards, and validation are all TypeScript.
-            No more hoping the model picks the right path from a long prompt.
+          <h2 class="story-title">Branching is code, not hope.</h2>
+          <p class="story-body">
+            With skill-kit, each step has a typed schema and an explicit transition. Conditional paths,
+            loop guards, and validation are TypeScript. The agent reasons freely within each step.
+            The skill controls where it goes next.
           </p>
         </div>
-        <div class="story-card">
+        <div class="story-visual">
+          <div class="branch-compare">
+            <div class="branch-prose">
+              <div class="branch-label">Prose approach</div>
+              <div class="branch-content branch-content--prose">
+                <p>"If the user chose security, proceed to the security research section. However, if they also mentioned performance concerns earlier, you should combine both into a joint analysis. If neither was selected, ask again, but only up to two more times before defaulting to a general overview..."</p>
+              </div>
+            </div>
+            <div class="branch-code">
+              <div class="branch-label">skill-kit</div>
+              <pre class="branch-content branch-content--code"><code><span class="hl-fn">next</span>: ({ <span class="hl-id">stepOutput</span> }) =>
+  <span class="hl-id">stepOutput</span>.<span class="hl-id">focus</span> === <span class="hl-str">'security'</span>
+    ? <span class="hl-str">'research-security'</span>
+    : <span class="hl-str">'research-general'</span></code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* --- Block 3: Rich UI for free --- */}
+    <div class="story-block">
+      <div class="story-block-inner">
+        <div class="story-text">
           <span class="story-num">03</span>
-          <h3 class="story-card-title">Rich UI for free</h3>
-          <p class="story-card-body">
-            Surveys, plan approvals, subagent delegation, checklists.
-            The SDK renders the best UI each host can offer. One skill, every agent.
+          <h2 class="story-title">Rich UI for free.</h2>
+          <p class="story-body">
+            Surveys, plan approvals, subagent delegation, structured output. One SDK call produces
+            native interactive UI on every host. You write <code>act.plan()</code> once. Claude Code,
+            Codex, and every MCP client render their best version of it.
           </p>
+        </div>
+        <div class="story-visual">
+          <div class="primitives-grid">
+            <div class="primitive-card">
+              <div class="primitive-label">act.survey()</div>
+              <div class="primitive-preview">
+                <div class="prim-tabs">
+                  <span class="prim-tab prim-tab--done">✓ Theme</span>
+                  <span class="prim-tab prim-tab--active">Framework</span>
+                  <span class="prim-tab">Submit</span>
+                </div>
+                <div class="prim-option prim-option--selected">› React</div>
+                <div class="prim-option">&nbsp; Vue</div>
+                <div class="prim-option">&nbsp; Svelte</div>
+              </div>
+            </div>
+            <div class="primitive-card">
+              <div class="primitive-label">act.plan()</div>
+              <div class="primitive-preview">
+                <div class="prim-plan-title">Audit Plan</div>
+                <div class="prim-plan-item">1. Executive Summary</div>
+                <div class="prim-plan-item">2. Auth Flow Analysis</div>
+                <div class="prim-plan-item">3. Vulnerability Assessment</div>
+                <div class="prim-plan-sep"></div>
+                <div class="prim-option prim-option--selected">› Approve</div>
+              </div>
+            </div>
+            <div class="primitive-card">
+              <div class="primitive-label">act.subagent()</div>
+              <div class="primitive-preview">
+                <div class="prim-subagent">
+                  <span class="prim-dot prim-dot--blue">●</span>
+                  <span class="prim-subagent-label">Explore</span>
+                  <span class="prim-subagent-name">(Research auth)</span>
+                </div>
+                <div class="prim-subagent-status">└ Done (5 tools · 20s)</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -121,49 +199,35 @@ const base = import.meta.env.BASE_URL;
     padding-bottom: 0;
   }
 
-  /* Story */
+  /* ─── Story section ─── */
   .story {
-    padding: var(--space-8) 0 var(--space-7);
+    padding: var(--space-7) 0;
   }
 
-  .story-inner {
+  .story-block {
+    padding: var(--space-7) 0;
+  }
+
+  .story-block-inner {
     max-width: 72rem;
     margin: 0 auto;
     padding: 0 var(--space-5);
-  }
-
-  .story-lead {
-    max-width: 40rem;
-    margin: 0 auto var(--space-7);
-    text-align: center;
-  }
-
-  .story-lead-headline {
-    font-family: var(--font-display);
-    font-size: var(--text-3xl);
-    font-weight: 700;
-    color: var(--color-text);
-    margin-bottom: var(--space-4);
-    line-height: 1.2;
-    letter-spacing: -0.02em;
-  }
-
-  .story-lead-body {
-    font-size: var(--text-lg);
-    color: var(--color-text-muted);
-    line-height: 1.7;
-    margin: 0;
-  }
-
-  .story-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-5);
+    grid-template-columns: 1fr 1.2fr;
+    gap: var(--space-7);
+    align-items: center;
   }
 
-  .story-card {
-    padding: var(--space-5) 0;
-    border-top: 2px solid var(--color-accent);
+  .story-block-inner--reverse {
+    grid-template-columns: 1.2fr 1fr;
+  }
+
+  .story-block-inner--reverse .story-text {
+    order: 2;
+  }
+
+  .story-block-inner--reverse .story-visual {
+    order: 1;
   }
 
   .story-num {
@@ -176,35 +240,242 @@ const base = import.meta.env.BASE_URL;
     margin-bottom: var(--space-3);
   }
 
-  .story-card-title {
+  .story-title {
     font-family: var(--font-display);
-    font-size: var(--text-lg);
+    font-size: var(--text-2xl);
     font-weight: 700;
     color: var(--color-text);
-    margin-bottom: var(--space-2);
-    line-height: 1.3;
+    margin-bottom: var(--space-3);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
   }
 
-  .story-card-body {
-    font-size: var(--text-sm);
+  .story-body {
+    font-size: var(--text-base);
     color: var(--color-text-muted);
     line-height: 1.7;
     margin: 0;
   }
 
+  /* --- Prose blob visual (fading SKILL.md) --- */
+  .prose-blob {
+    background: var(--color-code-bg);
+    border: 1px solid var(--color-code-border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    color: #94a3b8;
+    position: relative;
+    max-height: 320px;
+  }
+
+  .prose-blob-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--color-code-border);
+    background: rgba(0, 0, 0, 0.2);
+    color: #64748b;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .prose-blob-icon {
+    font-size: 14px;
+  }
+
+  .prose-blob-body {
+    padding: 16px;
+    -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 95%);
+    mask-image: linear-gradient(to bottom, black 40%, transparent 95%);
+  }
+
+  .prose-blob-body p {
+    margin-bottom: 12px;
+    color: #7a8ba0;
+  }
+
+  /* --- Branch comparison visual --- */
+  .branch-compare {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .branch-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-dim);
+    margin-bottom: var(--space-2);
+  }
+
+  .branch-content {
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .branch-content--prose {
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    padding: 14px 16px;
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-style: italic;
+    position: relative;
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  }
+
+  .branch-content--prose p {
+    margin: 0;
+  }
+
+  .branch-content--code {
+    background: var(--color-code-bg);
+    border: 1px solid var(--color-code-border);
+    padding: 14px 16px;
+    color: var(--color-code-text);
+    font-family: var(--font-mono);
+    margin: 0;
+    border-left: 3px solid var(--color-accent);
+  }
+
+  .branch-content--code .hl-fn { color: #82aaff; }
+  .branch-content--code .hl-id { color: #89ddff; }
+  .branch-content--code .hl-str { color: #c3e88d; }
+
+  /* --- Primitives gallery --- */
+  .primitives-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+  }
+
+  .primitive-card {
+    background: var(--color-terminal-bg);
+    border: 1px solid var(--color-terminal-border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-terminal-text);
+  }
+
+  .primitive-label {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--color-terminal-border);
+    color: #82aaff;
+    font-weight: 500;
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .primitive-preview {
+    padding: 10px 12px;
+  }
+
+  .prim-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
+  .prim-tab {
+    color: #525252;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  .prim-tab--active {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+  }
+
+  .prim-tab--done {
+    color: #737373;
+  }
+
+  .prim-option {
+    color: #525252;
+    padding: 1px 0;
+  }
+
+  .prim-option--selected {
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .prim-plan-title {
+    color: #c084fc;
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .prim-plan-item {
+    color: #e5e5e5;
+    padding: 1px 0;
+  }
+
+  .prim-plan-sep {
+    height: 1px;
+    background: #262626;
+    margin: 6px 0;
+  }
+
+  .prim-subagent {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+
+  .prim-dot {
+    font-size: 8px;
+  }
+
+  .prim-dot--blue {
+    color: #60a5fa;
+  }
+
+  .prim-subagent-label {
+    color: #60a5fa;
+    font-weight: 700;
+  }
+
+  .prim-subagent-name {
+    color: #d4d4d4;
+  }
+
+  .prim-subagent-status {
+    padding-left: 16px;
+    color: #525252;
+    margin-top: 2px;
+  }
+
   @media (max-width: 768px) {
-    .story-grid {
+    .story-block-inner,
+    .story-block-inner--reverse {
       grid-template-columns: 1fr;
     }
 
-    .story-lead-headline {
-      font-size: var(--text-2xl);
-    }
-  }
+    .story-block-inner--reverse .story-text { order: 1; }
+    .story-block-inner--reverse .story-visual { order: 2; }
 
-  @media (max-width: 1024px) and (min-width: 769px) {
-    .story-grid {
-      grid-template-columns: repeat(3, 1fr);
+    .primitives-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .story-title {
+      font-size: var(--text-xl);
     }
   }
 
