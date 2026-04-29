@@ -13,16 +13,16 @@ const base = import.meta.env.BASE_URL;
     <div class="section-inner">
       <h2 class="section-heading">Why skill-kit</h2>
       <div class="feature-grid">
-        <FeatureCard title="One SDK call, a full TUI element.">
+        <FeatureCard icon="terminal" title="One SDK call, a full TUI element.">
           <code>act.askUser()</code> becomes a structured question. <code>act.plan()</code> becomes an approval flow.
           <code>act.subagent()</code> spawns a research agent. You define the interaction; every host renders its best
           UI.
         </FeatureCard>
-        <FeatureCard title="Deterministic routing, intelligent steps.">
+        <FeatureCard icon="git-branch" title="Deterministic routing, intelligent steps.">
           Steps, schemas, and transitions are TypeScript. Branching is code, not hope. The agent reasons within each
           step; the skill decides what happens next. Loops have guards. Output has Zod validation.
         </FeatureCard>
-        <FeatureCard title="Test offline. Ship everywhere.">
+        <FeatureCard icon="package" title="Test offline. Ship everywhere.">
           <code>runSkill()</code> + <code>mockModel()</code> drives every step without an agent. Then
           <code>skill-kit build</code> compiles to an MCP server or standalone CLI. One binary, any host: Claude Code,
           Codex, or any MCP client.
@@ -84,13 +84,13 @@ const base = import.meta.env.BASE_URL;
 
   /* Features */
   .features {
-    padding: var(--space-6) 0;
+    padding: var(--space-5) 0 var(--space-6);
   }
 
   .feature-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-5);
+    gap: var(--space-4);
   }
 
   /* Examples */
