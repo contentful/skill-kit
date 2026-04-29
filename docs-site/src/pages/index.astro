@@ -268,6 +268,7 @@ const base = import.meta.env.BASE_URL;
     line-height: 1.6;
     color: #94a3b8;
     position: relative;
+    height: 300px;
   }
 
   .prose-blob-header {
@@ -287,6 +288,19 @@ const base = import.meta.env.BASE_URL;
 
   .prose-blob-body {
     padding: 16px;
+    animation: prose-scroll 20s linear infinite;
+  }
+
+  @keyframes prose-scroll {
+    0% { transform: translateY(0); }
+    80% { transform: translateY(-40%); }
+    100% { transform: translateY(-40%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prose-blob-body {
+      animation: none;
+    }
   }
 
   .prose-blob::after {
