@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import type { SkillDefinition, CliResult, Handshake, ReferenceLoader } from '../types.js';
-import { WorkflowEngine } from '../runtime/engine.js';
-import { autoAdvance } from './auto-advance.js';
+import type { CliResult, Handshake } from '../types.js';
 import { generatePreamble } from '../runtime/preamble.js';
 
 const SESSION_ID_LENGTH = 4;
+
+// --- MCP result types (transport-facing) ---
 
 export interface McpPromptResult {
   session: string;
@@ -31,52 +31,27 @@ export interface McpErrorResult {
 
 export type McpResult = McpPromptResult | McpDoneResult | McpErrorResult;
 
-class McpSession {
-  readonly id: string;
-  private engine: WorkflowEngine;
-  private _done = false;
+// --- Session interface ---
 
-  constructor(id: string, engine: WorkflowEngine) {
-    this.id = id;
-    this.engine = engine;
-  }
-
-  get done(): boolean {
-    return this._done;
-  }
-
-  async advance(stepName: string, output: unknown): Promise<CliResult> {
-    const raw = await this.engine.advance(stepName, output);
-    const result = await autoAdvance(this.engine, raw);
-    if (result.kind === 'done') {
-      this._done = true;
-    }
-    return result;
-  }
+export interface McpSession {
+  readonly done: boolean;
+  advance(stepName: string, output: unknown): Promise<CliResult>;
 }
 
-export class McpSessionManager {
-  private sessions = new Map<string, McpSession>();
-  private readonly skill: SkillDefinition;
-  private readonly handshake: Handshake;
-  private readonly refs: ReferenceLoader;
-  private readonly preamble: string;
+// --- Session map with lifecycle management ---
 
-  constructor(skill: SkillDefinition, handshake: Handshake, refs: ReferenceLoader) {
-    this.skill = skill;
-    this.handshake = handshake;
-    this.refs = refs;
+export class McpSessionMap {
+  private sessions = new Map<string, McpSession>();
+  readonly preamble: string;
+
+  constructor(handshake: Handshake) {
     this.preamble = generatePreamble(handshake);
   }
 
-  start(params: unknown): McpResult {
-    const sessionId = randomBytes(SESSION_ID_LENGTH).toString('hex');
-    const engine = new WorkflowEngine(this.skill, this.handshake, params, this.refs);
-    const session = new McpSession(sessionId, engine);
-    this.sessions.set(sessionId, session);
-
-    const startResult = engine.start();
-    return this.formatResult(sessionId, startResult, true);
+  register(session: McpSession): string {
+    const id = randomBytes(SESSION_ID_LENGTH).toString('hex');
+    this.sessions.set(id, session);
+    return id;
   }
 
   async advance(sessionId: string, stepName: string, output: unknown): Promise<McpResult> {
@@ -103,7 +78,7 @@ export class McpSessionManager {
     }
 
     const result = await session.advance(stepName, output);
-    const formatted = this.formatResult(sessionId, result, false);
+    const formatted = formatResult(sessionId, result, false);
 
     if (result.kind === 'done') {
       this.sessions.delete(sessionId);
@@ -112,42 +87,46 @@ export class McpSessionManager {
     return formatted;
   }
 
-  private formatResult(sessionId: string, result: CliResult, includesPreamble: boolean): McpResult {
-    switch (result.kind) {
-      case 'prompt':
-        return {
-          session: sessionId,
-          status: 'prompt',
-          step: result.step,
-          prompt: result.prompt,
-          schema: result.schema,
-          ...(includesPreamble ? { preamble: this.preamble } : {}),
-        };
+  formatStart(sessionId: string, result: CliResult): McpResult {
+    return formatResult(sessionId, result, true, this.preamble);
+  }
+}
 
-      case 'done':
-        return {
-          session: sessionId,
-          status: 'done',
-          finalOutput: result.finalOutput,
-        };
+function formatResult(sessionId: string, result: CliResult, includesPreamble: boolean, preamble?: string): McpResult {
+  switch (result.kind) {
+    case 'prompt':
+      return {
+        session: sessionId,
+        status: 'prompt',
+        step: result.step,
+        prompt: result.prompt,
+        schema: result.schema,
+        ...(includesPreamble && preamble ? { preamble } : {}),
+      };
 
-      case 'error':
-        return {
-          session: sessionId,
-          status: 'error',
-          step: result.step,
-          message: result.message,
-          retry: result.retry,
-        };
+    case 'done':
+      return {
+        session: sessionId,
+        status: 'done',
+        finalOutput: result.finalOutput,
+      };
 
-      case 'redirect':
-        return {
-          session: sessionId,
-          status: 'error',
-          step: '',
-          message: `Redirect to "${result.redirect}" — not supported in simple skill MCP mode.`,
-          retry: false,
-        };
-    }
+    case 'error':
+      return {
+        session: sessionId,
+        status: 'error',
+        step: result.step,
+        message: result.message,
+        retry: result.retry,
+      };
+
+    case 'redirect':
+      return {
+        session: sessionId,
+        status: 'error',
+        step: '',
+        message: `Unhandled redirect to "${result.redirect}".`,
+        retry: false,
+      };
   }
 }

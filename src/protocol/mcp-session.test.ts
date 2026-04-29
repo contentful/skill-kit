@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { McpSessionManager } from './mcp-session.js';
+import { McpSessionMap, type McpSession } from './mcp-session.js';
+import { WorkflowEngine } from '../runtime/engine.js';
+import { autoAdvance } from './auto-advance.js';
 import { skill, z } from '../index.js';
-import type { Handshake, ReferenceLoader } from '../types.js';
+import type { Handshake, ReferenceLoader, CliResult } from '../types.js';
 
 const HANDSHAKE: Handshake = { host: 'claude-code', toolsAvailable: [], isSubagent: false };
 const NOOP_REFS: ReferenceLoader = { load: () => '', asset: (p: string) => p };
@@ -32,93 +34,119 @@ function multiStepSkill() {
     .build();
 }
 
+class TestSession implements McpSession {
+  private engine: WorkflowEngine;
+  private _done = false;
+
+  constructor(def: ReturnType<typeof simpleSkill>, params: unknown = {}) {
+    this.engine = new WorkflowEngine(def, HANDSHAKE, params, NOOP_REFS);
+  }
+
+  get done() {
+    return this._done;
+  }
+
+  startEngine() {
+    return this.engine.start();
+  }
+
+  async advance(stepName: string, output: unknown): Promise<CliResult> {
+    const raw = await this.engine.advance(stepName, output);
+    const result = await autoAdvance(this.engine, raw);
+    if (result.kind === 'done') this._done = true;
+    return result;
+  }
+}
+
+function startSession(sessions: McpSessionMap, def: ReturnType<typeof simpleSkill>) {
+  const session = new TestSession(def);
+  const id = sessions.register(session);
+  const result = sessions.formatStart(id, session.startEngine());
+  return { id, result };
+}
+
 test('start returns prompt with preamble and session ID', () => {
-  const manager = new McpSessionManager(simpleSkill(), HANDSHAKE, NOOP_REFS);
-  const result = manager.start({});
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { result } = startSession(sessions, simpleSkill());
 
   assert.equal(result.status, 'prompt');
-  assert.equal(result.step, 'greet');
+  assert.ok('step' in result && result.step === 'greet');
   assert.ok(result.session);
   assert.equal(result.session.length, 8);
   assert.ok('preamble' in result && result.preamble);
-  assert.ok('prompt' in result && result.prompt);
-  assert.ok('schema' in result && result.schema);
 });
 
 test('start returns different session IDs', () => {
-  const manager = new McpSessionManager(simpleSkill(), HANDSHAKE, NOOP_REFS);
-  const r1 = manager.start({});
-  const r2 = manager.start({});
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { id: id1 } = startSession(sessions, simpleSkill());
+  const { id: id2 } = startSession(sessions, simpleSkill());
 
-  assert.notEqual(r1.session, r2.session);
+  assert.notEqual(id1, id2);
 });
 
 test('advance completes a single-step workflow', async () => {
-  const manager = new McpSessionManager(simpleSkill(), HANDSHAKE, NOOP_REFS);
-  const start = manager.start({});
-  assert.equal(start.status, 'prompt');
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { id } = startSession(sessions, simpleSkill());
 
-  const result = await manager.advance(start.session, 'greet', { message: 'hello' });
+  const result = await sessions.advance(id, 'greet', { message: 'hello' });
   assert.equal(result.status, 'done');
   assert.ok('finalOutput' in result);
 });
 
 test('advance walks through a multi-step workflow', async () => {
-  const manager = new McpSessionManager(multiStepSkill(), HANDSHAKE, NOOP_REFS);
-  const start = manager.start({});
-  assert.equal(start.status, 'prompt');
-  assert.equal(start.step, 'greet');
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { id } = startSession(sessions, multiStepSkill());
 
-  const r2 = await manager.advance(start.session, 'greet', { message: 'hi' });
+  const r2 = await sessions.advance(id, 'greet', { message: 'hi' });
   assert.equal(r2.status, 'prompt');
   assert.ok('step' in r2 && r2.step === 'ask');
   assert.ok(!('preamble' in r2) || !r2.preamble);
 
-  const r3 = await manager.advance(start.session, 'ask', { answer: '42' });
+  const r3 = await sessions.advance(id, 'ask', { answer: '42' });
   assert.equal(r3.status, 'done');
 });
 
 test('advance on unknown session returns error', async () => {
-  const manager = new McpSessionManager(simpleSkill(), HANDSHAKE, NOOP_REFS);
-  const result = await manager.advance('nonexistent', 'greet', {});
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const result = await sessions.advance('nonexistent', 'greet', {});
 
   assert.equal(result.status, 'error');
   assert.ok('message' in result && result.message.includes('Unknown session'));
 });
 
 test('advance on completed session returns error', async () => {
-  const manager = new McpSessionManager(simpleSkill(), HANDSHAKE, NOOP_REFS);
-  const start = manager.start({});
-  await manager.advance(start.session, 'greet', { message: 'hello' });
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { id } = startSession(sessions, simpleSkill());
+  await sessions.advance(id, 'greet', { message: 'hello' });
 
-  const result = await manager.advance(start.session, 'greet', { message: 'again' });
+  const result = await sessions.advance(id, 'greet', { message: 'again' });
   assert.equal(result.status, 'error');
   assert.ok('message' in result && result.message.includes('start tool'));
 });
 
 test('validation error returns retry-able error', async () => {
-  const manager = new McpSessionManager(simpleSkill(), HANDSHAKE, NOOP_REFS);
-  const start = manager.start({});
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { id } = startSession(sessions, simpleSkill());
 
-  const result = await manager.advance(start.session, 'greet', { wrong: 'field' });
+  const result = await sessions.advance(id, 'greet', { wrong: 'field' });
   assert.equal(result.status, 'error');
   assert.ok('retry' in result && result.retry === true);
 });
 
 test('multiple concurrent sessions are independent', async () => {
-  const manager = new McpSessionManager(multiStepSkill(), HANDSHAKE, NOOP_REFS);
-  const s1 = manager.start({});
-  const s2 = manager.start({});
+  const sessions = new McpSessionMap(HANDSHAKE);
+  const { id: id1 } = startSession(sessions, multiStepSkill());
+  const { id: id2 } = startSession(sessions, multiStepSkill());
 
-  await manager.advance(s1.session, 'greet', { message: 'a' });
-  const r2 = await manager.advance(s2.session, 'greet', { message: 'b' });
+  await sessions.advance(id1, 'greet', { message: 'a' });
+  const r2 = await sessions.advance(id2, 'greet', { message: 'b' });
 
   assert.equal(r2.status, 'prompt');
   assert.ok('step' in r2 && r2.step === 'ask');
 
-  const r1done = await manager.advance(s1.session, 'ask', { answer: 'x' });
+  const r1done = await sessions.advance(id1, 'ask', { answer: 'x' });
   assert.equal(r1done.status, 'done');
 
-  const r2done = await manager.advance(s2.session, 'ask', { answer: 'y' });
+  const r2done = await sessions.advance(id2, 'ask', { answer: 'y' });
   assert.equal(r2done.status, 'done');
 });

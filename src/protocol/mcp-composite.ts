@@ -1,58 +1,129 @@
 import { z } from 'zod';
-import type { SkillDefinition, ReferenceLoader } from '../types.js';
+import type { SkillDefinition, ReferenceLoader, CliResult, Handshake } from '../types.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { WorkflowEngine } from '../runtime/engine.js';
+import { SubskillEngine } from './subskill-engine.js';
+import { autoAdvance } from './auto-advance.js';
+import { McpSessionMap, type McpSession } from './mcp-session.js';
 import { resolveHost } from './host.js';
-import { McpCompositeSessionManager } from './mcp-composite-session.js';
+import { generateMcpCompositeInstructions } from './mcp-instructions.js';
+import { registerWorkflowTools, parseMcpFlags } from './mcp-tools.js';
+import type { SkillEngine } from './skill-engine.js';
+
+class CompositeSession implements McpSession {
+  private engine: SkillEngine;
+  private _done = false;
+  private readonly skill: SkillDefinition;
+  private readonly handshake: Handshake;
+  private readonly refs: ReferenceLoader;
+
+  constructor(engine: SkillEngine, skill: SkillDefinition, handshake: Handshake, refs: ReferenceLoader) {
+    this.engine = engine;
+    this.skill = skill;
+    this.handshake = handshake;
+    this.refs = refs;
+  }
+
+  get done() {
+    return this._done;
+  }
+
+  async advance(stepName: string, output: unknown): Promise<CliResult> {
+    const raw = await this.engine.advance(stepName, output);
+    const result = await autoAdvance(this.engine, raw);
+
+    if (result.kind === 'redirect') {
+      return this.handleRedirect(result);
+    }
+
+    if (result.kind === 'done') this._done = true;
+    return result;
+  }
+
+  private async handleRedirect(redirect: CliResult & { kind: 'redirect' }): Promise<CliResult> {
+    const target = redirect.redirect;
+
+    if (target.startsWith('topic:')) {
+      const topicName = target.slice('topic:'.length);
+      const topic = this.skill.topics?.[topicName];
+      if (!topic) {
+        return {
+          kind: 'error',
+          error: 'validation',
+          step: '',
+          message: `Redirect to unknown topic "${topicName}".`,
+          retry: false,
+        };
+      }
+      this._done = true;
+      return {
+        kind: 'done',
+        done: true,
+        finalOutput: { topic: topicName, content: topic.content({ refs: this.refs }) },
+        completed: redirect.completed,
+      };
+    }
+
+    if (target.startsWith('subskill:')) {
+      const subName = target.slice('subskill:'.length);
+      const sub = this.skill.subskills?.[subName];
+      if (!sub) {
+        return {
+          kind: 'error',
+          error: 'validation',
+          step: '',
+          message: `Redirect to unknown sub-skill "${subName}".`,
+          retry: false,
+        };
+      }
+
+      const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+      const subEngine = new SubskillEngine(sub.definition, this.handshake, params, this.refs, subName);
+      this.engine = subEngine;
+
+      const startResult = await autoAdvance(subEngine, subEngine.start());
+      if (startResult.kind === 'prompt' || startResult.kind === 'done') {
+        return { ...startResult, completed: redirect.completed };
+      }
+      return startResult;
+    }
+
+    return {
+      kind: 'error',
+      error: 'validation',
+      step: '',
+      message: `Unknown redirect target "${target}".`,
+      retry: false,
+    };
+  }
+}
 
 export function createMcpCompositeServer(
   skill: SkillDefinition,
   options: { host?: string; tools?: string[]; refs: ReferenceLoader },
 ): McpServer {
   const handshake = resolveHost(options.host, options.tools);
-  const sessions = new McpCompositeSessionManager(skill, handshake, options.refs);
+  const sessions = new McpSessionMap(handshake);
 
   const server = new McpServer(
     { name: skill.name, version: skill.version },
     {
       capabilities: { tools: {} },
-      instructions: generateMcpCompositeInstructions(skill, sessions),
+      instructions: generateMcpCompositeInstructions(skill),
     },
   );
 
-  server.registerTool(
-    'start',
-    {
-      description: `Start a new ${skill.name} workflow session. Returns the first step prompt.`,
-      inputSchema: z.object({
-        params: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe('Skill parameters. Omit if the skill takes no params.'),
-        subskill: z.string().optional().describe('Start a specific sub-skill directly. Omit to use the dispatcher.'),
-      }),
+  registerWorkflowTools(server, {
+    skillName: skill.name,
+    sessions,
+    onStart(params) {
+      const engine = new WorkflowEngine(skill, handshake, params, options.refs);
+      const session = new CompositeSession(engine, skill, handshake, options.refs);
+      const id = sessions.register(session);
+      return sessions.formatStart(id, engine.start());
     },
-    (args) => {
-      const result = sessions.start(args.params ?? {}, args.subskill);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    },
-  );
-
-  server.registerTool(
-    'advance',
-    {
-      description: `Submit step output for the current ${skill.name} workflow step and get the next prompt.`,
-      inputSchema: z.object({
-        session: z.string().describe('Session ID returned by the start tool.'),
-        step: z.string().describe('The step name being completed.'),
-        output: z.record(z.string(), z.unknown()).describe('JSON output matching the step schema.'),
-      }),
-    },
-    async (args) => {
-      const result = await sessions.advance(args.session, args.step, args.output);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    },
-  );
+  });
 
   if (skill.topics && Object.keys(skill.topics).length > 0) {
     const topicNames = Object.keys(skill.topics);
@@ -60,9 +131,7 @@ export function createMcpCompositeServer(
       'topic',
       {
         description: `Look up a reference topic. Available: ${topicNames.join(', ')}`,
-        inputSchema: z.object({
-          name: z.string().describe('Topic name.'),
-        }),
+        inputSchema: z.object({ name: z.string().describe('Topic name.') }),
       },
       (args) => {
         const topic = skill.topics?.[args.name];
@@ -86,34 +155,6 @@ export function createMcpCompositeServer(
   return server;
 }
 
-function generateMcpCompositeInstructions(skill: SkillDefinition, _sessions: McpCompositeSessionManager): string {
-  const subskills = skill.subskills ? Object.keys(skill.subskills) : [];
-  const topics = skill.topics ? Object.keys(skill.topics) : [];
-
-  const lines = [
-    `This MCP server runs the "${skill.name}" composite skill.`,
-    '',
-    'How to use:',
-    '1. Call "start" to begin a new session. Pass "subskill" to go directly to a sub-skill, or omit to use the dispatcher.',
-    '2. Read the preamble (first call only). It maps XML tags to your available tools.',
-    '3. Follow the prompt instructions. Produce JSON matching the schema.',
-    '4. Call "advance" with session, step, and output.',
-    '5. Repeat until status is "done".',
-    '',
-    'Sub-skill step names are prefixed (e.g., "doctor/diagnose").',
-    'Do not show raw JSON, session IDs, or tool calls to the user.',
-  ];
-
-  if (subskills.length > 0) {
-    lines.push('', `Available sub-skills: ${subskills.join(', ')}`);
-  }
-  if (topics.length > 0) {
-    lines.push('', `Reference topics (use "topic" tool): ${topics.join(', ')}`);
-  }
-
-  return lines.join('\n');
-}
-
 export async function mcpCompositeMain(def: SkillDefinition, refs: ReferenceLoader): Promise<void> {
   const flags = parseMcpFlags(process.argv);
 
@@ -125,30 +166,4 @@ export async function mcpCompositeMain(def: SkillDefinition, refs: ReferenceLoad
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-}
-
-interface McpFlags {
-  host?: string;
-  tools?: string[];
-}
-
-function parseMcpFlags(argv: string[]): McpFlags {
-  const args = argv.slice(2);
-  const flags: Record<string, string> = {};
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if (arg.startsWith('--') && i + 1 < args.length) {
-      flags[arg.slice(2)] = args[i + 1]!;
-      i++;
-    }
-  }
-
-  return {
-    host: flags['host'],
-    tools: flags['tools']
-      ?.split(',')
-      .map((t) => t.trim())
-      .filter(Boolean),
-  };
 }
