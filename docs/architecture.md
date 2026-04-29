@@ -124,6 +124,35 @@ History replay is cheap. The engine reconstructs state (stash, visit counts) fro
 
 ---
 
+## MCP Transport
+
+The CLI protocol works everywhere but requires multiple visible tool calls per step (Bash + file Read). The MCP transport wraps the same `SkillEngine` as a long-lived stdio MCP server, reducing each workflow step to a single MCP tool call.
+
+### How it works
+
+```
+scripts/run mcp --host claude-code
+```
+
+The binary starts an MCP stdio server (via `@modelcontextprotocol/sdk`). Two tools are registered:
+
+- **`start`** — creates a `WorkflowEngine`, returns the first step prompt with preamble
+- **`advance`** — calls `engine.advance()`, auto-advances prompt-less steps, returns next prompt or done
+
+State lives in memory — no JSONL files, no history replay. Session IDs link `start` and `advance` calls. When the workflow reaches `done`, the session is removed.
+
+### Relation to CLI mode
+
+Both transports share the same engine layer (`WorkflowEngine`, `SubskillEngine`, `autoAdvance`, `generatePreamble`). No MCP-specific engine logic exists. The MCP entry point is a thin adapter that maps MCP tool calls to engine method calls.
+
+The generated SKILL.md includes MCP instructions first, with CLI as a labeled fallback. The agent chooses which mode based on whether MCP tools are in its tool list.
+
+### Composite skills
+
+The MCP server handles dispatcher→subskill redirects internally. A `RedirectResult` triggers `SubskillEngine` creation within the same `advance` call. The agent sees prefixed step names and keeps calling `advance` until done.
+
+---
+
 ## The Host-Aware Prose System
 
 ### The architectural constraint

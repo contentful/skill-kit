@@ -195,7 +195,20 @@ Sub-skills are standalone `skill().build()` definitions — testable independent
 └─────────┘                      └─────────────┘
 ```
 
-The SDK supports two invocation modes. **Session mode** (recommended) writes protocol data to a JSONL temp file — the agent reads/writes the file instead of parsing verbose JSON from stdout. **Stateless mode** passes the full conversation history via `--history` on every `advance` call. Both modes reconstruct state, validate against Zod schemas, and return the next step's prompt. No persistent processes — just Bash calls that every agent host already supports.
+The SDK supports three invocation modes. **MCP mode** (preferred) runs the skill as a long-lived MCP stdio server — the agent interacts through `start`/`advance` tool calls with no Bash or file I/O visible to the user. **Session mode** writes protocol data to a JSONL temp file — the agent reads/writes the file instead of parsing verbose JSON from stdout. **Stateless mode** passes the full conversation history via `--history` on every `advance` call. All modes share the same engine, validate against Zod schemas, and return the next step's prompt.
+
+To use MCP mode, configure the skill as an MCP server in your agent host:
+
+```json
+{
+  "mcpServers": {
+    "my-skill": {
+      "command": "/path/to/skill/scripts/run",
+      "args": ["mcp", "--host", "claude-code"]
+    }
+  }
+}
+```
 
 ### Host-aware primitives
 

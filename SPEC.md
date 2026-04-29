@@ -1851,13 +1851,75 @@ The CLI can only emit text. The SDK's value is that it emits structured XML tags
 
 ## 15. Deliberately not in v0.1
 
-- **Persistent stdio protocol.** The original spec described a stdin/stdout JSON protocol with a long-running skill process. No agent host today natively supports managing a skill as a persistent subprocess. Single-invocation mode (§10) works with every host via plain Bash calls. Stdio can be added later if a harness ever supports it — the engine interface (`start()`/`advance()`) accommodates both equally.
+- ~~**Persistent stdio protocol.**~~ Implemented — see §16 (MCP transport). The skill binary now supports `scripts/run mcp` to start a long-lived MCP stdio server, eliminating the Bash+file-read overhead of the session protocol.
 - **Streaming.** One prompt/response per turn. Streaming is a harness concern.
 - **Parallel steps / fan-out.** Sequential only. Lands in v0.2 if a real use case emerges.
 - **Human-in-the-loop primitive.** Harness-provided for now; SDK may add a typed primitive once patterns stabilize.
 - **Visual authoring / flow editor.** Tooling, not SDK.
 - **Hot reload during execution.** Restart the run.
 - **Observability / metrics beyond stderr logging.** Harness responsibility.
+
+---
+
+## 16. MCP transport
+
+The CLI invocation protocol (§10) works everywhere but is noisy: each workflow step requires at least two visible tool calls (a Bash execution and a file Read). In coding harnesses like OpenCode, these are shown verbatim to the user. The MCP (Model Context Protocol) transport solves this by running the skill as a long-lived stdio server. The agent interacts through MCP tool calls, which most clients render as compact, non-intrusive operations.
+
+### Activation
+
+Every built skill binary supports MCP — no new build mode or flag is needed:
+
+```bash
+scripts/run mcp --host claude-code
+```
+
+The user configures their MCP client to start the skill as a server. For Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "repo-doctor": {
+      "command": "/path/to/skill/scripts/run",
+      "args": ["mcp", "--host", "claude-code"]
+    }
+  }
+}
+```
+
+The `--host` flag and optional `--tools` flag work the same as in CLI mode (§14). They're fixed at server startup — the host and tool set don't change within a session.
+
+### Tool surface
+
+The MCP server registers two tools with short names. MCP clients namespace them by server name (e.g., `mcp__repo_doctor__start`).
+
+**`start`** — begins a new workflow session:
+- Input: `{ params?: object }` — skill params, validated against the skill's param schema
+- Result: `{ session, status: "prompt", step, prompt, schema, preamble }`
+- The `preamble` maps XML tags to host tools, same as in CLI mode
+
+**`advance`** — submits step output and retrieves the next prompt:
+- Input: `{ session: string, step: string, output: object }`
+- Result: `{ status: "prompt", step, prompt, schema }` | `{ status: "done", finalOutput }` | `{ status: "error", step, message, retry }`
+
+For composite skills, a **`topic`** tool is also registered when topics exist.
+
+### State management
+
+Unlike CLI mode, the MCP server keeps the `WorkflowEngine` in memory for the life of the session. No JSONL file, no history replay, no serialization. Session IDs are 8-character hex strings (same format as CLI sessions). Sessions are removed from memory when the workflow reaches `done`.
+
+If the MCP server process dies, all sessions are lost. The MCP client restarts the process, and the agent must call `start` again. Write-ahead logging for crash recovery is not implemented — the simplicity of in-memory state is the point.
+
+### Relation to CLI mode
+
+MCP is additive — the CLI protocol is unchanged and both work from the same binary. The generated SKILL.md includes MCP instructions first with CLI as a labeled fallback. The agent chooses which mode to use based on whether MCP tools are in its tool list.
+
+The same `SkillEngine` interface powers both transports. The MCP entry point reuses `WorkflowEngine`, `SubskillEngine`, `autoAdvance`, and `generatePreamble` without any MCP-specific engine logic.
+
+### Composite skills
+
+For composite skills, the MCP server handles dispatcher→subskill redirects internally. When `engine.advance()` returns a `RedirectResult`, the server creates a `SubskillEngine` and returns the subskill's first prompt — all within a single `advance` tool call. The agent sees prefixed step names (e.g., `doctor/diagnose`) and keeps calling `advance` until done.
+
+Direct subskill access is available via the `subskill` parameter on `start`.
 
 ---
 

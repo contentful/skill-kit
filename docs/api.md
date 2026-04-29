@@ -1067,6 +1067,41 @@ Output (node mode):
   references/            ← Copied from source
 ```
 
+### MCP server mode
+
+Every built skill binary supports MCP as an alternative to the CLI protocol. Start the MCP server with:
+
+```bash
+scripts/run mcp --host claude-code
+```
+
+| Flag      | Description                                                         |
+| --------- | ------------------------------------------------------------------- |
+| `--host`  | Host identifier for tool resolution. Same values as CLI mode        |
+| `--tools` | Comma-separated list of available tools (merged with host registry) |
+
+The server registers two MCP tools:
+
+| Tool      | Input                                               | Description                         |
+| --------- | --------------------------------------------------- | ----------------------------------- |
+| `start`   | `{ params?: object }`                               | Begin a new workflow session        |
+| `advance` | `{ session: string, step: string, output: object }` | Submit step output, get next prompt |
+
+For composite skills, a `topic` tool is also registered when topics exist.
+
+Configure in your MCP client (e.g., Claude Code `settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-skill": {
+      "command": "/path/to/skill/scripts/run",
+      "args": ["mcp", "--host", "claude-code"]
+    }
+  }
+}
+```
+
 ### `skill-kit run`
 
 Dev mode — run a skill without compiling:
