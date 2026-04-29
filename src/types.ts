@@ -365,12 +365,14 @@ export interface PromptResult {
   prompt: string;
   schema: unknown;
   completed?: StepResult;
+  autoAdvanced?: StepResult[];
 }
 
 export interface DoneResult {
   done: true;
   finalOutput: unknown;
   completed?: StepResult;
+  autoAdvanced?: StepResult[];
 }
 
 export interface ValidationErrorResult {

@@ -60,6 +60,16 @@ export class SessionFile {
 
     for (const line of lines) {
       if (line.type === 'prompt' || line.type === 'done') {
+        const autoAdvanced = (line as Record<string, unknown>).autoAdvanced as StepResult[] | undefined;
+        if (autoAdvanced) {
+          for (const entry of autoAdvanced) {
+            history.push({
+              step: entry.step,
+              stepOutput: entry.stepOutput,
+              ...(entry.actionOutput !== undefined ? { actionOutput: entry.actionOutput } : {}),
+            });
+          }
+        }
         const completed = (line as Record<string, unknown>).completed as StepResult | undefined;
         if (completed) {
           history.push({

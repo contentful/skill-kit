@@ -1,4 +1,4 @@
-import type { CliResult, PromptResult } from '../types.js';
+import type { CliResult, PromptResult, DoneResult, StepResult } from '../types.js';
 
 const MAX_AUTO_ADVANCE = 20;
 
@@ -14,6 +14,8 @@ export async function autoAdvance(
 ): Promise<CliResult> {
   let current = result;
   let depth = 0;
+  const collected: StepResult[] = [];
+
   while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
     const prompt = current as PromptResult;
     if (!engine.isPromptless(prompt.step)) break;
@@ -23,6 +25,18 @@ export async function autoAdvance(
     }
     onIntermediateResult?.(current);
     current = await engine.advance(prompt.step, {});
+    if ('completed' in current && current.completed) {
+      collected.push(current.completed as StepResult);
+    }
+  }
+
+  if (collected.length === 0) return current;
+
+  if ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
+    return { ...(current as PromptResult), autoAdvanced: collected };
+  }
+  if ('done' in current) {
+    return { ...(current as DoneResult), autoAdvanced: collected };
   }
   return current;
 }
