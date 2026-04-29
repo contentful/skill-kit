@@ -1,23 +1,19 @@
-import type { SkillDefinition, CliResult } from '../types.js';
+import type { SkillDefinition } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { autoAdvance } from './auto-advance.js';
 import type { StartContext, AdvanceContext } from './invocation-context.js';
+import { createOutputWriter } from './output-writer.js';
 
 export async function handleStart(skill: SkillDefinition, ctx: StartContext): Promise<void> {
+  const writer = createOutputWriter(ctx.session);
   const engine = new WorkflowEngine(skill, ctx.handshake, ctx.params, ctx.refs);
   const startResult = engine.start();
-  const onIntermediate = ctx.session ? (r: CliResult) => ctx.session!.appendResult(r) : undefined;
-  const result = await autoAdvance(engine, startResult, onIntermediate);
-
-  if (ctx.session) {
-    const line = ctx.session.appendResult(result);
-    ctx.session.writeStartPointer(line);
-  } else {
-    process.stdout.write(JSON.stringify(result) + '\n');
-  }
+  const result = await autoAdvance(engine, startResult, writer.writeIntermediate);
+  writer.writeStart(result);
 }
 
 export async function handleAdvance(skill: SkillDefinition, ctx: AdvanceContext): Promise<void> {
+  const writer = createOutputWriter(ctx.session);
   const engine = new WorkflowEngine(skill, ctx.handshake, ctx.params, ctx.refs);
 
   if (ctx.history.length > 0) {
@@ -26,15 +22,8 @@ export async function handleAdvance(skill: SkillDefinition, ctx: AdvanceContext)
 
   engine.start();
   const advanceResult = await engine.advance(ctx.stepName, ctx.output);
-  const onIntermediate = ctx.session ? (r: CliResult) => ctx.session!.appendResult(r) : undefined;
-  const result = await autoAdvance(engine, advanceResult, onIntermediate);
-
-  if (ctx.session) {
-    const line = ctx.session.appendResult(result);
-    ctx.session.writePointer(line);
-  } else {
-    process.stdout.write(JSON.stringify(result) + '\n');
-  }
+  const result = await autoAdvance(engine, advanceResult, writer.writeIntermediate);
+  writer.writeAdvance(result);
 }
 
 function printHelp(skillName: string): void {

@@ -1,22 +1,13 @@
 import { dirname, resolve } from 'node:path';
-import type { SkillDefinition, RedirectResult, CliResult, ReferenceLoader, SessionOutputMode } from '../types.js';
+import type { SkillDefinition, RedirectResult, Handshake, ReferenceLoader, SessionOutputMode } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { createReferenceLoader } from '../runtime/reference-loader.js';
 import { SessionManager, type SessionFile } from './session.js';
 import { SubskillEngine } from './subskill-engine.js';
 import { autoAdvance } from './auto-advance.js';
 import type { HistoryEntry } from './types.js';
-import {
-  resolveStartContext,
-  resolveAdvanceContext,
-  resolveHandshake,
-  parseTools,
-  parseJsonFlag,
-} from './invocation-context.js';
-
-function sessionWriter(session: SessionFile | undefined): ((r: CliResult) => void) | undefined {
-  return session ? (r) => session.appendResult(r) : undefined;
-}
+import { resolveStartContext, resolveAdvanceContext, parseTools, parseJsonFlag } from './invocation-context.js';
+import { createOutputWriter, type OutputWriter } from './output-writer.js';
 
 function resolveSkillDir(): string {
   const binPath = process.execPath;
@@ -115,24 +106,6 @@ function extractDispatcherHistory(history: HistoryEntry[]): HistoryEntry[] {
   return history.filter((e) => !e.step.includes('/'));
 }
 
-function writeOutput(data: CliResult, session: SessionFile | undefined): void {
-  if (session) {
-    const line = session.appendResult(data);
-    session.writePointer(line);
-  } else {
-    process.stdout.write(JSON.stringify(data) + '\n');
-  }
-}
-
-function writeStartOutput(data: CliResult, session: SessionFile | undefined): void {
-  if (session) {
-    const line = session.appendResult(data);
-    session.writeStartPointer(line);
-  } else {
-    process.stdout.write(JSON.stringify(data) + '\n');
-  }
-}
-
 interface SessionContext {
   session: SessionFile | undefined;
   isStart: boolean;
@@ -228,13 +201,14 @@ async function handleDispatcher(
   refs: ReferenceLoader,
 ): Promise<void> {
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
+  const writer = createOutputWriter(session);
 
   if (isStart) {
     const ctx = resolveStartContext(parsed.flags, session, refs);
     const engine = new WorkflowEngine(def, ctx.handshake, ctx.params, refs);
     const startResult = engine.start();
-    const result = await autoAdvance(engine, startResult, sessionWriter(session));
-    writeStartOutput(result, session);
+    const result = await autoAdvance(engine, startResult, writer.writeIntermediate);
+    writer.writeStart(result);
     return;
   }
 
@@ -248,8 +222,8 @@ async function handleDispatcher(
     subEngine.replayHistory(ctx.history);
     subEngine.startForReplay();
     const subResult = await subEngine.advance(ctx.stepName, ctx.output);
-    const result = await autoAdvance(subEngine, subResult, sessionWriter(session));
-    writeOutput(result, session);
+    const result = await autoAdvance(subEngine, subResult, writer.writeIntermediate);
+    writer.writeAdvance(result);
     return;
   }
 
@@ -261,14 +235,14 @@ async function handleDispatcher(
   engine.start();
 
   const advanceResult = await engine.advance(ctx.stepName, ctx.output);
-  const result = await autoAdvance(engine, advanceResult, sessionWriter(session));
+  const result = await autoAdvance(engine, advanceResult, writer.writeIntermediate);
 
   if (result.kind === 'redirect') {
-    await handleRedirect(def, result, ctx.handshake, refs, session);
+    await handleRedirect(def, result, ctx.handshake, refs, writer);
     return;
   }
 
-  writeOutput(result, session);
+  writer.writeAdvance(result);
 }
 
 async function handleSubskill(
@@ -283,13 +257,14 @@ async function handleSubskill(
   }
 
   const { session, isStart } = resolveSessionForCommand(parsed.flags, parsed.command, def.name);
+  const writer = createOutputWriter(session);
 
   if (isStart) {
     const ctx = resolveStartContext(parsed.flags, session, refs);
     const subEngine = new SubskillEngine(sub.definition, ctx.handshake, ctx.params, refs, parsed.name);
     const startResult = subEngine.start();
-    const result = await autoAdvance(subEngine, startResult, sessionWriter(session));
-    writeStartOutput(result, session);
+    const result = await autoAdvance(subEngine, startResult, writer.writeIntermediate);
+    writer.writeStart(result);
     return;
   }
 
@@ -298,16 +273,16 @@ async function handleSubskill(
   subEngine.replayHistory(ctx.history);
   subEngine.startForReplay();
   const advanceResult = await subEngine.advance(ctx.stepName, ctx.output);
-  const result = await autoAdvance(subEngine, advanceResult, sessionWriter(session));
-  writeOutput(result, session);
+  const result = await autoAdvance(subEngine, advanceResult, writer.writeIntermediate);
+  writer.writeAdvance(result);
 }
 
 async function handleRedirect(
   def: SkillDefinition,
   redirect: RedirectResult,
-  handshake: ReturnType<typeof resolveHandshake>,
+  handshake: Handshake,
   refs: ReferenceLoader,
-  session: SessionFile | undefined,
+  writer: OutputWriter,
 ): Promise<void> {
   const target = redirect.redirect;
 
@@ -318,10 +293,12 @@ async function handleRedirect(
       throw new Error(`Redirect to unknown topic "${topicName}"`);
     }
     const content = topic.content({ refs });
-    writeOutput(
-      { kind: 'done', done: true, finalOutput: { topic: topicName, content }, completed: redirect.completed },
-      session,
-    );
+    writer.writeAdvance({
+      kind: 'done',
+      done: true,
+      finalOutput: { topic: topicName, content },
+      completed: redirect.completed,
+    });
     return;
   }
 
@@ -335,11 +312,11 @@ async function handleRedirect(
     const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
     const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, subName);
     const rawStart = subEngine.start();
-    const startResult = await autoAdvance(subEngine, rawStart, sessionWriter(session));
+    const startResult = await autoAdvance(subEngine, rawStart, writer.writeIntermediate);
     if (startResult.kind === 'prompt' || startResult.kind === 'done') {
-      writeOutput({ ...startResult, completed: redirect.completed }, session);
+      writer.writeAdvance({ ...startResult, completed: redirect.completed });
     } else {
-      writeOutput(startResult, session);
+      writer.writeAdvance(startResult);
     }
     return;
   }
