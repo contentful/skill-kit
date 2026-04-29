@@ -292,6 +292,10 @@ export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash ext
   finalOutput?: z.ZodType;
   skillMd?: string | ((skill: SkillDefinition) => string);
   package?: PackageConfig;
+  argumentHint?: string;
+  allowedTools?: string | string[];
+  paths?: string | string[];
+  context?: string;
 } & VersionStrategy;
 
 // --- Skill Definition (output of .build()) ---
@@ -311,6 +315,10 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
   readonly finalOutput: z.ZodType | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
   readonly package: PackageConfig | undefined;
+  readonly argumentHint: string | undefined;
+  readonly allowedTools: string | string[] | undefined;
+  readonly paths: string | string[] | undefined;
+  readonly context: string | undefined;
   readonly subskills?: Readonly<Record<string, SubskillRegistration>>;
   readonly topics?: Readonly<Record<string, TopicConfig>>;
 }

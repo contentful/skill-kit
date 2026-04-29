@@ -154,6 +154,10 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
       skillMd: this.config.skillMd,
       resolveVersion: this.config.resolveVersion ?? false,
       package: this.config.package,
+      argumentHint: this.config.argumentHint,
+      allowedTools: this.config.allowedTools,
+      paths: this.config.paths,
+      context: this.config.context,
       ...(hasSubskills ? { subskills: Object.freeze({ ...this.subskills }) } : {}),
       ...(hasTopics ? { topics: Object.freeze({ ...this.topics }) } : {}),
     };
