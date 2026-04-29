@@ -441,7 +441,7 @@ function printCompositeHelp(def: SkillDefinition): void {
 
   lines.push('');
   lines.push('Flags:');
-  lines.push('  --params      JSON string. Validated against context schema. (start only)');
+  lines.push('  --params       JSON string. Validated against skill params schema. (start only)');
   lines.push('  --step         Step name (advance only). Sub-skill steps: <subskill>/<step>');
   lines.push('  --output       JSON string. Agent response for the step. (advance only)');
   lines.push('  --history      JSON array of {step, output, action?} objects. (advance only)');
