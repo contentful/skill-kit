@@ -135,6 +135,34 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     frontmatter.push(`context: ${yamlDoubleQuoted(skill.context)}`);
   }
 
+  if (skill.license !== undefined) {
+    frontmatter.push(`license: ${yamlDoubleQuoted(skill.license)}`);
+  }
+
+  if (skill.compatibility !== undefined) {
+    frontmatter.push(`compatibility: ${yamlDoubleQuoted(skill.compatibility)}`);
+  }
+
+  if (skill.agent !== undefined) {
+    frontmatter.push(`agent: ${yamlDoubleQuoted(skill.agent)}`);
+  }
+
+  if (skill.model !== undefined) {
+    frontmatter.push(`model: ${yamlDoubleQuoted(skill.model)}`);
+  }
+
+  if (skill.effort !== undefined) {
+    frontmatter.push(`effort: ${yamlDoubleQuoted(skill.effort)}`);
+  }
+
+  if (skill.disableModelInvocation !== undefined) {
+    frontmatter.push(`disable-model-invocation: ${skill.disableModelInvocation}`);
+  }
+
+  if (skill.userInvocable !== undefined) {
+    frontmatter.push(`user-invocable: ${skill.userInvocable}`);
+  }
+
   frontmatter.push('---');
 
   const stepDescriptions = Object.entries(skill.steps)

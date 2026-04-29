@@ -24,6 +24,34 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
     frontmatter.push(`context: ${yamlDoubleQuoted(def.context)}`);
   }
 
+  if (def.license !== undefined) {
+    frontmatter.push(`license: ${yamlDoubleQuoted(def.license)}`);
+  }
+
+  if (def.compatibility !== undefined) {
+    frontmatter.push(`compatibility: ${yamlDoubleQuoted(def.compatibility)}`);
+  }
+
+  if (def.agent !== undefined) {
+    frontmatter.push(`agent: ${yamlDoubleQuoted(def.agent)}`);
+  }
+
+  if (def.model !== undefined) {
+    frontmatter.push(`model: ${yamlDoubleQuoted(def.model)}`);
+  }
+
+  if (def.effort !== undefined) {
+    frontmatter.push(`effort: ${yamlDoubleQuoted(def.effort)}`);
+  }
+
+  if (def.disableModelInvocation !== undefined) {
+    frontmatter.push(`disable-model-invocation: ${def.disableModelInvocation}`);
+  }
+
+  if (def.userInvocable !== undefined) {
+    frontmatter.push(`user-invocable: ${def.userInvocable}`);
+  }
+
   frontmatter.push('---');
 
   const topicList = Object.entries(def.topics)
