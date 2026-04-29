@@ -279,7 +279,7 @@ export const securityAudit: HeroStoryboard = {
     "    next: 'plan-and-write',",
     "  })",
     "  .step('plan-and-write', {",
-    "    prompt: act.plan({ steps: ['Summary', 'Analysis', 'Findings', 'Recs'] }),",
+    "    prompt: act.plan({ steps: ['Summary', 'Analysis', 'Findings'] }),",
     "    next: 'save-report',",
     "  })",
     "  .step('save-report', {",
