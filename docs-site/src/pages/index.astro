@@ -268,7 +268,6 @@ const base = import.meta.env.BASE_URL;
     line-height: 1.6;
     color: #94a3b8;
     position: relative;
-    max-height: 320px;
   }
 
   .prose-blob-header {
@@ -288,8 +287,17 @@ const base = import.meta.env.BASE_URL;
 
   .prose-blob-body {
     padding: 16px;
-    -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 95%);
-    mask-image: linear-gradient(to bottom, black 40%, transparent 95%);
+  }
+
+  .prose-blob::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, transparent, var(--color-code-bg));
+    pointer-events: none;
   }
 
   .prose-blob-body p {
@@ -352,8 +360,8 @@ const base = import.meta.env.BASE_URL;
 
   /* --- Primitives gallery --- */
   .primitives-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: var(--space-3);
   }
 
@@ -469,10 +477,6 @@ const base = import.meta.env.BASE_URL;
 
     .story-block-inner--reverse .story-text { order: 1; }
     .story-block-inner--reverse .story-visual { order: 2; }
-
-    .primitives-grid {
-      grid-template-columns: 1fr;
-    }
 
     .story-title {
       font-size: var(--text-xl);
