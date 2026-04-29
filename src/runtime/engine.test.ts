@@ -75,6 +75,22 @@ test('engine validates context schema on construction', () => {
   assert.doesNotThrow(() => new WorkflowEngine(s, genericHost, { path: '/src' }));
 });
 
+test('engine params error includes skill name and field path', () => {
+  const s = skill({ name: 'my-skill', entry: 'a', params: z.object({ target: z.string() }) })
+    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  assert.throws(
+    () => new WorkflowEngine(s, genericHost, {}),
+    (err: Error) => {
+      assert.ok(err.message.includes('my-skill'), 'should include skill name');
+      assert.ok(err.message.includes('target'), 'should include field name');
+      assert.ok(err.message.includes('--params'), 'should hint at --params flag');
+      return true;
+    },
+  );
+});
+
 test('engine enforces maxVisits and routes to onMaxVisits', async () => {
   const s = skill({ name: 'bounded', entry: 'loop' })
     .step('loop', {
@@ -885,4 +901,27 @@ test('prompt-less step with action runs action before transitioning', async () =
   const result = await engine.advance('check', {});
   assert.ok(actionRan);
   assert.equal((result as PromptResult).step, 'main');
+});
+
+test('engine with required params can be reconstructed for advance', async () => {
+  const s = skill({ name: 'param-advance', entry: 'a', params: z.object({ target: z.string() }) })
+    .step('a', {
+      prompt: (ctx) => `Target: ${(ctx.params as { target: string }).target}`,
+      output: z.object({ ok: z.boolean() }),
+      next: 'b',
+    })
+    .step('b', { prompt: 'Done', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const params = { target: 'https://example.com' };
+  const engine1 = new WorkflowEngine(s, genericHost, params);
+  engine1.start();
+  const r1 = await engine1.advance('a', { ok: true });
+  assert.equal((r1 as PromptResult).step, 'b');
+
+  const engine2 = new WorkflowEngine(s, genericHost, params);
+  engine2.replayHistory([{ step: 'a', stepOutput: { ok: true } }]);
+  engine2.start();
+  const r2 = await engine2.advance('b', {});
+  assert.equal((r2 as DoneResult).done, true);
 });
