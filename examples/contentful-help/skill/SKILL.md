@@ -1,8 +1,8 @@
 ---
 name: contentful-help
-description: 'Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup'
+description: "Diagnose, configure, and look up Contentful topics. Trigger keywords: contentful help, contentful doctor, contentful setup"
 metadata:
-  version: '1.0.0'
+  version: "1.0.0"
 ---
 
 # contentful-help
@@ -40,6 +40,25 @@ specific tool available in your environment. Refer to it throughout the workflow
 
 ## How to run this skill
 
+### MCP mode (preferred)
+
+If you have MCP tools for this skill (e.g., `mcp__contentful-help__start` and
+`mcp__contentful-help__advance`), use them instead of the CLI:
+
+1. Call the `start` tool (with `params` if the skill requires them).
+2. Read the `preamble` field (first call only). It maps XML tags to your available tools.
+3. Follow the `prompt` instructions. Produce a JSON object matching the `schema`.
+4. Call the `advance` tool with the `session`, `step`, and `output`.
+5. Repeat steps 3-4 until `status` is `"done"`.
+
+If you get `status: "error"` with `retry: true`, fix your output and resubmit.
+**Do not show raw JSON, session IDs, or MCP tool calls to the user.**
+
+Skip the rest of this section — the CLI instructions below are only needed when
+MCP tools are not available.
+
+### CLI mode (fallback)
+
 This SKILL.md file is inside the skill directory. Resolve the **absolute path** to `scripts/run`
 from this file's location (e.g., `/path/to/skill/scripts/run`). Use the absolute path in all
 Bash commands — do not `cd` into the skill directory.
@@ -52,7 +71,6 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
-
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -138,6 +156,7 @@ contains the skill's result. Present it to the user.
 - **choose**: (dynamic)
 - **get-space**: Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environm...
 - **ask-topic**: (dynamic)
+
 
 ## Sub-skills
 

@@ -1,8 +1,8 @@
 ---
 name: game-jam
-description: 'A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial'
+description: "A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial"
 metadata:
-  version: '1.0.0'
+  version: "1.0.0"
 ---
 
 # game-jam
@@ -40,6 +40,25 @@ specific tool available in your environment. Refer to it throughout the workflow
 
 ## How to run this skill
 
+### MCP mode (preferred)
+
+If you have MCP tools for this skill (e.g., `mcp__game-jam__start` and
+`mcp__game-jam__advance`), use them instead of the CLI:
+
+1. Call the `start` tool (with `params` if the skill requires them).
+2. Read the `preamble` field (first call only). It maps XML tags to your available tools.
+3. Follow the `prompt` instructions. Produce a JSON object matching the `schema`.
+4. Call the `advance` tool with the `session`, `step`, and `output`.
+5. Repeat steps 3-4 until `status` is `"done"`.
+
+If you get `status: "error"` with `retry: true`, fix your output and resubmit.
+**Do not show raw JSON, session IDs, or MCP tool calls to the user.**
+
+Skip the rest of this section — the CLI instructions below are only needed when
+MCP tools are not available.
+
+### CLI mode (fallback)
+
 This SKILL.md file is inside the skill directory. Resolve the **absolute path** to `scripts/run`
 from this file's location (e.g., `/path/to/skill/scripts/run`). Use the absolute path in all
 Bash commands — do not `cd` into the skill directory.
@@ -52,7 +71,6 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
-
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -85,16 +103,16 @@ with the registry (since top-level agents often under-report their tools).
 
 ## Parameters
 
-| Name         | Type                                             | Required | Default          |
-| ------------ | ------------------------------------------------ | -------- | ---------------- |
-| `difficulty` | `"beginner"` \| `"intermediate"` \| `"advanced"` | No       | `"intermediate"` |
+| Name | Type | Required | Default |
+|------|------|----------|---------|
+| `difficulty` | `"beginner"` \| `"intermediate"` \| `"advanced"` | No | `"intermediate"` |
 
 All parameters have defaults — `--params '{}'` is valid.
 
 Example:
 
 ```json
-{ "difficulty": "intermediate" }
+{"difficulty":"intermediate"}
 ```
 
 ### Step 1: Start with a session
