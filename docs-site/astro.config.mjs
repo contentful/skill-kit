@@ -10,7 +10,7 @@ export default defineConfig({
   integrations: [mdx(), react()],
   markdown: {
     shikiConfig: {
-      theme: 'vitesse-dark',
+      theme: 'github-dark',
     },
   },
 });
