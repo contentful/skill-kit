@@ -77,9 +77,31 @@ paths:
 - [x] Add fields to `ReferenceBuilderConfig`, `ReferenceDefinition`, and `generateReferenceMd` (user follow-up request)
 - [x] Update docs: SPEC.md, docs/api.md, docs-site workflow-skills.mdx, reference-skills.mdx, api/index.mdx
 - [x] Verify: typecheck + all tests + prettier + build an example
+- [x] Add practical-tier fields: license, compatibility, agent, model, effort, disableModelInvocation, userInvocable
+- [x] Add arguments field
+- [x] Refactor YAML output: allowed-tools → space-separated string, paths/arguments → inline arrays
+- [x] Add example values to example skills
+- [x] Final docs pass: all 5 locations updated for all 12 fields
+
+## Fields implemented
+
+| TypeScript               | YAML                       | Type                 | Format                 |
+| ------------------------ | -------------------------- | -------------------- | ---------------------- |
+| `argumentHint`           | `argument-hint`            | `string`             | quoted scalar          |
+| `arguments`              | `arguments`                | `string \| string[]` | inline array           |
+| `allowedTools`           | `allowed-tools`            | `string \| string[]` | space-separated string |
+| `paths`                  | `paths`                    | `string \| string[]` | inline array           |
+| `context`                | `context`                  | `string`             | quoted scalar          |
+| `license`                | `license`                  | `string`             | quoted scalar          |
+| `compatibility`          | `compatibility`            | `string`             | quoted scalar          |
+| `agent`                  | `agent`                    | `string`             | quoted scalar          |
+| `model`                  | `model`                    | `string`             | quoted scalar          |
+| `effort`                 | `effort`                   | `string`             | quoted scalar          |
+| `disableModelInvocation` | `disable-model-invocation` | `boolean`            | bare YAML              |
+| `userInvocable`          | `user-invocable`           | `boolean`            | bare YAML              |
 
 ## Notes
 
-- `compatibility` is mentioned in SPEC.md line 1246 but not implemented. Leaving as-is since it wasn't requested.
 - `skillMd` custom override is not wired in `buildSkill()` — the build always calls `generateSkillMd()`. Separate issue; new fields are still accessible to custom `skillMd` functions via the `skill` parameter.
 - Added reference skill support per user follow-up request after initial plan was approved.
+- `arguments` field emits in frontmatter but `$name` substitution in the generated SKILL.md body is not wired up — the body is auto-generated, not hand-written. Follow-up to explore deriving arguments from skill params.
