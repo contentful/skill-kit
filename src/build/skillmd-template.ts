@@ -124,11 +124,11 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
   }
 
   if (skill.allowedTools !== undefined && !(Array.isArray(skill.allowedTools) && skill.allowedTools.length === 0)) {
-    frontmatter.push(yamlStringOrList('allowed-tools', skill.allowedTools));
+    frontmatter.push(yamlSpaceSeparated('allowed-tools', skill.allowedTools));
   }
 
   if (skill.paths !== undefined && !(Array.isArray(skill.paths) && skill.paths.length === 0)) {
-    frontmatter.push(yamlStringOrList('paths', skill.paths));
+    frontmatter.push(yamlInlineList('paths', skill.paths));
   }
 
   if (skill.context !== undefined) {
@@ -295,12 +295,17 @@ function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
 }
 
-function yamlStringOrList(key: string, value: string | string[]): string {
+function yamlSpaceSeparated(key: string, value: string | string[]): string {
+  const joined = Array.isArray(value) ? value.join(' ') : value;
+  return `${key}: ${yamlDoubleQuoted(joined)}`;
+}
+
+function yamlInlineList(key: string, value: string | string[]): string {
   if (typeof value === 'string') {
     return `${key}: ${yamlDoubleQuoted(value)}`;
   }
-  const items = value.map((v) => `  - ${yamlDoubleQuoted(v)}`).join('\n');
-  return `${key}:\n${items}`;
+  const items = value.map((v) => yamlDoubleQuoted(v)).join(', ');
+  return `${key}: [${items}]`;
 }
 
 function generateSessionInstructions(paramsFlag: string): string {

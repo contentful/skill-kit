@@ -108,13 +108,13 @@ test('generateSkillMd emits allowed-tools as string in frontmatter', () => {
   assert.ok(result.includes('allowed-tools: "Bash Read Write"'));
 });
 
-test('generateSkillMd emits allowed-tools as YAML list in frontmatter', () => {
+test('generateSkillMd emits allowed-tools array as space-separated string', () => {
   const s = skill({ name: 'tools-arr', entry: 'a', allowedTools: ['Bash', 'Read', 'Write'] })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools:\n  - "Bash"\n  - "Read"\n  - "Write"'));
+  assert.ok(result.includes('allowed-tools: "Bash Read Write"'));
 });
 
 test('generateSkillMd emits paths as string in frontmatter', () => {
@@ -126,13 +126,13 @@ test('generateSkillMd emits paths as string in frontmatter', () => {
   assert.ok(result.includes('paths: "**/*.config.ts"'));
 });
 
-test('generateSkillMd emits paths as YAML list in frontmatter', () => {
+test('generateSkillMd emits paths array as inline YAML list', () => {
   const s = skill({ name: 'paths-arr', entry: 'a', paths: ['src/**/*.ts', 'tests/**/*.test.ts'] })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('paths:\n  - "src/**/*.ts"\n  - "tests/**/*.test.ts"'));
+  assert.ok(result.includes('paths: ["src/**/*.ts", "tests/**/*.test.ts"]'));
 });
 
 test('generateSkillMd emits context in frontmatter', () => {
@@ -236,8 +236,8 @@ test('generateSkillMd emits all frontmatter extension fields together', () => {
 
   const result = generateSkillMd(s);
   assert.ok(result.includes('argument-hint: "What to check"'));
-  assert.ok(result.includes('allowed-tools:\n  - "Bash"\n  - "Read"'));
-  assert.ok(result.includes('paths:\n  - "*.config.ts"'));
+  assert.ok(result.includes('allowed-tools: "Bash Read"'));
+  assert.ok(result.includes('paths: ["*.config.ts"]'));
   assert.ok(result.includes('context: "fork"'));
   assert.ok(result.includes('version: "2.0.0"'));
   assert.ok(result.includes('license: "MIT"'));
@@ -282,7 +282,7 @@ test('generateReferenceMd emits frontmatter extension fields', () => {
 
   const result = generateReferenceMd(ref);
   assert.ok(result.includes('argument-hint: "topic name"'));
-  assert.ok(result.includes('allowed-tools:\n  - "Read"\n  - "Bash"'));
+  assert.ok(result.includes('allowed-tools: "Read Bash"'));
   assert.ok(result.includes('paths: "docs/**/*.md"'));
   assert.ok(result.includes('context: "fork"'));
   assert.ok(result.includes('license: "MIT"'));

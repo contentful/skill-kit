@@ -13,11 +13,11 @@ export function generateReferenceMd(def: ReferenceDefinition): string {
   }
 
   if (def.allowedTools !== undefined && !(Array.isArray(def.allowedTools) && def.allowedTools.length === 0)) {
-    frontmatter.push(yamlStringOrList('allowed-tools', def.allowedTools));
+    frontmatter.push(yamlSpaceSeparated('allowed-tools', def.allowedTools));
   }
 
   if (def.paths !== undefined && !(Array.isArray(def.paths) && def.paths.length === 0)) {
-    frontmatter.push(yamlStringOrList('paths', def.paths));
+    frontmatter.push(yamlInlineList('paths', def.paths));
   }
 
   if (def.context !== undefined) {
@@ -90,10 +90,15 @@ function yamlDoubleQuoted(value: string): string {
   return JSON.stringify(value);
 }
 
-function yamlStringOrList(key: string, value: string | string[]): string {
+function yamlSpaceSeparated(key: string, value: string | string[]): string {
+  const joined = Array.isArray(value) ? value.join(' ') : value;
+  return `${key}: ${yamlDoubleQuoted(joined)}`;
+}
+
+function yamlInlineList(key: string, value: string | string[]): string {
   if (typeof value === 'string') {
     return `${key}: ${yamlDoubleQuoted(value)}`;
   }
-  const items = value.map((v) => `  - ${yamlDoubleQuoted(v)}`).join('\n');
-  return `${key}:\n${items}`;
+  const items = value.map((v) => yamlDoubleQuoted(v)).join(', ');
+  return `${key}: [${items}]`;
 }
