@@ -6,7 +6,17 @@ import { resolveStartContext, resolveAdvanceContext, parseTools, parseJsonFlag }
 
 const NOOP_REFS = { load: () => '', asset: (p: string) => p };
 
+function isMcpCommand(argv: string[]): boolean {
+  return argv.length > 2 && argv[2] === 'mcp';
+}
+
 export async function main(skill: SkillDefinition): Promise<void> {
+  if (isMcpCommand(process.argv)) {
+    const { mcpMain } = await import('./mcp-entry.js');
+    await mcpMain(skill);
+    return;
+  }
+
   const { command, flags, booleans } = parseArgs(process.argv);
 
   try {

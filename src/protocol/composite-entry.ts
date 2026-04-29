@@ -38,7 +38,18 @@ function resolveSession(flags: Record<string, string>, command: 'start' | 'advan
   return undefined;
 }
 
+function isMcpCommand(argv: string[]): boolean {
+  return argv.length > 2 && argv[2] === 'mcp';
+}
+
 export async function compositeMain(def: SkillDefinition, refsBasePath?: string): Promise<void> {
+  if (isMcpCommand(process.argv)) {
+    const refs = createReferenceLoader(refsBasePath ?? resolveSkillDir());
+    const { mcpCompositeMain } = await import('./mcp-composite.js');
+    await mcpCompositeMain(def, refs);
+    return;
+  }
+
   const subskillNames = def.subskills ? Object.keys(def.subskills) : [];
   const parsed = parseCompositeArgs(process.argv, subskillNames);
   const refs = createReferenceLoader(refsBasePath ?? resolveSkillDir());
