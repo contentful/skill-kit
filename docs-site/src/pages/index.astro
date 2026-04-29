@@ -9,6 +9,32 @@ const base = import.meta.env.BASE_URL;
 <BaseLayout title="skill-kit — TypeScript SDK for Agent Skills">
   <Hero />
 
+  <section class="story">
+    <div class="story-inner">
+      <div class="story-block">
+        <h2 class="story-headline">Agent skills are simple. Until they're not.</h2>
+        <p class="story-body">
+          A one-shot task is easy to prompt. But the moment you need to gather input, delegate research,
+          get approval, and produce a report, a prompt blob is not a workflow. It's a wish.
+        </p>
+      </div>
+      <div class="story-block">
+        <h2 class="story-headline">skill-kit makes the workflow explicit.</h2>
+        <p class="story-body">
+          Each step is typed. Transitions are code, not hope. The agent reasons within each step.
+          The skill decides what happens next.
+        </p>
+      </div>
+      <div class="story-block">
+        <h2 class="story-headline">You get the structure. Your users get the experience.</h2>
+        <p class="story-body">
+          Surveys, plan approvals, subagent delegation, structured output.
+          The SDK renders the right UI for every host, from Claude Code to Codex to any MCP client.
+        </p>
+      </div>
+    </div>
+  </section>
+
   <section class="features">
     <div class="section-inner">
       <h2 class="section-heading">Why skill-kit</h2>
@@ -80,6 +106,41 @@ const base = import.meta.env.BASE_URL;
     border-bottom: none;
     margin-top: 0;
     padding-bottom: 0;
+  }
+
+  /* Story */
+  .story {
+    padding: var(--space-7) 0 var(--space-6);
+  }
+
+  .story-inner {
+    max-width: 36rem;
+    margin: 0 auto;
+    padding: 0 var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+  }
+
+  .story-block {
+    text-align: center;
+  }
+
+  .story-headline {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+  }
+
+  .story-body {
+    font-size: var(--text-base);
+    color: var(--color-text-muted);
+    line-height: 1.7;
+    margin: 0;
   }
 
   /* Features */
