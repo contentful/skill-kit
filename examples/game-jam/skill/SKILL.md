@@ -1,8 +1,8 @@
 ---
 name: game-jam
-description: "A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial"
+description: 'A guided game creation skill that walks you through designing, planning, and building a browser-based Tetris game. Demonstrates all SDK primitives: askUser, confirm, plan, checklist, and subagent. Trigger keywords: game jam, build a game, tetris, game tutorial'
 metadata:
-  version: "1.0.0"
+  version: '1.0.0'
 ---
 
 # game-jam
@@ -71,6 +71,7 @@ read a file called `skill-kit-<id>.jsonl`. They should allow both permanently.
 ### Detect your host
 
 Determine which agent host you are running in, and pass it as `--host`:
+
 - Claude Code: `--host claude-code`
 - Codex: `--host codex`
 - OpenCode: `--host opencode`
@@ -103,16 +104,16 @@ with the registry (since top-level agents often under-report their tools).
 
 ## Parameters
 
-| Name | Type | Required | Default |
-|------|------|----------|---------|
-| `difficulty` | `"beginner"` \| `"intermediate"` \| `"advanced"` | No | `"intermediate"` |
+| Name         | Type                                             | Required | Default          |
+| ------------ | ------------------------------------------------ | -------- | ---------------- |
+| `difficulty` | `"beginner"` \| `"intermediate"` \| `"advanced"` | No       | `"intermediate"` |
 
 All parameters have defaults — `--params '{}'` is valid.
 
 Example:
 
 ```json
-{"difficulty":"intermediate"}
+{ "difficulty": "intermediate" }
 ```
 
 ### Step 1: Start with a session

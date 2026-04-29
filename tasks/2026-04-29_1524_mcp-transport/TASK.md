@@ -3,6 +3,7 @@
 ## Scope
 
 **In scope:**
+
 - MCP stdio server entry point for simple skills (`mcpMain`)
 - MCP stdio server entry point for composite skills (`mcpCompositeMain`)
 - `McpSessionManager` + `McpSession` for in-memory stateful workflow management
@@ -14,6 +15,7 @@
 - Documentation updates (SPEC.md, docs/, docs-site/, README)
 
 **Out of scope:**
+
 - Crash recovery / JSONL write-ahead log (deferred)
 - MCP resources (topics are tools for now)
 - MCP elicitation/sampling (acknowledged in SPEC.md as not fitting our model)
@@ -24,6 +26,7 @@
 The stateful file-based protocol requires multiple visible agent operations per step (Bash calls + file reads). MCP stdio servers hide this behind tool calls, making the experience quieter and more magical. SPEC.md deferred persistent stdio to post-v0.1 but the engine interface was designed to accommodate it.
 
 User feedback:
+
 - Multiple skills may be installed simultaneously as separate MCP servers — tools need namespacing. Using short names (`start`, `advance`) since MCP clients namespace by server name.
 - Sessions need explicit lifecycle: `start` creates a session, `advance` uses it, completing returns done, advancing a done session errors.
 - Zod 4 / MCP SDK Zod 3 conflict resolved by passing raw JSON Schema objects.
@@ -35,12 +38,14 @@ User feedback:
 Two tools: `start` and `advance`. Short names, namespaced by MCP server name.
 
 **`start` tool:**
+
 ```
 Input:  { params?: object }
 Result: { session: string, status: "prompt", step, prompt, schema, preamble }
 ```
 
 **`advance` tool:**
+
 ```
 Input:  { session: string, step: string, output: object }
 Result: { status: "prompt", step, prompt, schema }
@@ -49,6 +54,7 @@ Result: { status: "prompt", step, prompt, schema }
 ```
 
 **`topic` tool (composite only):**
+
 ```
 Input:  { name: string }
 Result: { content: string }
@@ -87,6 +93,7 @@ Use the MCP SDK's `Server` class (low-level) or check if `McpServer.registerTool
 ### Composite skill redirect handling
 
 When `engine.advance()` returns a `RedirectResult`:
+
 1. Resolve the target (subskill or topic)
 2. For subskill: create `SubskillEngine`, start it, auto-advance, return the prompt
 3. Replace the session's engine reference with the subskill engine
