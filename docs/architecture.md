@@ -73,6 +73,7 @@ The preamble is emitted once. It establishes session-wide conventions (XML tag-t
 scripts/run advance \
   --step diagnose \
   --output '{"checks":[{"name":"ci","status":"fail","detail":"no config"}]}' \
+  --params '{"path":"."}' \
   --history '[{"step":"diagnose","output":{...}}]' \
   --host claude-code
 ```

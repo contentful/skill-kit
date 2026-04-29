@@ -86,6 +86,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             stepName,
             output,
             history,
+            session.header.params,
             session.header.host,
             session,
             session.header.tools,
@@ -97,6 +98,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
           const history = flags['history']
             ? (JSON.parse(flags['history']) as Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>)
             : [];
+          const params = flags['params'] ? (JSON.parse(flags['params']) as unknown) : {};
 
           if (!step) {
             process.stderr.write('error: --step is required for advance\n');
@@ -107,7 +109,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
             process.exit(1);
           }
 
-          await handleAdvance(skill, step, output, history, flags['host'], undefined, tools, isSubagent);
+          await handleAdvance(skill, step, output, history, params, flags['host'], undefined, tools, isSubagent);
         }
         break;
       }

@@ -299,11 +299,15 @@ async function handleDispatcher(
   }
 
   const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
+  const params =
+    session?.header.params ?? (parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {});
 
   const subskillName = detectSubskill(stepName);
   if (subskillName) {
     const sub = def.subskills?.[subskillName];
     if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
+    // Subskill params are derived from stash during redirect, not from CLI flags.
+    // The subskill engine rebuilds stash from history — pass {} here.
     const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, subskillName);
     subEngine.replayHistory(history as HistoryEntry[]);
     subEngine.startForReplay();
@@ -313,7 +317,7 @@ async function handleDispatcher(
     return;
   }
 
-  const engine = new WorkflowEngine(def, handshake, {}, refs);
+  const engine = new WorkflowEngine(def, handshake, params, refs);
   const dispatcherHistory = extractDispatcherHistory(history as HistoryEntry[]);
   if (dispatcherHistory.length > 0) {
     engine.replayHistory(dispatcherHistory);
@@ -357,7 +361,9 @@ async function handleSubskill(
   }
 
   const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
-  const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, parsed.name);
+  const subParams =
+    session?.header.params ?? (parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {});
+  const subEngine = new SubskillEngine(sub.definition, handshake, subParams, refs, parsed.name);
   subEngine.replayHistory(history as HistoryEntry[]);
   subEngine.startForReplay();
   const advanceResult = await subEngine.advance(stepName, output);

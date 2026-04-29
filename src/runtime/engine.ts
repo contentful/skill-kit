@@ -59,7 +59,14 @@ export class WorkflowEngine {
     if (skill.params) {
       const result = skill.params.safeParse(params);
       if (!result.success) {
-        throw new Error(`Invalid params: ${result.error.issues.map((i: { message: string }) => i.message).join('; ')}`);
+        const details = result.error.issues
+          .map((i: { path: PropertyKey[]; message: string }) =>
+            i.path.length > 0 ? `"${i.path.map(String).join('.')}": ${i.message}` : i.message,
+          )
+          .join('; ');
+        throw new Error(
+          `Invalid params for skill "${skill.name}": ${details}. Pass --params with the required fields.`,
+        );
       }
       this.skillParams = Object.freeze(result.data);
     } else {
