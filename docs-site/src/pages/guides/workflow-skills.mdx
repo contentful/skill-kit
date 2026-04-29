@@ -47,7 +47,7 @@ export default skill({
 | `skillMd`                | `string \| ((skill) => string)` | No       | Custom SKILL.md template. Overrides the generated default.                                                   |
 | `argumentHint`           | `string`                        | No       | Autocomplete hint text. Emitted as `argument-hint` in SKILL.md frontmatter.                                  |
 | `arguments`              | `string \| string[]`            | No       | Named positional arguments for `$name` substitution in skill content. Emitted as `arguments` in frontmatter. |
-| `allowedTools`           | `string \| string[]`            | No       | Pre-approved tools. Emitted as `allowed-tools` in SKILL.md frontmatter.                                      |
+| `allowedTools`           | `string \| string[]`            | No       | Additional pre-approved tools. Build always includes `Bash(scripts/run *)` and `Read`.                       |
 | `paths`                  | `string \| string[]`            | No       | Glob patterns for file-based activation. Emitted as `paths` in frontmatter.                                  |
 | `context`                | `string`                        | No       | Execution context (e.g. `'fork'`). Emitted as `context` in frontmatter.                                      |
 | `license`                | `string`                        | No       | License name or reference. Emitted as `license` in frontmatter.                                              |

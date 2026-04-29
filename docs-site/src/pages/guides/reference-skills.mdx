@@ -37,7 +37,7 @@ export default reference({
 | `version`                | `string`             | No       | Semver version. Defaults to `'0.0.0'`.                                                                       |
 | `argumentHint`           | `string`             | No       | Autocomplete hint text. Emitted as `argument-hint` in frontmatter.                                           |
 | `arguments`              | `string \| string[]` | No       | Named positional arguments for `$name` substitution in skill content. Emitted as `arguments` in frontmatter. |
-| `allowedTools`           | `string \| string[]` | No       | Pre-approved tools. Emitted as `allowed-tools` in frontmatter.                                               |
+| `allowedTools`           | `string \| string[]` | No       | Additional pre-approved tools. Build always includes `Bash(scripts/run *)` and `Read`.                       |
 | `paths`                  | `string \| string[]` | No       | Glob patterns for file-based activation. Emitted as `paths`.                                                 |
 | `context`                | `string`             | No       | Execution context (e.g. `'fork'`). Emitted as `context`.                                                     |
 | `license`                | `string`             | No       | License name or reference. Emitted as `license`.                                                             |
