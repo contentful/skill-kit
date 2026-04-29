@@ -66,15 +66,18 @@ Split the 464-line god module into: `arg-parser.ts`, `dispatcher-handler.ts`, `s
 
 ## Steps
 
-- [ ] Create branch `refactor/protocol-layer-structure`
-- [ ] Commit task document
-- [ ] Phase 1: Add `kind` discriminant to CliResult
-- [ ] Phase 2: SkillEngine interface + HistoryEntry consolidation
-- [ ] Phase 3: InvocationContext
-- [ ] Phase 4: OutputWriter
-- [ ] Phase 5: History validation
-- [ ] Phase 6: Decompose composite-entry.ts
+- [x] Create branch `refactor/protocol-layer-structure`
+- [x] Commit task document
+- [x] Phase 1: Add `kind` discriminant to CliResult
+- [x] Phase 2: SkillEngine interface + HistoryEntry consolidation
+- [x] Phase 3: InvocationContext
+- [x] Phase 4: OutputWriter
+- [x] Phase 5: History validation
+- [x] Phase 6: Decompose composite-entry.ts
 
 ## Notes
 
-_Running log of decisions made during implementation._
+- Phase 1: Also found a manually-constructed `DoneResult` in `handleRedirect` (topic path) that was missing `kind`, causing session serialization to write `type: undefined`. Fixed by adding `kind: 'done'`.
+- Phase 1: The `{ ...startResult, completed: redirect.completed }` spread on subskill redirect needed type narrowing — `startResult` is a `CliResult` union, and adding `completed` to a `ValidationErrorResult` is invalid. Added `kind` check before spreading.
+- Phase 3: Kept `resolveSessionForCommand` in composite-entry.ts since session creation logic differs between composite and single entry points (composite passes tools/isSubagent from flags to session header). Extracted shared helpers (`parseTools`, `parseJsonFlag`, `resolveHandshake`, `resolveParams`) to invocation-context.ts.
+- Phase 6: Kept `resolveSession` in composite-entry.ts (session creation is entry-point-specific). Extracted 5 new modules. `drainPromptless` dedup deferred — the run-skill.ts version tracks `path` (string array) while autoAdvance doesn't, so they're not trivially interchangeable without changing the test harness API.
