@@ -1,4 +1,4 @@
-import type { CliResult, PromptResult, DoneResult, StepResult } from '../types.js';
+import type { CliResult, StepResult } from '../types.js';
 
 const MAX_AUTO_ADVANCE = 20;
 
@@ -16,27 +16,28 @@ export async function autoAdvance(
   let depth = 0;
   const collected: StepResult[] = [];
 
-  while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
-    const prompt = current as PromptResult;
-    if (!engine.isPromptless(prompt.step)) break;
+  while (current.kind === 'prompt') {
+    if (!engine.isPromptless(current.step)) break;
     depth += 1;
     if (depth > MAX_AUTO_ADVANCE) {
       throw new Error(`Auto-advance depth exceeded (${MAX_AUTO_ADVANCE}). Check for infinite prompt-less step loops.`);
     }
     onIntermediateResult?.(current);
-    current = await engine.advance(prompt.step, {});
-    if ('completed' in current && current.completed) {
-      collected.push(current.completed as StepResult);
+    current = await engine.advance(current.step, {});
+    if (current.kind === 'prompt' || current.kind === 'done') {
+      if (current.completed) {
+        collected.push(current.completed);
+      }
     }
   }
 
   if (collected.length === 0) return current;
 
-  if ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
-    return { ...(current as PromptResult), autoAdvanced: collected };
+  if (current.kind === 'prompt') {
+    return { ...current, autoAdvanced: collected };
   }
-  if ('done' in current) {
-    return { ...(current as DoneResult), autoAdvanced: collected };
+  if (current.kind === 'done') {
+    return { ...current, autoAdvanced: collected };
   }
   return current;
 }

@@ -1,12 +1,4 @@
-import type {
-  SkillDefinition,
-  Handshake,
-  ModelAdapter,
-  SkillRunResult,
-  PromptResult,
-  DoneResult,
-  CliResult,
-} from '../types.js';
+import type { SkillDefinition, Handshake, ModelAdapter, SkillRunResult, CliResult } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 
 export interface RunSkillOptions {
@@ -20,15 +12,14 @@ const MAX_AUTO_ADVANCE = 20;
 async function drainPromptless(engine: WorkflowEngine, result: CliResult, path: string[]): Promise<CliResult> {
   let current = result;
   let depth = 0;
-  while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
-    const prompt = current as PromptResult;
-    if (!engine.isPromptless(prompt.step)) break;
+  while (current.kind === 'prompt') {
+    if (!engine.isPromptless(current.step)) break;
     depth += 1;
     if (depth > MAX_AUTO_ADVANCE) {
       throw new Error(`Auto-advance depth exceeded (${MAX_AUTO_ADVANCE}). Check for infinite prompt-less step loops.`);
     }
-    path.push(prompt.step);
-    current = await engine.advance(prompt.step, {});
+    path.push(current.step);
+    current = await engine.advance(current.step, {});
   }
   return current;
 }
@@ -47,10 +38,13 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
   const outputs: Record<string, unknown> = {};
 
   let initial = await drainPromptless(engine, startResult, path);
-  if ('done' in initial && (initial as DoneResult).done) {
-    return { path, outputs, stepOutput: (initial as DoneResult).finalOutput, history: engine['history'].all() };
+  if (initial.kind === 'done') {
+    return { path, outputs, stepOutput: initial.finalOutput, history: engine['history'].all() };
   }
-  let current = initial as PromptResult;
+  if (initial.kind !== 'prompt') {
+    throw new Error(`Unexpected result kind "${initial.kind}" at start`);
+  }
+  let current = initial;
 
   while (true) {
     path.push(current.step);
@@ -58,7 +52,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
     const response = await opts.model.respond(current.step, current.prompt);
     const result = await engine.advance(current.step, response);
 
-    if ('error' in result) {
+    if (result.kind === 'error') {
       throw new Error(`Validation error at step "${result.step}": ${result.message}`);
     }
 
@@ -66,15 +60,18 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
 
     const drained = await drainPromptless(engine, result, path);
 
-    if ('done' in drained && (drained as DoneResult).done) {
+    if (drained.kind === 'done') {
       return {
         path,
         outputs,
-        stepOutput: (drained as DoneResult).finalOutput,
+        stepOutput: drained.finalOutput,
         history: engine['history'].all(),
       };
     }
 
-    current = drained as PromptResult;
+    if (drained.kind !== 'prompt') {
+      throw new Error(`Unexpected result kind "${drained.kind}" during run`);
+    }
+    current = drained;
   }
 }

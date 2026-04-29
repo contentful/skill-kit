@@ -2,14 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, appendFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type {
-  SessionHeader,
-  SessionOutputMode,
-  SessionPointer,
-  CliResult,
-  PromptResult,
-  StepResult,
-} from '../types.js';
+import type { SessionHeader, SessionOutputMode, SessionPointer, CliResult, StepResult } from '../types.js';
 
 const SESSION_ID_LENGTH = 4;
 const SESSION_FILE_PREFIX = 'skill-kit-';
@@ -186,14 +179,5 @@ export class SessionManager {
 }
 
 function addTypeField(result: CliResult): Record<string, unknown> {
-  if ('done' in result) return { type: 'done', ...result };
-  if ('error' in result) return { type: 'error', ...result };
-  if ('redirect' in result) return { type: 'redirect', ...result };
-  const prompt = result as PromptResult;
-  const obj: Record<string, unknown> = { type: 'prompt', step: prompt.step };
-  if (prompt.preamble) obj.preamble = prompt.preamble;
-  obj.prompt = prompt.prompt;
-  obj.schema = prompt.schema;
-  if (prompt.completed) obj.completed = prompt.completed;
-  return obj;
+  return { type: result.kind, ...result };
 }

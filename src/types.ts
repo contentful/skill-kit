@@ -360,6 +360,7 @@ export type Buildable = SkillDefinition | ReferenceDefinition;
 // --- Protocol (CLI output) ---
 
 export interface PromptResult {
+  readonly kind: 'prompt';
   step: string;
   preamble?: string;
   prompt: string;
@@ -369,6 +370,7 @@ export interface PromptResult {
 }
 
 export interface DoneResult {
+  readonly kind: 'done';
   done: true;
   finalOutput: unknown;
   completed?: StepResult;
@@ -376,6 +378,7 @@ export interface DoneResult {
 }
 
 export interface ValidationErrorResult {
+  readonly kind: 'error';
   error: 'validation';
   step: string;
   message: string;
@@ -383,12 +386,26 @@ export interface ValidationErrorResult {
 }
 
 export interface RedirectResult {
+  readonly kind: 'redirect';
   redirect: string;
   completed: StepResult;
   stash: unknown;
 }
 
 export type CliResult = PromptResult | DoneResult | ValidationErrorResult | RedirectResult;
+
+export function isPrompt(r: CliResult): r is PromptResult {
+  return r.kind === 'prompt';
+}
+export function isDone(r: CliResult): r is DoneResult {
+  return r.kind === 'done';
+}
+export function isError(r: CliResult): r is ValidationErrorResult {
+  return r.kind === 'error';
+}
+export function isRedirect(r: CliResult): r is RedirectResult {
+  return r.kind === 'redirect';
+}
 
 // --- Session Protocol ---
 

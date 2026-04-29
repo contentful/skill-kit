@@ -82,7 +82,7 @@ export class WorkflowEngine {
     const rawPreamble = generatePreamble(this.handshake);
     const preamble = this.skill.system ? `${this.skill.system}\n\n${rawPreamble}` : rawPreamble;
     this.observers.fire('onStepStart', { step: this.currentStep, params: this.skillParams });
-    return { step, preamble, prompt, schema };
+    return { kind: 'prompt', step, preamble, prompt, schema };
   }
 
   isPromptless(stepName: string): boolean {
@@ -94,7 +94,13 @@ export class WorkflowEngine {
     const stepStartTime = Date.now();
     const stepDef = this.skill.steps[stepName];
     if (!stepDef) {
-      return { error: 'validation', step: stepName, message: `Unknown step "${stepName}"`, retry: false };
+      return {
+        kind: 'error',
+        error: 'validation',
+        step: stepName,
+        message: `Unknown step "${stepName}"`,
+        retry: false,
+      };
     }
 
     let stepOutput: unknown;
@@ -109,6 +115,7 @@ export class WorkflowEngine {
           attempt: this.history.visitCount(stepName) + 1,
         });
         return {
+          kind: 'error',
           error: 'validation',
           step: stepName,
           message: validation.error!,
@@ -174,7 +181,7 @@ export class WorkflowEngine {
     if (!this.skill.steps[nextStep]) {
       this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'redirect' });
       await this.observers.flush();
-      return { redirect: nextStep, completed, stash: this.stash.all() } satisfies RedirectResult;
+      return { kind: 'redirect', redirect: nextStep, completed, stash: this.stash.all() } satisfies RedirectResult;
     }
 
     this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'next' });
@@ -295,7 +302,7 @@ export class WorkflowEngine {
       }
     }
 
-    return { step: stepName, prompt: promptText, schema };
+    return { kind: 'prompt', step: stepName, prompt: promptText, schema };
   }
 
   private validateParentSentinels(): void {
@@ -345,6 +352,6 @@ export class WorkflowEngine {
       }
     }
 
-    return { done: true, finalOutput };
+    return { kind: 'done', done: true, finalOutput };
   }
 }

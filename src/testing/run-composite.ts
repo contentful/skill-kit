@@ -2,8 +2,6 @@ import type {
   SkillDefinition,
   Handshake,
   ModelAdapter,
-  PromptResult,
-  DoneResult,
   RedirectResult,
   StepResult,
   ReferenceLoader,
@@ -31,8 +29,8 @@ const NOOP_REFS: ReferenceLoader = { load: () => '', asset: (p) => p };
 const MAX_AUTO_ADVANCE = 20;
 
 function collectAutoAdvanced(result: CliResult, history: StepResult[]): void {
-  if ('autoAdvanced' in result && Array.isArray(result.autoAdvanced)) {
-    for (const entry of result.autoAdvanced as StepResult[]) {
+  if ((result.kind === 'prompt' || result.kind === 'done') && result.autoAdvanced) {
+    for (const entry of result.autoAdvanced) {
       history.push(entry);
     }
   }
@@ -46,15 +44,14 @@ interface Advanceable {
 async function drainPromptless(engine: Advanceable, result: CliResult, path: string[]): Promise<CliResult> {
   let current = result;
   let depth = 0;
-  while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
-    const prompt = current as PromptResult;
-    if (!engine.isPromptless(prompt.step)) break;
+  while (current.kind === 'prompt') {
+    if (!engine.isPromptless(current.step)) break;
     depth += 1;
     if (depth > MAX_AUTO_ADVANCE) {
       throw new Error(`Auto-advance depth exceeded (${MAX_AUTO_ADVANCE}). Check for infinite prompt-less step loops.`);
     }
-    path.push(prompt.step);
-    current = await engine.advance(prompt.step, {});
+    path.push(current.step);
+    current = await engine.advance(current.step, {});
   }
   return current;
 }
@@ -88,22 +85,24 @@ async function runFromDispatcher(
   const allHistory: StepResult[] = [];
 
   const initial = await drainPromptless(engine, startResult, path);
-  if ('done' in initial && (initial as DoneResult).done) {
-    return { path, outputs, output: (initial as DoneResult).finalOutput, history: allHistory };
+  if (initial.kind === 'done') {
+    return { path, outputs, output: initial.finalOutput, history: allHistory };
   }
-  if ('redirect' in initial) {
-    const redirect = initial as RedirectResult;
-    allHistory.push(redirect.completed);
-    return handleRedirect(skill, redirect, path, outputs, allHistory, handshake, opts, refs);
+  if (initial.kind === 'redirect') {
+    allHistory.push(initial.completed);
+    return handleRedirect(skill, initial, path, outputs, allHistory, handshake, opts, refs);
   }
-  let current = initial as PromptResult;
+  if (initial.kind !== 'prompt') {
+    throw new Error(`Unexpected result kind "${initial.kind}" at start`);
+  }
+  let current = initial;
 
   while (true) {
     path.push(current.step);
     const response = await opts.model.respond(current.step, current.prompt);
     const result = await engine.advance(current.step, response);
 
-    if ('error' in result) {
+    if (result.kind === 'error') {
       throw new Error(`Validation error at step "${result.step}": ${result.message}`);
     }
 
@@ -112,21 +111,22 @@ async function runFromDispatcher(
     const drained = await drainPromptless(engine, result, path);
     collectAutoAdvanced(drained, allHistory);
 
-    if ('redirect' in drained) {
-      const redirect = drained as RedirectResult;
-      allHistory.push(redirect.completed);
-      return handleRedirect(skill, redirect, path, outputs, allHistory, handshake, opts, refs);
+    if (drained.kind === 'redirect') {
+      allHistory.push(drained.completed);
+      return handleRedirect(skill, drained, path, outputs, allHistory, handshake, opts, refs);
     }
 
-    if ('done' in drained && (drained as DoneResult).done) {
-      return { path, outputs, output: (drained as DoneResult).finalOutput, history: allHistory };
+    if (drained.kind === 'done') {
+      return { path, outputs, output: drained.finalOutput, history: allHistory };
     }
 
-    const prompt = drained as PromptResult;
-    if (prompt.completed) {
-      allHistory.push(prompt.completed);
+    if (drained.kind !== 'prompt') {
+      throw new Error(`Unexpected result kind "${drained.kind}" during run`);
     }
-    current = prompt;
+    if (drained.completed) {
+      allHistory.push(drained.completed);
+    }
+    current = drained;
   }
 }
 
@@ -205,10 +205,13 @@ async function runSubskillEngine(
   const history: StepResult[] = [];
 
   const initial = await drainPromptless(engine, startResult, path);
-  if ('done' in initial && (initial as DoneResult).done) {
-    return { path, outputs, output: (initial as DoneResult).finalOutput, history };
+  if (initial.kind === 'done') {
+    return { path, outputs, output: initial.finalOutput, history };
   }
-  let current = initial as PromptResult;
+  if (initial.kind !== 'prompt') {
+    throw new Error(`Unexpected result kind "${initial.kind}" in subskill start`);
+  }
+  let current = initial;
 
   while (true) {
     const prefixedStep = `${subName}/${current.step}`;
@@ -217,7 +220,7 @@ async function runSubskillEngine(
     const response = await opts.model.respond(prefixedStep, current.prompt);
     const result = await engine.advance(current.step, response);
 
-    if ('error' in result) {
+    if (result.kind === 'error') {
       throw new Error(`Validation error at step "${prefixedStep}": ${result.message}`);
     }
 
@@ -226,14 +229,16 @@ async function runSubskillEngine(
     const drained = await drainPromptless(engine, result, path);
     collectAutoAdvanced(drained, history);
 
-    if ('done' in drained && (drained as DoneResult).done) {
-      return { path, outputs, output: (drained as DoneResult).finalOutput, history };
+    if (drained.kind === 'done') {
+      return { path, outputs, output: drained.finalOutput, history };
     }
 
-    const prompt = drained as PromptResult;
-    if (prompt.completed) {
-      history.push({ ...prompt.completed, step: prefixedStep });
+    if (drained.kind !== 'prompt') {
+      throw new Error(`Unexpected result kind "${drained.kind}" in subskill`);
     }
-    current = prompt;
+    if (drained.completed) {
+      history.push({ ...drained.completed, step: prefixedStep });
+    }
+    current = drained;
   }
 }

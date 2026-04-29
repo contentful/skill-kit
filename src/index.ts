@@ -15,6 +15,7 @@ export { SkillBuilder } from './skill-builder.js';
 export { ReferenceBuilder } from './reference-builder.js';
 export { ModuleBuilder } from './module.js';
 export { checkSkill } from './lint/index.js';
+export { isPrompt, isDone, isError, isRedirect } from './types.js';
 export type { LintDiagnostic } from './lint/types.js';
 export type {
   SkillBuilderConfig,

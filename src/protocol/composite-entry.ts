@@ -327,8 +327,8 @@ async function handleDispatcher(
   const advanceResult = await engine.advance(stepName, output);
   const result = await autoAdvance(engine, advanceResult, sessionWriter(session));
 
-  if ('redirect' in result) {
-    await handleRedirect(def, result as RedirectResult, handshake, refs, session);
+  if (result.kind === 'redirect') {
+    await handleRedirect(def, result, handshake, refs, session);
     return;
   }
 
@@ -387,7 +387,10 @@ async function handleRedirect(
       throw new Error(`Redirect to unknown topic "${topicName}"`);
     }
     const content = topic.content({ refs });
-    writeOutput({ done: true, finalOutput: { topic: topicName, content }, completed: redirect.completed }, session);
+    writeOutput(
+      { kind: 'done', done: true, finalOutput: { topic: topicName, content }, completed: redirect.completed },
+      session,
+    );
     return;
   }
 
