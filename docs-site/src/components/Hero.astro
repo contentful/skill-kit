@@ -19,13 +19,12 @@ const base = import.meta.env.BASE_URL;
       <a href={`${base}getting-started/`} class="hero-btn hero-btn--primary">Get Started</a>
       <a href={`${base}api/`} class="hero-btn hero-btn--secondary">API Reference</a>
     </div>
+    <div class="hero-install">
+      <code class="hero-install-cmd">$ npm install @contentful/skill-kit</code>
+    </div>
   </div>
 
   <HeroDemo client:visible />
-
-  <div class="hero-install">
-    <code class="hero-install-cmd">$ npm install @contentful/skill-kit</code>
-  </div>
 </section>
 
 <style>
@@ -122,6 +121,7 @@ const base = import.meta.env.BASE_URL;
 
   .hero-install {
     text-align: center;
+    margin-top: var(--space-4);
   }
 
   .hero-install-cmd {
