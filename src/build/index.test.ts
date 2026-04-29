@@ -117,22 +117,31 @@ test('generateSkillMd emits arguments as string in frontmatter', () => {
   assert.ok(result.includes('arguments: "issue branch"'));
 });
 
-test('generateSkillMd emits allowed-tools as string in frontmatter', () => {
-  const s = skill({ name: 'tools-str', entry: 'a', allowedTools: 'Bash Read Write' })
+test('generateSkillMd merges author allowed-tools string with defaults', () => {
+  const s = skill({ name: 'tools-str', entry: 'a', allowedTools: 'Write Edit' })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools: "Bash Read Write"'));
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Write Edit"'));
 });
 
-test('generateSkillMd emits allowed-tools array as space-separated string', () => {
-  const s = skill({ name: 'tools-arr', entry: 'a', allowedTools: ['Bash', 'Read', 'Write'] })
+test('generateSkillMd merges author allowed-tools array with defaults', () => {
+  const s = skill({ name: 'tools-arr', entry: 'a', allowedTools: ['Write', 'Edit'] })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools: "Bash Read Write"'));
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Write Edit"'));
+});
+
+test('generateSkillMd deduplicates author tools that overlap with defaults', () => {
+  const s = skill({ name: 'tools-dup', entry: 'a', allowedTools: ['Read', 'Write'] })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Write"'));
 });
 
 test('generateSkillMd emits paths as string in frontmatter', () => {
@@ -211,7 +220,16 @@ test('generateSkillMd emits user-invocable in frontmatter', () => {
   assert.ok(generateSkillMd(s).includes('user-invocable: false'));
 });
 
-test('generateSkillMd omits frontmatter extension fields when not set', () => {
+test('generateSkillMd always emits allowed-tools with defaults even when not set', () => {
+  const s = skill({ name: 'minimal', entry: 'a' })
+    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .build();
+
+  const result = generateSkillMd(s);
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read"'));
+});
+
+test('generateSkillMd omits other frontmatter extension fields when not set', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
     .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
     .build();
@@ -220,7 +238,6 @@ test('generateSkillMd omits frontmatter extension fields when not set', () => {
   const frontmatter = result.split('---')[1]!;
   assert.ok(!frontmatter.includes('argument-hint'));
   assert.ok(!frontmatter.includes('arguments'));
-  assert.ok(!frontmatter.includes('allowed-tools'));
   assert.ok(!frontmatter.includes('paths'));
   assert.ok(!frontmatter.includes('context'));
   assert.ok(!frontmatter.includes('license'));
@@ -257,7 +274,7 @@ test('generateSkillMd emits all frontmatter extension fields together', () => {
   const result = generateSkillMd(s);
   assert.ok(result.includes('argument-hint: "What to check"'));
   assert.ok(result.includes('arguments: ["target", "level"]'));
-  assert.ok(result.includes('allowed-tools: "Bash Read"'));
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Bash"'));
   assert.ok(result.includes('paths: ["*.config.ts"]'));
   assert.ok(result.includes('context: "fork"'));
   assert.ok(result.includes('version: "2.0.0"'));
@@ -303,7 +320,7 @@ test('generateReferenceMd emits frontmatter extension fields', () => {
 
   const result = generateReferenceMd(ref);
   assert.ok(result.includes('argument-hint: "topic name"'));
-  assert.ok(result.includes('allowed-tools: "Read Bash"'));
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Bash"'));
   assert.ok(result.includes('paths: "docs/**/*.md"'));
   assert.ok(result.includes('context: "fork"'));
   assert.ok(result.includes('license: "MIT"'));
@@ -315,7 +332,19 @@ test('generateReferenceMd emits frontmatter extension fields', () => {
   assert.ok(result.includes('user-invocable: false'));
 });
 
-test('generateReferenceMd omits frontmatter extension fields when not set', () => {
+test('generateReferenceMd always emits allowed-tools with defaults', () => {
+  const ref = reference({
+    name: 'ref-minimal',
+    description: 'Minimal reference.',
+  })
+    .topic('info', { label: 'Info', content: () => 'Info.' })
+    .build();
+
+  const result = generateReferenceMd(ref);
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read"'));
+});
+
+test('generateReferenceMd omits other frontmatter extension fields when not set', () => {
   const ref = reference({
     name: 'ref-minimal',
     description: 'Minimal reference.',
@@ -327,7 +356,6 @@ test('generateReferenceMd omits frontmatter extension fields when not set', () =
   const frontmatter = result.split('---')[1]!;
   assert.ok(!frontmatter.includes('argument-hint'));
   assert.ok(!frontmatter.includes('arguments'));
-  assert.ok(!frontmatter.includes('allowed-tools'));
   assert.ok(!frontmatter.includes('paths'));
   assert.ok(!frontmatter.includes('context'));
   assert.ok(!frontmatter.includes('license'));

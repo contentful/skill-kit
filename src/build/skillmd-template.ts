@@ -105,6 +105,20 @@ function buildExampleParamsFlag(info: ParamInfo | null): string {
   return `'${info.exampleJson}'`;
 }
 
+const DEFAULT_ALLOWED_TOOLS = ['Bash(scripts/run *)', 'Read'];
+
+function computeAllowedTools(skill: SkillDefinition): string[] {
+  const author: string[] = [];
+  if (skill.allowedTools) {
+    if (typeof skill.allowedTools === 'string') {
+      author.push(...skill.allowedTools.split(' ').filter(Boolean));
+    } else {
+      author.push(...skill.allowedTools);
+    }
+  }
+  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...author])];
+}
+
 const SKILL_DIR_INSTRUCTION = `This SKILL.md file is inside the skill directory. Resolve the **absolute path** to \`scripts/run\`
 from this file's location (e.g., \`/path/to/skill/scripts/run\`). Use the absolute path in all
 Bash commands — do not \`cd\` into the skill directory.
@@ -127,9 +141,7 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
     frontmatter.push(yamlInlineList('arguments', skill.arguments));
   }
 
-  if (skill.allowedTools !== undefined && !(Array.isArray(skill.allowedTools) && skill.allowedTools.length === 0)) {
-    frontmatter.push(yamlSpaceSeparated('allowed-tools', skill.allowedTools));
-  }
+  frontmatter.push(yamlSpaceSeparated('allowed-tools', computeAllowedTools(skill)));
 
   if (skill.paths !== undefined && !(Array.isArray(skill.paths) && skill.paths.length === 0)) {
     frontmatter.push(yamlInlineList('paths', skill.paths));
