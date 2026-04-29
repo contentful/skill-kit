@@ -11,7 +11,8 @@ function computeReferenceAllowedTools(def: ReferenceDefinition): string[] {
       author.push(...def.allowedTools);
     }
   }
-  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...author])];
+  const mcp = [`mcp__${def.name}__topic`, `mcp__${def.name}__topics`];
+  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...mcp, ...author])];
 }
 
 export function generateReferenceMd(def: ReferenceDefinition): string {

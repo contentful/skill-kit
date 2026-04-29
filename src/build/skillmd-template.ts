@@ -107,6 +107,14 @@ function buildExampleParamsFlag(info: ParamInfo | null): string {
 
 const DEFAULT_ALLOWED_TOOLS = ['Bash(scripts/run *)', 'Read'];
 
+function mcpTools(name: string, hasTopics: boolean): string[] {
+  const tools = [`mcp__${name}__start`, `mcp__${name}__advance`];
+  if (hasTopics) {
+    tools.push(`mcp__${name}__topic`, `mcp__${name}__topics`);
+  }
+  return tools;
+}
+
 function computeAllowedTools(skill: SkillDefinition): string[] {
   const author: string[] = [];
   if (skill.allowedTools) {
@@ -116,7 +124,8 @@ function computeAllowedTools(skill: SkillDefinition): string[] {
       author.push(...skill.allowedTools);
     }
   }
-  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...author])];
+  const hasTopics = !!skill.topics && Object.keys(skill.topics).length > 0;
+  return [...new Set([...DEFAULT_ALLOWED_TOOLS, ...mcpTools(skill.name, hasTopics), ...author])];
 }
 
 const SKILL_DIR_INSTRUCTION = `This SKILL.md file is inside the skill directory. Resolve the **absolute path** to \`scripts/run\`

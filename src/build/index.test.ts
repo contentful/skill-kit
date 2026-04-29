@@ -123,7 +123,11 @@ test('generateSkillMd merges author allowed-tools string with defaults', () => {
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Write Edit"'));
+  assert.ok(
+    result.includes(
+      'allowed-tools: "Bash(scripts/run *) Read mcp__tools-str__start mcp__tools-str__advance Write Edit"',
+    ),
+  );
 });
 
 test('generateSkillMd merges author allowed-tools array with defaults', () => {
@@ -132,7 +136,11 @@ test('generateSkillMd merges author allowed-tools array with defaults', () => {
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Write Edit"'));
+  assert.ok(
+    result.includes(
+      'allowed-tools: "Bash(scripts/run *) Read mcp__tools-arr__start mcp__tools-arr__advance Write Edit"',
+    ),
+  );
 });
 
 test('generateSkillMd deduplicates author tools that overlap with defaults', () => {
@@ -141,7 +149,9 @@ test('generateSkillMd deduplicates author tools that overlap with defaults', () 
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Write"'));
+  assert.ok(
+    result.includes('allowed-tools: "Bash(scripts/run *) Read mcp__tools-dup__start mcp__tools-dup__advance Write"'),
+  );
 });
 
 test('generateSkillMd emits paths as string in frontmatter', () => {
@@ -226,7 +236,7 @@ test('generateSkillMd always emits allowed-tools with defaults even when not set
     .build();
 
   const result = generateSkillMd(s);
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read"'));
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read mcp__minimal__start mcp__minimal__advance"'));
 });
 
 test('generateSkillMd omits other frontmatter extension fields when not set', () => {
@@ -274,7 +284,7 @@ test('generateSkillMd emits all frontmatter extension fields together', () => {
   const result = generateSkillMd(s);
   assert.ok(result.includes('argument-hint: "What to check"'));
   assert.ok(result.includes('arguments: ["target", "level"]'));
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Bash"'));
+  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read mcp__full__start mcp__full__advance Bash"'));
   assert.ok(result.includes('paths: ["*.config.ts"]'));
   assert.ok(result.includes('context: "fork"'));
   assert.ok(result.includes('version: "2.0.0"'));
@@ -320,7 +330,9 @@ test('generateReferenceMd emits frontmatter extension fields', () => {
 
   const result = generateReferenceMd(ref);
   assert.ok(result.includes('argument-hint: "topic name"'));
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read Bash"'));
+  assert.ok(
+    result.includes('allowed-tools: "Bash(scripts/run *) Read mcp__ref-with-fm__topic mcp__ref-with-fm__topics Bash"'),
+  );
   assert.ok(result.includes('paths: "docs/**/*.md"'));
   assert.ok(result.includes('context: "fork"'));
   assert.ok(result.includes('license: "MIT"'));
@@ -341,7 +353,9 @@ test('generateReferenceMd always emits allowed-tools with defaults', () => {
     .build();
 
   const result = generateReferenceMd(ref);
-  assert.ok(result.includes('allowed-tools: "Bash(scripts/run *) Read"'));
+  assert.ok(
+    result.includes('allowed-tools: "Bash(scripts/run *) Read mcp__ref-minimal__topic mcp__ref-minimal__topics"'),
+  );
 });
 
 test('generateReferenceMd omits other frontmatter extension fields when not set', () => {
@@ -528,6 +542,8 @@ test('generateSkillMd includes sub-skills and topics sections', () => {
   assert.ok(result.includes('**faq**: Frequently asked questions'));
   assert.ok(result.includes('scripts/run topics'));
   assert.ok(result.includes('scripts/run topic <name>'));
+  assert.ok(result.includes('mcp__composite__topic'));
+  assert.ok(result.includes('mcp__composite__topics'));
 });
 
 test('generateSkillMd documents params with defaults', () => {
