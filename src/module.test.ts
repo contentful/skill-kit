@@ -14,7 +14,7 @@ test('module() creates a ModuleDefinition with steps', () => {
     .step('login', {
       prompt: 'Ask for credentials.',
       output: z.object({ userId: z.string() }),
-      stash: ({ output }) => ({ userId: output.userId }),
+      updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
       next: '__parent__',
     })
     .build();
@@ -38,7 +38,7 @@ test('module stash type flows into step prompt callbacks', () => {
         return 'Login';
       },
       output: z.object({ userId: z.string() }),
-      stash: ({ output }) => ({ userId: output.userId }),
+      updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
       next: 'verify',
     })
     .step('verify', {
@@ -61,7 +61,7 @@ test('skill.register() merges module steps and wires __parent__', async () => {
     .step('auth-login', {
       prompt: 'Log in.',
       output: z.object({ userId: z.string() }),
-      stash: ({ output }) => ({ userId: output.userId }),
+      updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
       next: '__parent__',
     })
     .build();
@@ -74,7 +74,7 @@ test('skill.register() merges module steps and wires __parent__', async () => {
     .step('start', {
       prompt: 'Welcome.',
       output: z.object({ appName: z.string() }),
-      stash: ({ output }) => ({ appName: output.appName }),
+      updateStash: ({ stepOutput }) => ({ appName: stepOutput.appName }),
       next: 'auth-login',
     })
     .register(authModule, { next: 'dashboard' })
@@ -99,20 +99,20 @@ test('skill.register() merges module steps and wires __parent__', async () => {
   assert.deepEqual(result.path, ['start', 'auth-login', 'dashboard']);
 });
 
-test('module context is unknown (module steps cannot access parent context)', () => {
+test('module params is unknown (module steps cannot access parent params)', () => {
   const mod = module({
     name: 'isolated',
     entry: 'step1',
     stash: z.object({ val: z.string() }),
   })
     .step('step1', {
-      prompt: ({ context }) => {
-        // context should be unknown — module doesn't see parent context
-        void context;
+      prompt: ({ params }) => {
+        // params should be unknown — module doesn't see parent params
+        void params;
         return 'Do something';
       },
       output: z.object({ val: z.string() }),
-      stash: ({ output }) => ({ val: output.val }),
+      updateStash: ({ stepOutput }) => ({ val: stepOutput.val }),
       next: '__parent__',
     })
     .build();

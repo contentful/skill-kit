@@ -29,6 +29,8 @@ export function primitiveSchemaMatch(skill: SkillDefinition): LintDiagnostic[] {
 
     const optionValues = askAct.primitive.options.map((o: { value: string }) => o.value);
 
+    if (!stepDef.config.output) continue;
+
     let schemaJson: Record<string, unknown> | null = null;
     try {
       schemaJson = stepDef.config.output.toJSONSchema() as Record<string, unknown>;

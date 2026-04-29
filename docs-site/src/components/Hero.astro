@@ -31,7 +31,7 @@ const base = import.meta.env.BASE_URL;
       <span class="terminal-dot"></span>
       <span class="terminal-title">skill.ts</span>
     </div>
-    <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, askUser, prompt {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
+    <pre class="terminal-body"><code><span class="t-kw">import</span> {'{'} skill, z, act, prompt {'}'} <span class="t-kw">from</span> <span class="t-str">'@contentful/skill-kit'</span>;
 
 <span class="t-kw">export default</span> <span class="t-fn">skill</span>({'{'}
   name: <span class="t-str">'changelog'</span>, entry: <span class="t-str">'audience'</span>,
@@ -39,7 +39,7 @@ const base = import.meta.env.BASE_URL;
   stash: z.<span class="t-fn">object</span>({'{'} audience: z.<span class="t-fn">string</span>() {'}'}),
 {'}'})
   .<span class="t-fn">step</span>(<span class="t-str">'audience'</span>, {'{'}
-    ask: <span class="t-fn">askUser</span>({'{'}
+    prompt: <span class="t-fn">act</span>.<span class="t-fn">askUser</span>({'{'}
       type: <span class="t-str">'structured'</span>,
       question: <span class="t-str">'Who is the changelog for?'</span>,
       options: [
@@ -48,7 +48,7 @@ const base = import.meta.env.BASE_URL;
       ],
     {'}'}),
     output: z.<span class="t-fn">object</span>({'{'} audience: z.<span class="t-fn">enum</span>([<span class="t-str">'devs'</span>, <span class="t-str">'users'</span>]) {'}'}),
-    stash: ({'{'} output {'}'}) {'=>'} ({'{'} audience: output.audience{'}'}),
+    updateStash: ({'{'} stepOutput {'}'}) {'=>'} ({'{'} audience: stepOutput.audience{'}'}),
     next: <span class="t-str">'draft'</span>,
   {'}'})
   .<span class="t-fn">step</span>(<span class="t-str">'draft'</span>, {'{'}

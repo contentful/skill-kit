@@ -36,7 +36,7 @@ const NOOP_REFS: ReferenceLoader = {
 export class WorkflowEngine {
   private readonly skill: SkillDefinition;
   private readonly handshake: Handshake;
-  private readonly skillContext: unknown;
+  private readonly skillParams: Readonly<unknown>;
   private readonly history: History;
   private readonly stash: StashStore;
   private readonly refs: ReferenceLoader;
@@ -46,24 +46,24 @@ export class WorkflowEngine {
   private currentStep: string;
   private cycleGuard: CycleGuardResult | undefined;
 
-  constructor(skill: SkillDefinition, handshake: Handshake, context: unknown, refs?: ReferenceLoader) {
+  constructor(skill: SkillDefinition, handshake: Handshake, params: unknown, refs?: ReferenceLoader) {
     this.skill = skill;
     this.handshake = handshake;
     this.refs = refs ?? NOOP_REFS;
     this.observers = new ObserverDispatcher(skill.observers ?? {});
     this.abortController = new AbortController();
     this.history = new History();
-    this.stash = new StashStore();
+    this.stash = new StashStore(skill.stash ?? undefined);
     this.currentStep = skill.entry;
 
-    if (skill.context) {
-      const result = skill.context.safeParse(context);
+    if (skill.params) {
+      const result = skill.params.safeParse(params);
       if (!result.success) {
-        throw new Error(`Invalid context: ${result.error.issues.map((i) => i.message).join('; ')}`);
+        throw new Error(`Invalid params: ${result.error.issues.map((i: { message: string }) => i.message).join('; ')}`);
       }
-      this.skillContext = Object.freeze(result.data);
+      this.skillParams = Object.freeze(result.data);
     } else {
-      this.skillContext = Object.freeze(context ?? {});
+      this.skillParams = Object.freeze(params ?? {});
     }
   }
 
@@ -74,8 +74,13 @@ export class WorkflowEngine {
     const { step, prompt, schema } = this.buildPrompt(this.currentStep);
     const rawPreamble = generatePreamble(this.handshake);
     const preamble = this.skill.system ? `${this.skill.system}\n\n${rawPreamble}` : rawPreamble;
-    this.observers.fire('onStepStart', { step: this.currentStep, context: this.skillContext });
+    this.observers.fire('onStepStart', { step: this.currentStep, params: this.skillParams });
     return { step, preamble, prompt, schema };
+  }
+
+  isPromptless(stepName: string): boolean {
+    const stepDef = this.skill.steps[stepName];
+    return !!stepDef && stepDef.config.prompt === undefined;
   }
 
   async advance(stepName: string, rawOutput: unknown): Promise<CliResult> {
@@ -85,60 +90,74 @@ export class WorkflowEngine {
       return { error: 'validation', step: stepName, message: `Unknown step "${stepName}"`, retry: false };
     }
 
-    const validation = validateOutput(stepDef.config.output, rawOutput);
-    if (!validation.success) {
-      this.observers.fire('onStepValidationFailed', {
-        step: stepName,
-        raw: rawOutput,
-        error: validation.error!,
-        attempt: this.history.visitCount(stepName) + 1,
-      });
-      return {
-        error: 'validation',
-        step: stepName,
-        message: validation.error!,
-        retry: true,
-      };
-    }
+    let stepOutput: unknown;
 
-    const output = Object.freeze(validation.data);
+    if (stepDef.config.output) {
+      const validation = validateOutput(stepDef.config.output, rawOutput);
+      if (!validation.success) {
+        this.observers.fire('onStepValidationFailed', {
+          step: stepName,
+          raw: rawOutput,
+          error: validation.error!,
+          attempt: this.history.visitCount(stepName) + 1,
+        });
+        return {
+          error: 'validation',
+          step: stepName,
+          message: validation.error!,
+          retry: true,
+        };
+      }
+      stepOutput = Object.freeze(validation.data);
+    } else {
+      stepOutput = Object.freeze({});
+    }
 
     let actionOutput: unknown = undefined;
     if (stepDef.config.action) {
-      const { run: actionDef, input: inputFn, stash: actionStash } = stepDef.config.action;
-      const rawActionInput = inputFn ? inputFn({ output, stash: this.stash.all() }) : output;
+      const { run: actionDef, input: inputFn, updateStash: actionUpdateStash } = stepDef.config.action;
+      const rawActionInput = inputFn
+        ? inputFn({ stepOutput, stash: this.stash.all(), params: this.skillParams })
+        : stepOutput;
       const actionInput = actionDef.input.parse(rawActionInput);
       actionOutput = await actionDef.run({
         input: actionInput,
         signal: this.abortController.signal,
       });
       actionOutput = Object.freeze(actionOutput);
-      if (actionStash) {
-        this.stash.merge(actionStash({ result: actionOutput }) as Record<string, unknown>);
+      if (actionUpdateStash) {
+        this.stash.merge(actionUpdateStash({ actionOutput }) as Record<string, unknown>);
       }
     }
 
-    if (stepDef.config.stash) {
-      this.stash.merge(stepDef.config.stash({ output, action: actionOutput }) as Record<string, unknown>);
+    if (stepDef.config.updateStash) {
+      this.stash.merge(
+        stepDef.config.updateStash({
+          stepOutput,
+          actionOutput,
+          stash: this.stash.all(),
+          params: this.skillParams,
+        }) as Record<string, unknown>,
+      );
     }
 
-    this.history.append(stepName, output, actionOutput);
+    this.history.append(stepName, stepOutput, actionOutput);
 
     this.observers.fire('onStepComplete', {
       step: stepName,
-      output,
+      stepOutput,
       durationMs: Date.now() - stepStartTime,
     });
 
-    const completed: StepResult = Object.freeze({ step: stepName, output, action: actionOutput });
-    const nextStep = this.resolveNext(stepDef, output, stepName, actionOutput);
+    const completed: StepResult = Object.freeze({ step: stepName, stepOutput, actionOutput });
+    const nextStep = this.resolveNext(stepDef, stepOutput, stepName, actionOutput);
 
     if (nextStep === null) {
       const path = this.history.all().map((r) => r.step);
       this.observers.fire('onTransition', { from: stepName, to: '__terminal__', reason: 'terminal' });
       this.observers.fire('onSkillComplete', {
         path,
-        finalOutput: output,
+        finalOutput: stepOutput,
         durationMs: Date.now() - this.startTime,
       });
       await this.observers.flush();
@@ -152,35 +171,49 @@ export class WorkflowEngine {
     }
 
     this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'next' });
-    this.observers.fire('onStepStart', { step: nextStep, context: this.skillContext });
+    this.observers.fire('onStepStart', { step: nextStep, params: this.skillParams });
 
     this.currentStep = nextStep;
     return { ...this.buildPrompt(nextStep), completed };
   }
 
-  replayHistory(history: Array<{ step: string; output: unknown; action?: unknown }>): void {
+  replayHistory(history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>): void {
     for (const entry of history) {
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;
 
-      const validation = validateOutput(stepDef.config.output, entry.output);
-      const output = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.output);
-
-      if (stepDef.config.action?.stash && entry.action !== undefined) {
-        this.stash.merge(stepDef.config.action.stash({ result: entry.action }) as Record<string, unknown>);
+      let stepOutput: unknown;
+      if (stepDef.config.output) {
+        const validation = validateOutput(stepDef.config.output, entry.stepOutput);
+        stepOutput = validation.success ? Object.freeze(validation.data) : Object.freeze(entry.stepOutput);
+      } else {
+        stepOutput = Object.freeze(entry.stepOutput ?? {});
       }
 
-      if (stepDef.config.stash) {
-        this.stash.merge(stepDef.config.stash({ output, action: entry.action }) as Record<string, unknown>);
+      if (stepDef.config.action?.updateStash && entry.actionOutput !== undefined) {
+        this.stash.merge(
+          stepDef.config.action.updateStash({ actionOutput: entry.actionOutput }) as Record<string, unknown>,
+        );
       }
 
-      this.history.append(entry.step, output, entry.action);
+      if (stepDef.config.updateStash) {
+        this.stash.merge(
+          stepDef.config.updateStash({
+            stepOutput,
+            actionOutput: entry.actionOutput,
+            stash: this.stash.all(),
+            params: this.skillParams,
+          }) as Record<string, unknown>,
+        );
+      }
+
+      this.history.append(entry.step, stepOutput, entry.actionOutput);
     }
   }
 
   private resolveNext(
     stepDef: StepDefinition,
-    output: unknown,
+    stepOutput: unknown,
     stepName: string,
     actionOutput: unknown,
   ): string | null {
@@ -195,7 +228,7 @@ export class WorkflowEngine {
       target = next;
     } else if (typeof next === 'function') {
       const attempts = this.history.visitCount(stepName);
-      target = next({ output, attempts, action: actionOutput });
+      target = next({ stepOutput, attempts, actionOutput, params: this.skillParams, stash: this.stash.all() });
     } else {
       return null;
     }
@@ -229,13 +262,10 @@ export class WorkflowEngine {
     const stepDef = this.skill.steps[stepName];
     if (!stepDef) throw new Error(`Step "${stepName}" not found`);
 
-    const prev = this.history.last()?.output;
-
     const promptCtx: PromptContext = {
-      prev,
       history: this.history.all(),
       getStep: <TOutput = unknown, TAction = unknown>(name: string) => this.history.get<TOutput, TAction>(name),
-      context: this.skillContext,
+      params: this.skillParams,
       refs: this.refs,
       attempts: this.history.visitCount(stepName),
       host: this.handshake,
@@ -250,10 +280,12 @@ export class WorkflowEngine {
     const promptText = this.assemblePieces(pieces);
 
     let schema: unknown = null;
-    try {
-      schema = stepDef.config.output.toJSONSchema();
-    } catch {
-      // Zod schema may not support toJSONSchema in all cases
+    if (stepDef.config.output) {
+      try {
+        schema = stepDef.config.output.toJSONSchema();
+      } catch {
+        // Zod schema may not support toJSONSchema in all cases
+      }
     }
 
     return { step: stepName, prompt: promptText, schema };
@@ -297,7 +329,7 @@ export class WorkflowEngine {
 
   private buildDone(): DoneResult {
     const lastResult = this.history.last();
-    const finalOutput = lastResult?.output ?? null;
+    const finalOutput = lastResult?.stepOutput ?? null;
 
     if (this.skill.finalOutput) {
       const validation = validateOutput(this.skill.finalOutput, finalOutput);

@@ -42,7 +42,7 @@ export default skill({
   system:
     "You're a friendly game development mentor guiding someone through building their first Tetris game. Be encouraging and practical.",
 
-  context: z.object({
+  params: z.object({
     difficulty: z.enum(['beginner', 'intermediate', 'advanced']).default('intermediate'),
   }),
 
@@ -66,7 +66,7 @@ export default skill({
       ],
     }),
     output: z.object({ variant: z.enum(['classic', 'modern', 'puzzle']) }),
-    stash: ({ output }) => ({ variant: output.variant }),
+    updateStash: ({ stepOutput }) => ({ variant: stepOutput.variant }),
     next: 'name-game',
   })
 
@@ -74,7 +74,7 @@ export default skill({
   .step('name-game', {
     prompt: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     output: z.object({ name: z.string() }),
-    stash: ({ output }) => ({ name: output.name }),
+    updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
     next: 'choose-renderer',
   })
 
@@ -90,7 +90,7 @@ export default skill({
       ],
     }),
     output: z.object({ renderer: z.enum(['canvas', 'dom', 'webgl']) }),
-    stash: ({ output }) => ({ renderer: output.renderer }),
+    updateStash: ({ stepOutput }) => ({ renderer: stepOutput.renderer }),
     next: 'design-review',
   })
 
@@ -104,7 +104,7 @@ export default skill({
       prompt`Summarize the design so far: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering.`,
     ],
     output: z.object({ approved: z.boolean() }),
-    next: ({ output }) => (output.approved ? 'research-renderer' : 'choose-variant'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'research-renderer' : 'choose-variant'),
   })
 
   // --- Research renderer (subagent) ---
@@ -122,7 +122,7 @@ export default skill({
       `,
     ],
     output: z.object({ summary: z.string() }),
-    stash: ({ output }) => ({ researchSummary: output.summary }),
+    updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
     next: 'implementation-plan',
   })
 
@@ -143,7 +143,7 @@ export default skill({
       prompt`Research notes: ${stash.researchSummary}`,
     ],
     output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-    next: ({ output }) => (output.approved ? 'build' : 'revise-plan'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'build' : 'revise-plan'),
   })
 
   // --- Revise plan (askUser open, loops back) ---
@@ -191,7 +191,7 @@ export default skill({
       `,
     ],
     output: z.object({ readme: z.string() }),
-    stash: ({ output }) => ({ readme: output.readme }),
+    updateStash: ({ stepOutput }) => ({ readme: stepOutput.readme }),
     next: 'final-review',
   })
 
@@ -202,7 +202,7 @@ export default skill({
       defaultAnswer: 'no',
     }),
     output: z.object({ approved: z.boolean() }),
-    next: ({ output }) => (output.approved ? 'polish' : 'summary'),
+    next: ({ stepOutput }) => (stepOutput.approved ? 'polish' : 'summary'),
   })
 
   // --- Polish loop (askUser open, maxVisits) ---

@@ -58,7 +58,7 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
   assert.ok(result.startsWith('---\nname: test-skill'));
   assert.ok(result.includes('description: "A test skill for unit testing."'));
   assert.ok(result.includes('version: "1.0.0"'));
-  assert.ok(result.includes('scripts/run --context'));
+  assert.ok(result.includes('scripts/run --params'));
   assert.ok(result.includes('scripts/run advance'));
   assert.ok(result.includes('"type":"done"'));
   assert.ok(result.includes('**start**: Begin the process.'));

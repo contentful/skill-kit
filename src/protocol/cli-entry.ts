@@ -23,7 +23,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
         break;
 
       case 'start': {
-        const context = flags['context'] ? (JSON.parse(flags['context']) as unknown) : {};
+        const params = flags['params'] ? (JSON.parse(flags['params']) as unknown) : {};
         const sessionFlag = flags['session'];
 
         if (sessionFlag === 'new') {
@@ -34,12 +34,12 @@ export async function main(skill: SkillDefinition): Promise<void> {
             host: flags['host'] ?? 'generic',
             tools,
             isSubagent: isSubagent || undefined,
-            context,
+            params,
             outputMode,
           });
-          await handleStart(skill, context, flags['host'], session, tools, isSubagent);
+          await handleStart(skill, params, flags['host'], session, tools, isSubagent);
         } else {
-          await handleStart(skill, context, flags['host'], undefined, tools, isSubagent);
+          await handleStart(skill, params, flags['host'], undefined, tools, isSubagent);
         }
         break;
       }
@@ -51,7 +51,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
           const session = SessionManager.open(sessionFlag, flags['session-dir']);
           let stepName: string;
           let output: unknown;
-          let history: Array<{ step: string; output: unknown; action?: unknown }>;
+          let history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>;
 
           history = session.reconstructHistory();
 
@@ -95,7 +95,7 @@ export async function main(skill: SkillDefinition): Promise<void> {
           const step = flags['step'];
           const output = flags['output'] ? (JSON.parse(flags['output']) as unknown) : undefined;
           const history = flags['history']
-            ? (JSON.parse(flags['history']) as Array<{ step: string; output: unknown; action?: unknown }>)
+            ? (JSON.parse(flags['history']) as Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>)
             : [];
 
           if (!step) {

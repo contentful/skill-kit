@@ -7,6 +7,7 @@ import type {
   RedirectResult,
   StepResult,
   ReferenceLoader,
+  CliResult,
 } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 
@@ -19,7 +20,7 @@ export interface CompositeRunResult {
 }
 
 export interface RunCompositeOptions {
-  context?: Record<string, unknown>;
+  params?: Record<string, unknown>;
   model: ModelAdapter;
   host?: Partial<Handshake>;
   directSubskill?: string;
@@ -27,6 +28,36 @@ export interface RunCompositeOptions {
 }
 
 const NOOP_REFS: ReferenceLoader = { load: () => '', asset: (p) => p };
+const MAX_AUTO_ADVANCE = 20;
+
+function collectAutoAdvanced(result: CliResult, history: StepResult[]): void {
+  if ('autoAdvanced' in result && Array.isArray(result.autoAdvanced)) {
+    for (const entry of result.autoAdvanced as StepResult[]) {
+      history.push(entry);
+    }
+  }
+}
+
+interface Advanceable {
+  isPromptless(stepName: string): boolean;
+  advance(stepName: string, output: unknown): Promise<CliResult>;
+}
+
+async function drainPromptless(engine: Advanceable, result: CliResult, path: string[]): Promise<CliResult> {
+  let current = result;
+  let depth = 0;
+  while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
+    const prompt = current as PromptResult;
+    if (!engine.isPromptless(prompt.step)) break;
+    depth += 1;
+    if (depth > MAX_AUTO_ADVANCE) {
+      throw new Error(`Auto-advance depth exceeded (${MAX_AUTO_ADVANCE}). Check for infinite prompt-less step loops.`);
+    }
+    path.push(prompt.step);
+    current = await engine.advance(prompt.step, {});
+  }
+  return current;
+}
 
 export async function runComposite(skill: SkillDefinition, opts: RunCompositeOptions): Promise<CompositeRunResult> {
   const handshake: Handshake = {
@@ -49,12 +80,23 @@ async function runFromDispatcher(
   opts: RunCompositeOptions,
   refs: ReferenceLoader,
 ): Promise<CompositeRunResult> {
-  const engine = new WorkflowEngine(skill, handshake, opts.context ?? {}, refs);
-  let current = engine.start();
+  const engine = new WorkflowEngine(skill, handshake, opts.params ?? {}, refs);
+  const startResult = engine.start();
 
   const path: string[] = [];
   const outputs: Record<string, unknown> = {};
   const allHistory: StepResult[] = [];
+
+  const initial = await drainPromptless(engine, startResult, path);
+  if ('done' in initial && (initial as DoneResult).done) {
+    return { path, outputs, output: (initial as DoneResult).finalOutput, history: allHistory };
+  }
+  if ('redirect' in initial) {
+    const redirect = initial as RedirectResult;
+    allHistory.push(redirect.completed);
+    return handleRedirect(skill, redirect, path, outputs, allHistory, handshake, opts, refs);
+  }
+  let current = initial as PromptResult;
 
   while (true) {
     path.push(current.step);
@@ -67,20 +109,24 @@ async function runFromDispatcher(
 
     outputs[current.step] = response;
 
-    if ('redirect' in result) {
-      const redirect = result as RedirectResult;
+    const drained = await drainPromptless(engine, result, path);
+    collectAutoAdvanced(drained, allHistory);
+
+    if ('redirect' in drained) {
+      const redirect = drained as RedirectResult;
       allHistory.push(redirect.completed);
       return handleRedirect(skill, redirect, path, outputs, allHistory, handshake, opts, refs);
     }
 
-    if ('done' in result && result.done) {
-      return { path, outputs, output: (result as DoneResult).finalOutput, history: allHistory };
+    if ('done' in drained && (drained as DoneResult).done) {
+      return { path, outputs, output: (drained as DoneResult).finalOutput, history: allHistory };
     }
 
-    if (result.completed) {
-      allHistory.push(result.completed);
+    const prompt = drained as PromptResult;
+    if (prompt.completed) {
+      allHistory.push(prompt.completed);
     }
-    current = result as PromptResult;
+    current = prompt;
   }
 }
 
@@ -115,8 +161,8 @@ async function handleRedirect(
     const sub = skill.subskills?.[subName];
     if (!sub) throw new Error(`Redirect to unknown sub-skill "${subName}"`);
 
-    const context = sub.contextMap ? sub.contextMap(redirect.completed.output, redirect.stash) : {};
-    const subResult = await runSubskillEngine(sub.definition, subName, handshake, context, opts, refs);
+    const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+    const subResult = await runSubskillEngine(sub.definition, subName, handshake, params, opts, refs);
 
     return {
       path: [...path, ...subResult.path],
@@ -139,7 +185,7 @@ async function runSubskillDirect(
 ): Promise<CompositeRunResult> {
   const sub = skill.subskills?.[subskillName];
   if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
-  const result = await runSubskillEngine(sub.definition, subskillName, handshake, opts.context ?? {}, opts, refs);
+  const result = await runSubskillEngine(sub.definition, subskillName, handshake, opts.params ?? {}, opts, refs);
   return { ...result, redirectedTo: { kind: 'subskill', name: subskillName } };
 }
 
@@ -147,16 +193,22 @@ async function runSubskillEngine(
   def: SkillDefinition,
   subName: string,
   handshake: Handshake,
-  context: unknown,
+  params: unknown,
   opts: RunCompositeOptions,
   refs: ReferenceLoader,
 ): Promise<{ path: string[]; outputs: Record<string, unknown>; output: unknown; history: StepResult[] }> {
-  const engine = new WorkflowEngine(def, handshake, context, refs);
-  let current = engine.start();
+  const engine = new WorkflowEngine(def, handshake, params, refs);
+  const startResult = engine.start();
 
   const path: string[] = [];
   const outputs: Record<string, unknown> = {};
   const history: StepResult[] = [];
+
+  const initial = await drainPromptless(engine, startResult, path);
+  if ('done' in initial && (initial as DoneResult).done) {
+    return { path, outputs, output: (initial as DoneResult).finalOutput, history };
+  }
+  let current = initial as PromptResult;
 
   while (true) {
     const prefixedStep = `${subName}/${current.step}`;
@@ -171,13 +223,17 @@ async function runSubskillEngine(
 
     outputs[prefixedStep] = response;
 
-    if ('done' in result && result.done) {
-      return { path, outputs, output: (result as DoneResult).finalOutput, history };
+    const drained = await drainPromptless(engine, result, path);
+    collectAutoAdvanced(drained, history);
+
+    if ('done' in drained && (drained as DoneResult).done) {
+      return { path, outputs, output: (drained as DoneResult).finalOutput, history };
     }
 
-    if (result.completed) {
-      history.push({ ...result.completed, step: prefixedStep });
+    const prompt = drained as PromptResult;
+    if (prompt.completed) {
+      history.push({ ...prompt.completed, step: prefixedStep });
     }
-    current = result as PromptResult;
+    current = prompt;
   }
 }

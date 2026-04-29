@@ -10,7 +10,7 @@ import type {
 } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 
-type HistoryEntry = { step: string; output: unknown; action?: unknown };
+type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown };
 
 /**
  * Wraps a WorkflowEngine for a subskill, transparently qualifying step names
@@ -25,11 +25,11 @@ export class SubskillEngine {
   constructor(
     definition: SkillDefinition,
     handshake: Handshake,
-    context: unknown,
+    params: unknown,
     refs: ReferenceLoader,
     subskillName: string,
   ) {
-    this.engine = new WorkflowEngine(definition, handshake, context, refs);
+    this.engine = new WorkflowEngine(definition, handshake, params, refs);
     this.prefix = `${subskillName}/`;
   }
 
@@ -53,6 +53,11 @@ export class SubskillEngine {
     }
   }
 
+  isPromptless(qualifiedStep: string): boolean {
+    const bareStep = this.stripPrefix(qualifiedStep);
+    return this.engine.isPromptless(bareStep);
+  }
+
   async advance(qualifiedStep: string, output: unknown): Promise<CliResult> {
     const bareStep = this.stripPrefix(qualifiedStep);
     return this.qualifyResult(await this.engine.advance(bareStep, output));
@@ -70,11 +75,17 @@ export class SubskillEngine {
     return { ...completed, step: this.qualify(completed.step) };
   }
 
+  private qualifyAutoAdvanced(results: StepResult[] | undefined): StepResult[] | undefined {
+    if (!results || results.length === 0) return undefined;
+    return results.map((r) => this.qualifyCompleted(r));
+  }
+
   private qualifyPrompt(result: PromptResult): PromptResult {
     return {
       ...result,
       step: this.qualify(result.step),
       ...(result.completed ? { completed: this.qualifyCompleted(result.completed) } : {}),
+      ...(result.autoAdvanced ? { autoAdvanced: this.qualifyAutoAdvanced(result.autoAdvanced) } : {}),
     };
   }
 
@@ -96,6 +107,7 @@ export class SubskillEngine {
       return {
         ...done,
         ...(done.completed ? { completed: this.qualifyCompleted(done.completed) } : {}),
+        ...(done.autoAdvanced ? { autoAdvanced: this.qualifyAutoAdvanced(done.autoAdvanced) } : {}),
       };
     }
 

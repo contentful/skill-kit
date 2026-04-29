@@ -87,7 +87,7 @@ test('faq with locales topic loads correct content', async () => {
 test('direct sub-skill access bypasses dispatcher', async () => {
   const result = await runComposite(skill, {
     directSubskill: 'doctor',
-    context: { spaceId: 'direct-test' },
+    params: { spaceId: 'direct-test' },
     model: mockModel({
       'doctor/diagnose': { issues: [], healthy: true },
       'doctor/report-clean': { summary: 'All good!' },

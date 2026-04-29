@@ -27,12 +27,12 @@ export default skill({
     output: z.object({ acknowledged: z.boolean() }),
     action: {
       run: checkEnv,
-      stash: ({ result }) => ({
-        hasSpaceId: result.hasSpaceId,
-        hasToken: result.hasToken,
+      updateStash: ({ actionOutput }) => ({
+        hasSpaceId: actionOutput.hasSpaceId,
+        hasToken: actionOutput.hasToken,
       }),
     },
-    next: ({ action: result }) => (result.hasSpaceId && result.hasToken ? 'configure' : 'guide-env'),
+    next: ({ actionOutput }) => (actionOutput.hasSpaceId && actionOutput.hasToken ? 'configure' : 'guide-env'),
   })
 
   .step('guide-env', {
@@ -61,9 +61,9 @@ export default skill({
       ],
     }),
     output: z.object({ choice: z.enum(['locales', 'webhooks', 'done']) }),
-    next: ({ output }) => {
-      if (output.choice === 'done') return 'summary';
-      return `setup-${output.choice}`;
+    next: ({ stepOutput }) => {
+      if (stepOutput.choice === 'done') return 'summary';
+      return `setup-${stepOutput.choice}`;
     },
   })
 

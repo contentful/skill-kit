@@ -16,14 +16,14 @@ test('SessionManager.create writes header and returns SessionFile', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: { path: '.' },
+    params: { path: '.' },
   });
 
   assert.match(session.sessionId, /^[a-f0-9]{8}$/);
   assert.equal(session.header.type, 'header');
   assert.equal(session.header.skill, 'test-skill');
   assert.equal(session.header.host, 'claude-code');
-  assert.deepEqual(session.header.context, { path: '.' });
+  assert.deepEqual(session.header.params, { path: '.' });
   assert.equal(session.header.outputMode, 'file');
 
   const content = readFileSync(session.filePath, 'utf-8');
@@ -38,7 +38,7 @@ test('SessionManager.create respects outputMode flag', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
     outputMode: 'flag',
   });
 
@@ -51,14 +51,14 @@ test('SessionManager.open reads existing session', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: { key: 'value' },
+    params: { key: 'value' },
   });
 
   const opened = SessionManager.open(created.sessionId, dir);
   assert.equal(opened.sessionId, created.sessionId);
   assert.equal(opened.filePath, created.filePath);
   assert.equal(opened.header.skill, 'test-skill');
-  assert.deepEqual(opened.header.context, { key: 'value' });
+  assert.deepEqual(opened.header.params, { key: 'value' });
 });
 
 test('SessionManager.open throws for nonexistent session', () => {
@@ -72,7 +72,7 @@ test('SessionFile.append returns incrementing line numbers', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   const line2 = session.append({ type: 'prompt', step: 'greet', prompt: 'Hello', schema: {} });
@@ -91,7 +91,7 @@ test('SessionFile.lineCount returns correct count', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   assert.equal(session.lineCount(), 1);
@@ -105,7 +105,7 @@ test('SessionFile.reconstructHistory builds history from completed fields', () =
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   session.append({ type: 'prompt', step: 'greet', prompt: 'Hello', schema: {} });
@@ -115,20 +115,20 @@ test('SessionFile.reconstructHistory builds history from completed fields', () =
     step: 'ask',
     prompt: 'What?',
     schema: {},
-    completed: { step: 'greet', output: { message: 'hi' } },
+    completed: { step: 'greet', stepOutput: { message: 'hi' } },
   });
   session.append({ type: 'output', step: 'ask', output: { answer: 'stuff' } });
   session.append({
     type: 'done',
     done: true,
     finalOutput: { result: 'ok' },
-    completed: { step: 'ask', output: { answer: 'stuff' }, action: { status: 200 } },
+    completed: { step: 'ask', stepOutput: { answer: 'stuff' }, actionOutput: { status: 200 } },
   });
 
   const history = session.reconstructHistory();
   assert.equal(history.length, 2);
-  assert.deepEqual(history[0], { step: 'greet', output: { message: 'hi' } });
-  assert.deepEqual(history[1], { step: 'ask', output: { answer: 'stuff' }, action: { status: 200 } });
+  assert.deepEqual(history[0], { step: 'greet', stepOutput: { message: 'hi' } });
+  assert.deepEqual(history[1], { step: 'ask', stepOutput: { answer: 'stuff' }, actionOutput: { status: 200 } });
 });
 
 test('SessionFile.reconstructHistory returns empty for fresh session', () => {
@@ -137,7 +137,7 @@ test('SessionFile.reconstructHistory returns empty for fresh session', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   session.append({ type: 'prompt', step: 'greet', prompt: 'Hello', schema: {} });
@@ -152,7 +152,7 @@ test('SessionFile.readLastOutput finds the last output line', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   session.append({ type: 'prompt', step: 'greet', prompt: 'Hello', schema: {} });
@@ -162,7 +162,7 @@ test('SessionFile.readLastOutput finds the last output line', () => {
     step: 'ask',
     prompt: 'What?',
     schema: {},
-    completed: { step: 'greet', output: { message: 'hi' } },
+    completed: { step: 'greet', stepOutput: { message: 'hi' } },
   });
   session.append({ type: 'output', step: 'ask', output: { answer: 'stuff' } });
 
@@ -176,7 +176,7 @@ test('SessionFile.readLastOutput returns null when no output lines exist', () =>
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   session.append({ type: 'prompt', step: 'greet', prompt: 'Hello', schema: {} });
@@ -190,7 +190,7 @@ test('SessionFile.appendResult adds type field to PromptResult', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   const result: PromptResult = { step: 'greet', prompt: 'Hello', schema: { type: 'object' } };
@@ -210,7 +210,7 @@ test('SessionFile.appendResult adds type field to DoneResult', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   const result: DoneResult = { done: true, finalOutput: { summary: 'done' } };
@@ -229,7 +229,7 @@ test('SessionFile.appendResult adds type field to ValidationErrorResult', () => 
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   const result: ValidationErrorResult = { error: 'validation', step: 'greet', message: 'bad', retry: true };
@@ -248,7 +248,7 @@ test('SessionFile.cleanup removes the session file', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   session.cleanup();
@@ -261,7 +261,7 @@ test('SessionManager.cleanup removes session file by id', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   SessionManager.cleanup(session.sessionId, dir);
@@ -274,7 +274,7 @@ test('SessionFile handles malformed lines gracefully', () => {
     sessionDir: dir,
     skill: 'test-skill',
     host: 'claude-code',
-    context: {},
+    params: {},
   });
 
   appendFileSync(session.filePath, '{"type":"prompt","step":"greet","prompt":"Hello","schema":{}}\n');

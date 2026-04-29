@@ -41,10 +41,10 @@ test('parseCompositeArgs: --help returns help', () => {
 });
 
 test('parseCompositeArgs: implicit start with flags', () => {
-  const result = parseCompositeArgs(['node', 'run', '--context', '{}'], ['doctor', 'setup']);
+  const result = parseCompositeArgs(['node', 'run', '--params', '{}'], ['doctor', 'setup']);
   assert.equal(result.mode, 'dispatcher');
   assert.equal((result as Extract<CompositeCommand, { mode: 'dispatcher' }>).command, 'start');
-  assert.equal((result as Extract<CompositeCommand, { mode: 'dispatcher' }>).flags['context'], '{}');
+  assert.equal((result as Extract<CompositeCommand, { mode: 'dispatcher' }>).flags['params'], '{}');
 });
 
 test('parseCompositeArgs: advance command', () => {
@@ -57,7 +57,7 @@ test('parseCompositeArgs: advance command', () => {
 });
 
 test('parseCompositeArgs: subskill start', () => {
-  const result = parseCompositeArgs(['node', 'run', 'doctor', '--context', '{}'], ['doctor', 'setup']);
+  const result = parseCompositeArgs(['node', 'run', 'doctor', '--params', '{}'], ['doctor', 'setup']);
   assert.equal(result.mode, 'subskill');
   const sub = result as Extract<CompositeCommand, { mode: 'subskill' }>;
   assert.equal(sub.name, 'doctor');
@@ -89,7 +89,7 @@ test('parseCompositeArgs: topic command', () => {
 // --- CLI integration tests ---
 
 test('composite: dispatcher start returns first step prompt', async () => {
-  const { stdout } = await run('--context', '{}');
+  const { stdout } = await run('--params', '{}');
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'classify');
   assert.equal(result.prompt, '<prompt>\nClassify intent.\n</prompt>');
@@ -134,7 +134,7 @@ test('composite: sub-skill advance with namespaced step', async () => {
 });
 
 test('composite: direct sub-skill start bypasses dispatcher', async () => {
-  const { stdout } = await run('doctor', '--context', '{}');
+  const { stdout } = await run('doctor', '--params', '{}');
   const result = JSON.parse(stdout.trim());
   assert.equal(result.step, 'doctor/diagnose');
   assert.equal(result.prompt, '<prompt>\nDiagnose the issue.\n</prompt>');
@@ -182,7 +182,7 @@ test('composite: --help lists subskills and topics', async () => {
 
 test('composite session: dispatcher start creates session file', async () => {
   const dir = createTempDir();
-  const { stdout } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout } = await run('--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(stdout.trim());
 
   assert.ok(pointer.sessionId);
@@ -197,7 +197,7 @@ test('composite session: dispatcher start creates session file', async () => {
 
 test('composite session: dispatcher advance with subskill redirect (file mode)', async () => {
   const dir = createTempDir();
-  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout: startOut } = await run('--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
   appendFileSync(
@@ -217,7 +217,7 @@ test('composite session: dispatcher advance with subskill redirect (file mode)',
 
 test('composite session: dispatcher advance with topic redirect (file mode)', async () => {
   const dir = createTempDir();
-  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout: startOut } = await run('--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
   appendFileSync(pointer.file, JSON.stringify({ type: 'output', step: 'classify', output: { intent: 'faq' } }) + '\n');
@@ -235,7 +235,7 @@ test('composite session: dispatcher advance with topic redirect (file mode)', as
 test('composite session: full lifecycle dispatcher → subskill (file mode)', async () => {
   const dir = createTempDir();
 
-  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout: startOut } = await run('--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
   appendFileSync(
@@ -293,7 +293,7 @@ test('composite session: subskill action stash survives across advances', async 
   const dir = createTempDir();
 
   // Start dispatcher
-  const { stdout: startOut } = await run('--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout: startOut } = await run('--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
   // Advance classify → redirects to doctor subskill, prompts for doctor/diagnose
@@ -333,7 +333,7 @@ test('composite session: direct subskill advance with qualified step name from s
   const dir = createTempDir();
 
   // Direct subskill start — prompts for doctor/diagnose
-  const { stdout: startOut } = await run('doctor', '--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout: startOut } = await run('doctor', '--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(startOut.trim());
 
   // Host writes output with the QUALIFIED step name (as seen in the prompt output)
@@ -356,7 +356,7 @@ test('composite session: direct subskill advance with qualified step name from s
 
 test('composite session: direct subskill start (file mode)', async () => {
   const dir = createTempDir();
-  const { stdout } = await run('doctor', '--context', '{}', '--session', 'new', '--session-dir', dir);
+  const { stdout } = await run('doctor', '--params', '{}', '--session', 'new', '--session-dir', dir);
   const pointer = JSON.parse(stdout.trim());
 
   const lines = readSessionLines(pointer.file);
@@ -367,7 +367,7 @@ test('composite session: direct subskill start (file mode)', async () => {
 test('composite session: flag mode advance', async () => {
   const dir = createTempDir();
   const { stdout: startOut } = await run(
-    '--context',
+    '--params',
     '{}',
     '--session',
     'new',

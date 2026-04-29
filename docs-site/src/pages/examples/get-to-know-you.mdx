@@ -39,21 +39,21 @@ const playfulTone = fragment(
 Fragments are interpolated into the `prompt` tagged template literal. The tag auto-dedents, so you can indent naturally in code:
 
 ```typescript
-prompt: ({ context }) =>
+prompt: ({ params }) =>
   prompt`
     ${playfulTone}
 
-    ${context.greeting} You're about to interview the user
+    ${params.greeting} You're about to interview the user
     to build their developer trading card. Start by asking their name.
   `,
 ```
 
 ### Context and stash
 
-The skill declares both immutable context (a greeting string with a default) and mutable stash (name, role, and latest hobby accumulated across steps):
+The skill declares both immutable params (a greeting string with a default) and mutable stash (name, role, and latest hobby accumulated across steps):
 
 ```typescript
-context: z.object({
+params: z.object({
   greeting: z.string().default('Hey there!'),
 }),
 stash: z.object({
@@ -63,7 +63,7 @@ stash: z.object({
 }),
 ```
 
-Each step merges into the stash via its `stash` callback. Types flow automatically — `stash.name` in a later prompt is typed as `string` without annotations.
+Each step merges into the stash via its `updateStash` callback. Types flow automatically — `stash.name` in a later prompt is typed as `string` without annotations.
 
 ### Structured askUser with branching
 
@@ -82,9 +82,9 @@ The `ask-role` step uses `act.askUser` with structured options. The SDK generate
     ],
   }),
   output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
-  stash: ({ output }) => ({ role: output.role }),
-  next: ({ output }) => {
-    switch (output.role) {
+  updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
+  next: ({ stepOutput }) => {
+    switch (stepOutput.role) {
       case 'dev':      return 'ask-stack';
       case 'designer': return 'ask-tools';
       case 'manager':  return 'ask-team-size';
@@ -135,10 +135,10 @@ The `ask-hobby` step can loop back to itself when the user wants to add more hob
     hobby: z.string(),
     wantsMore: z.boolean(),
   }),
-  stash: ({ output }) => ({ latestHobby: output.hobby }),
+  updateStash: ({ stepOutput }) => ({ latestHobby: stepOutput.hobby }),
   maxVisits: 2,
   onMaxVisits: 'confirm-profile',
-  next: ({ output }) => (output.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+  next: ({ stepOutput }) => (stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile'),
 })
 ```
 
@@ -156,7 +156,7 @@ The `confirm-profile` step uses the `act.confirm` primitive. If the user decline
     defaultAnswer: 'yes',
   }),
   output: z.object({ approved: z.boolean() }),
-  next: ({ output }) => (output.approved ? 'profile-card' : 'ask-hobby'),
+  next: ({ stepOutput }) => (stepOutput.approved ? 'profile-card' : 'ask-hobby'),
   maxVisits: 3,
   onMaxVisits: 'profile-card',
 })
@@ -172,13 +172,13 @@ prompt: ({ history, getStep, refs, stash }) => {
   const role = stash.role ?? 'Enigma';
 
   const specialty =
-    getStep<{ answer: string }>('ask-stack')?.output.answer ??
-    getStep<{ answer: string }>('ask-tools')?.output.answer ??
+    getStep('ask-stack')?.stepOutput.answer ??
+    getStep('ask-tools')?.stepOutput.answer ??
     // ... fallbacks for each role path
 
   const hobbies = history
     .filter((s) => s.step === 'ask-hobby')
-    .map((s) => (s.output as { hobby: string }).hobby);
+    .map((s) => (s.stepOutput as { hobby: string }).hobby);
 
   const stats = render.kv({
     Name: name,
@@ -251,7 +251,7 @@ import { runSkill, mockModel } from '@contentful/skill-kit/test';
 import skill from './skill.js';
 
 const result = await runSkill(skill, {
-  context: { greeting: 'Howdy!' },
+  params: { greeting: 'Howdy!' },
   model: mockModel({
     greet: { name: 'Alice' },
     'ask-role': { role: 'dev' },

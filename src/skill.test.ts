@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { skill } from './skill.js';
+import { action } from './action.js';
 
 test('skill().build() creates a frozen SkillDefinition', () => {
   const s = skill({
@@ -75,15 +76,15 @@ test('skill().build() throws on empty steps', () => {
   assert.throws(() => skill({ name: 'x', entry: 'start' }).build(), /at least one step/);
 });
 
-test('context type flows into step prompt callbacks', () => {
+test('params type flows into step prompt callbacks', () => {
   const s = skill({
     name: 'typed',
     entry: 'a',
-    context: z.object({ greeting: z.string() }),
+    params: z.object({ greeting: z.string() }),
   })
     .step('a', {
-      prompt: ({ context }) => {
-        const _check: string = context.greeting;
+      prompt: ({ params }) => {
+        const _check: string = params.greeting;
         void _check;
         return 'hi';
       },
@@ -189,17 +190,17 @@ test('.subskill() registers a sub-skill on the definition', () => {
 
   const parent = skill({ name: 'parent', entry: 'start' })
     .step('start', { prompt: 'go', output: z.object({ target: z.string() }), next: 'subskill:child' })
-    .subskill('child', child, { context: (output) => ({ from: output }) })
+    .subskill('child', child, { params: (output) => ({ from: output }) })
     .build();
 
   assert.ok(parent.subskills);
   assert.ok(parent.subskills['child']);
   assert.equal(parent.subskills['child'].definition.name, 'child');
-  assert.equal(typeof parent.subskills['child'].contextMap, 'function');
+  assert.equal(typeof parent.subskills['child'].paramsMap, 'function');
   assert.ok(Object.isFrozen(parent.subskills));
 });
 
-test('.subskill() without context mapping', () => {
+test('.subskill() without params mapping', () => {
   const child = skill({ name: 'child', entry: 'a' })
     .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
     .build();
@@ -209,7 +210,7 @@ test('.subskill() without context mapping', () => {
     .subskill('child', child)
     .build();
 
-  assert.equal(parent.subskills!['child']!.contextMap, undefined);
+  assert.equal(parent.subskills!['child']!.paramsMap, undefined);
 });
 
 test('.subskill() throws on nested sub-skills', () => {
@@ -251,4 +252,69 @@ test('skill without subskills or topics omits those fields', () => {
 
   assert.equal(s.subskills, undefined);
   assert.equal(s.topics, undefined);
+});
+
+test('step with incompatible action input schema throws at build time', () => {
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string(), content: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => ({ ok: true }),
+  });
+
+  assert.throws(
+    () =>
+      skill({ name: 'compat-check', entry: 'draft' })
+        .step('draft', {
+          prompt: 'Draft',
+          output: z.object({ title: z.string(), body: z.string() }),
+          action: { run: writeAction },
+          next: { terminal: true },
+        })
+        .build(),
+    /missing properties.*path.*content/,
+  );
+});
+
+test('step with compatible action input schema does not throw', () => {
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => ({ ok: true }),
+  });
+
+  assert.doesNotThrow(() =>
+    skill({ name: 'compat-ok', entry: 'a' })
+      .step('a', {
+        prompt: 'Go',
+        output: z.object({ path: z.string(), extra: z.number() }),
+        action: { run: writeAction },
+        next: { terminal: true },
+      })
+      .build(),
+  );
+});
+
+test('step with action.input mapper skips compat check', () => {
+  const writeAction = action({
+    name: 'write',
+    input: z.object({ path: z.string() }),
+    output: z.object({ ok: z.boolean() }),
+    run: async () => ({ ok: true }),
+  });
+
+  assert.doesNotThrow(() =>
+    skill({ name: 'mapper-skip', entry: 'a' })
+      .step('a', {
+        prompt: 'Go',
+        output: z.object({ title: z.string() }),
+        action: {
+          run: writeAction,
+          input: ({ stepOutput }) => ({ path: stepOutput.title }),
+        },
+        next: { terminal: true },
+      })
+      .build(),
+  );
 });

@@ -1,10 +1,36 @@
-import type { SkillDefinition, Handshake, ModelAdapter, SkillRunResult, PromptResult, DoneResult } from '../types.js';
+import type {
+  SkillDefinition,
+  Handshake,
+  ModelAdapter,
+  SkillRunResult,
+  PromptResult,
+  DoneResult,
+  CliResult,
+} from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 
 export interface RunSkillOptions {
-  context?: Record<string, unknown>;
+  params?: Record<string, unknown>;
   model: ModelAdapter;
   host?: Partial<Handshake>;
+}
+
+const MAX_AUTO_ADVANCE = 20;
+
+async function drainPromptless(engine: WorkflowEngine, result: CliResult, path: string[]): Promise<CliResult> {
+  let current = result;
+  let depth = 0;
+  while ('step' in current && !('error' in current) && !('done' in current) && !('redirect' in current)) {
+    const prompt = current as PromptResult;
+    if (!engine.isPromptless(prompt.step)) break;
+    depth += 1;
+    if (depth > MAX_AUTO_ADVANCE) {
+      throw new Error(`Auto-advance depth exceeded (${MAX_AUTO_ADVANCE}). Check for infinite prompt-less step loops.`);
+    }
+    path.push(prompt.step);
+    current = await engine.advance(prompt.step, {});
+  }
+  return current;
 }
 
 export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): Promise<SkillRunResult> {
@@ -14,11 +40,17 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
     isSubagent: opts.host?.isSubagent ?? false,
   };
 
-  const engine = new WorkflowEngine(skill, handshake, opts.context ?? {});
-  let current = engine.start();
+  const engine = new WorkflowEngine(skill, handshake, opts.params ?? {});
+  const startResult = engine.start();
 
   const path: string[] = [];
   const outputs: Record<string, unknown> = {};
+
+  let initial = await drainPromptless(engine, startResult, path);
+  if ('done' in initial && (initial as DoneResult).done) {
+    return { path, outputs, stepOutput: (initial as DoneResult).finalOutput, history: engine['history'].all() };
+  }
+  let current = initial as PromptResult;
 
   while (true) {
     path.push(current.step);
@@ -32,15 +64,17 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
 
     outputs[current.step] = response;
 
-    if ('done' in result && result.done) {
+    const drained = await drainPromptless(engine, result, path);
+
+    if ('done' in drained && (drained as DoneResult).done) {
       return {
         path,
         outputs,
-        output: (result as DoneResult).finalOutput,
+        stepOutput: (drained as DoneResult).finalOutput,
         history: engine['history'].all(),
       };
     }
 
-    current = result as PromptResult;
+    current = drained as PromptResult;
   }
 }

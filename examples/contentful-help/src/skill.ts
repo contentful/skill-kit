@@ -21,25 +21,25 @@ export default skill({
       ],
     }),
     output: z.object({ choice: z.enum(['doctor', 'setup', 'faq']) }),
-    stash: ({ output }) => ({ intent: output.choice, spaceId: '' }),
-    next: ({ output }) => {
-      if (output.choice === 'faq') return 'ask-topic';
-      if (output.choice === 'doctor') return 'get-space';
-      return `subskill:${output.choice}`;
+    updateStash: ({ stepOutput }) => ({ intent: stepOutput.choice, spaceId: '' }),
+    next: ({ stepOutput }) => {
+      if (stepOutput.choice === 'faq') return 'ask-topic';
+      if (stepOutput.choice === 'doctor') return 'get-space';
+      return `subskill:${stepOutput.choice}`;
     },
   })
 
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environment.',
     output: z.object({ spaceId: z.string() }),
-    stash: ({ output }) => ({ intent: 'doctor', spaceId: output.spaceId }),
+    updateStash: ({ stepOutput }) => ({ intent: 'doctor', spaceId: stepOutput.spaceId }),
     next: 'subskill:doctor',
   })
 
   .step('ask-topic', {
     prompt: act.askUser({ type: 'open', question: 'What would you like to know about?' }),
     output: z.object({ topicName: z.string() }),
-    next: ({ output }) => `topic:${output.topicName}`,
+    next: ({ stepOutput }) => `topic:${stepOutput.topicName}`,
   })
 
   .topic('rate-limits', {
@@ -52,7 +52,7 @@ export default skill({
   })
 
   .subskill('doctor', doctorSkill, {
-    context: (_output, stash) => ({ spaceId: (stash as { spaceId: string }).spaceId }),
+    params: (_output, stash) => ({ spaceId: (stash as { spaceId: string }).spaceId }),
   })
   .subskill('setup', setupSkill)
 

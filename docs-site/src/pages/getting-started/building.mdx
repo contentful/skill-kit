@@ -70,11 +70,11 @@ Dev mode — run a skill directly from source without compiling:
 
 ```bash
 # Session mode (recommended)
-skill-kit run <entry.ts> start --context '{}' --host claude-code --session new
+skill-kit run <entry.ts> start --params '{}' --host claude-code --session new
 skill-kit run <entry.ts> advance --session <id>
 
 # Stateless mode
-skill-kit run <entry.ts> start --context '{}' --host claude-code
+skill-kit run <entry.ts> start --params '{}' --host claude-code
 skill-kit run <entry.ts> advance --step greet --output '{"name":"Alice"}' --history '[]' --host claude-code
 ```
 

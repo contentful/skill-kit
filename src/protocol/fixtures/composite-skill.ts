@@ -14,8 +14,8 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({
     output: z.object({ issue: z.string() }),
     action: {
       run: scanAction,
-      input: ({ output }) => ({ path: output.issue }),
-      stash: ({ result }) => ({ scanResult: result.found }),
+      input: ({ stepOutput }) => ({ path: stepOutput.issue }),
+      updateStash: ({ actionOutput }) => ({ scanResult: actionOutput.found }),
     },
     next: 'triage',
   })
@@ -42,21 +42,21 @@ const setupSkill = skill({ name: 'setup', entry: 'configure' })
 const composite = skill({
   name: 'helper',
   entry: 'classify',
-  context: z.object({ query: z.string().default('') }),
+  params: z.object({ query: z.string().default('') }),
   stash: z.object({ intent: z.string() }),
 })
   .step('classify', {
     prompt: 'Classify intent.',
     output: z.object({ intent: z.string() }),
-    stash: ({ output }) => ({ intent: output.intent }),
-    next: ({ output }) => {
-      if (output.intent === 'faq') return 'topic:basics';
-      return `subskill:${output.intent}`;
+    updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
+    next: ({ stepOutput }) => {
+      if (stepOutput.intent === 'faq') return 'topic:basics';
+      return `subskill:${stepOutput.intent}`;
     },
   })
   .topic('basics', { label: 'Basic FAQ', content: () => 'This is the basics FAQ content.' })
   .subskill('doctor', doctorSkill, {
-    context: (_output, stash) => ({ from: (stash as Record<string, unknown>).intent }),
+    params: (_output: unknown, stash: unknown) => ({ from: (stash as Record<string, unknown>).intent }),
   })
   .subskill('setup', setupSkill)
   .build();

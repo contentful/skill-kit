@@ -1,1 +1,3 @@
-export const terminal: { readonly terminal: true } = Object.freeze({ terminal: true });
+export type Terminal = { readonly terminal: true };
+
+export const terminal: Terminal = Object.freeze({ terminal: true });

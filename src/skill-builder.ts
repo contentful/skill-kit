@@ -12,7 +12,28 @@ import type {
 } from './types.js';
 import { step as createStep } from './step.js';
 
-export class SkillBuilder<TContext, TStash> {
+function checkActionInputCompat(stepName: string, outputSchema: z.ZodType, actionDef: ActionDefinition): void {
+  try {
+    const stepJson = outputSchema.toJSONSchema() as Record<string, unknown>;
+    const actionJson = actionDef.input.toJSONSchema() as Record<string, unknown>;
+
+    const stepProps = Object.keys((stepJson['properties'] as Record<string, unknown>) ?? {});
+    const actionRequired = (actionJson['required'] as string[]) ?? [];
+
+    const missing = actionRequired.filter((k) => !stepProps.includes(k));
+    if (missing.length > 0) {
+      throw new Error(
+        `Step "${stepName}" uses action "${actionDef.name}" without an input mapper, ` +
+          `but the step output is missing properties required by the action input: [${missing.join(', ')}]. ` +
+          `Add an action.input mapper to transform the step output.`,
+      );
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Step "')) throw err;
+  }
+}
+
+export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown> = Record<string, never>> {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
   private readonly subskills: Record<string, SubskillRegistration> = {};
@@ -22,44 +43,52 @@ export class SkillBuilder<TContext, TStash> {
     this.config = config;
   }
 
-  step<TOutput extends z.ZodType, A extends ActionDefinition | undefined = undefined>(
-    name: string,
+  step<Name extends string, TOutput extends z.ZodType, A extends ActionDefinition | undefined = undefined>(
+    name: Name,
     configOrDef:
       | (Omit<
-          StepConfig<TOutput, TContext, TStash, A extends ActionDefinition ? InferActionOutput<A> : undefined>,
+          StepConfig<TOutput, TParams, TStash, A extends ActionDefinition ? InferActionOutput<A> : undefined, TSteps>,
           'action'
         > & {
           action?: A extends ActionDefinition
             ? {
                 run: A;
-                input?: (ctx: { output: z.infer<TOutput>; stash: Readonly<TStash> }) => unknown;
-                stash?: (ctx: { result: InferActionOutput<A> }) => Partial<TStash>;
+                input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: TParams }) => unknown;
+                updateStash?: (ctx: { actionOutput: InferActionOutput<A> }) => Partial<TStash>;
               }
             : undefined;
         })
       | StepDefinition,
-  ): SkillBuilder<TContext, TStash> {
+  ): SkillBuilder<TParams, TStash, TSteps & { [K in Name]: TOutput extends z.ZodType ? z.infer<TOutput> : unknown }> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
-      this.steps[name] = createStep(configOrDef as StepConfig);
+      const config = configOrDef as StepConfig;
+      if (config.action && !config.action.input && config.output) {
+        checkActionInputCompat(name, config.output, config.action.run);
+      }
+      this.steps[name] = createStep(config);
     }
-    return this;
+    return this as SkillBuilder<
+      TParams,
+      TStash,
+      TSteps & { [K in Name]: TOutput extends z.ZodType ? z.infer<TOutput> : unknown }
+    >;
   }
 
-  extend<TOutput extends z.ZodType>(
-    name: string,
+  extend<Name extends string, TOutput extends z.ZodType>(
+    name: Name,
     base: StepDefinition<TOutput>,
-    overrides: Partial<StepConfig<TOutput, TContext, TStash>>,
-  ): SkillBuilder<TContext, TStash> {
+    overrides: Partial<StepConfig<TOutput, TParams, TStash, unknown, TSteps>>,
+  ): SkillBuilder<TParams, TStash, TSteps & { [K in Name]: z.infer<TOutput> }> {
     this.steps[name] = createStep({ ...base.config, ...overrides } as StepConfig);
-    return this;
+    return this as SkillBuilder<TParams, TStash, TSteps & { [K in Name]: z.infer<TOutput> }>;
   }
 
   register<TModuleStash extends z.ZodType>(
     mod: ModuleDefinition<TModuleStash>,
     opts: { next: string },
-  ): SkillBuilder<TContext, TStash & z.infer<TModuleStash>> {
+  ): SkillBuilder<TParams, TStash & z.infer<TModuleStash>, TSteps> {
     for (const [name, stepDef] of Object.entries(mod.steps)) {
       const isExit = stepDef.config.next === '__parent__';
       if (isExit) {
@@ -69,25 +98,25 @@ export class SkillBuilder<TContext, TStash> {
       }
     }
 
-    return this as unknown as SkillBuilder<TContext, TStash & z.infer<TModuleStash>>;
+    return this as unknown as SkillBuilder<TParams, TStash & z.infer<TModuleStash>, TSteps>;
   }
 
   subskill(
     name: string,
     definition: SkillDefinition,
-    opts?: { context?: (stepOutput: unknown, stash: unknown) => unknown },
-  ): SkillBuilder<TContext, TStash> {
+    opts?: { params?: (stepOutput: unknown, stash: unknown) => unknown },
+  ): SkillBuilder<TParams, TStash, TSteps> {
     if (definition.subskills && Object.keys(definition.subskills).length > 0) {
       throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);
     }
     this.subskills[name] = Object.freeze({
       definition,
-      contextMap: opts?.context,
+      paramsMap: opts?.params,
     });
     return this;
   }
 
-  topic(name: string, config: TopicConfig): SkillBuilder<TContext, TStash> {
+  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TStash, TSteps> {
     this.topics[name] = config;
     return this;
   }
@@ -117,7 +146,7 @@ export class SkillBuilder<TContext, TStash> {
       description,
       entry,
       system: this.config.system,
-      context: this.config.context,
+      params: this.config.params,
       stash: this.config.stash,
       steps: Object.freeze({ ...this.steps }),
       observers: this.config.observers,

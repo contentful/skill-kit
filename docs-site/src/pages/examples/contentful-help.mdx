@@ -41,10 +41,10 @@ The entry step uses `act.askUser` to let the user pick their intent:
     ],
   }),
   output: z.object({ choice: z.enum(['doctor', 'setup', 'faq']) }),
-  next: ({ output }) => {
-    if (output.choice === 'faq') return 'ask-topic';
-    if (output.choice === 'doctor') return 'get-space';
-    return `subskill:${output.choice}`;
+  next: ({ stepOutput }) => {
+    if (stepOutput.choice === 'faq') return 'ask-topic';
+    if (stepOutput.choice === 'doctor') return 'get-space';
+    return `subskill:${stepOutput.choice}`;
   },
 })
 ```
@@ -53,19 +53,19 @@ The dispatcher can have multiple steps before routing — `get-space` gathers th
 
 ## Sub-skill registration
 
-Sub-skills are imported and registered with an optional context mapping:
+Sub-skills are imported and registered with an optional params mapping:
 
 ```typescript
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
 .subskill('doctor', doctorSkill, {
-  context: (_output, stash) => ({ spaceId: stash.spaceId }),
+  params: (_output, stash) => ({ spaceId: stash.spaceId }),
 })
 .subskill('setup', setupSkill)
 ```
 
-The context function receives the dispatching step's output and the dispatcher's accumulated stash. Its return value becomes the sub-skill's context.
+The params function receives the dispatching step's output and the dispatcher's accumulated stash. Its return value becomes the sub-skill's params.
 
 ## Topic registration
 
@@ -100,7 +100,7 @@ const checkEnv = action({
 });
 ```
 
-The step's `action.stash` callback stashes the results, and `next` routes based on the action output — either to guided setup or directly to configuration.
+The step's `action.updateStash` callback stashes the results, and `next` routes based on the action output — either to guided setup or directly to configuration.
 
 ## Testing
 

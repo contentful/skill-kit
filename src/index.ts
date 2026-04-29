@@ -8,6 +8,7 @@ export { action } from './action.js';
 export { render } from './render/index.js';
 export { view } from './view.js';
 export { terminal } from './terminal.js';
+export type { Terminal } from './terminal.js';
 export { module } from './module.js';
 export { reference } from './reference.js';
 export { SkillBuilder } from './skill-builder.js';
@@ -28,6 +29,7 @@ export type {
   PromptContext,
   PromptFn,
   TransitionFn,
+  NextTarget,
   ObserverMap,
   StepResult,
   SkillRunResult,

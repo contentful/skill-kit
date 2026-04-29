@@ -27,7 +27,7 @@ test('step() supports terminal next', () => {
 });
 
 test('step() supports function next', () => {
-  const fn = ({ output }: { output: { ok: boolean } }) => (output.ok ? 'done' : 'retry');
+  const fn = ({ stepOutput }: { stepOutput: { ok: boolean } }) => (stepOutput.ok ? 'done' : 'retry');
   const s = step({
     prompt: 'Check.',
     output: z.object({ ok: z.boolean() }),
@@ -64,8 +64,10 @@ test('step.extend() overrides prompt', () => {
   assert.equal(extended.config.next, 'done');
 });
 
-test('step() throws on missing output', () => {
-  assert.throws(() => step({ prompt: 'x', output: undefined as never, next: 'y' }), /output schema is required/);
+test('step() allows omitting output for output-less steps', () => {
+  const s = step({ prompt: 'Display only', next: { terminal: true } });
+  assert.equal(s.kind, 'step');
+  assert.equal(s.config.output, undefined);
 });
 
 test('step() throws on missing next', () => {

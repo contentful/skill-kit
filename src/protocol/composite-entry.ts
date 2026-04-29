@@ -5,13 +5,18 @@ import { createReferenceLoader } from '../runtime/reference-loader.js';
 import { resolveHost } from './host.js';
 import { SessionManager, type SessionFile } from './session.js';
 import { SubskillEngine } from './subskill-engine.js';
+import { autoAdvance } from './auto-advance.js';
+
+function sessionWriter(session: SessionFile | undefined): ((r: CliResult) => void) | undefined {
+  return session ? (r) => session.appendResult(r) : undefined;
+}
 
 function resolveSkillDir(): string {
   const binPath = process.execPath;
   return resolve(dirname(binPath), '..');
 }
 
-type HistoryEntry = { step: string; output: unknown; action?: unknown };
+type HistoryEntry = { step: string; stepOutput: unknown; actionOutput?: unknown };
 
 export type CompositeCommand =
   | { mode: 'dispatcher'; command: 'start' | 'advance'; flags: Record<string, string> }
@@ -206,7 +211,7 @@ function resolveSessionForCommand(
       host: flags['host'] ?? 'generic',
       tools: sessionTools,
       isSubagent,
-      context: flags['context'] ? (JSON.parse(flags['context']) as unknown) : {},
+      params: flags['params'] ? (JSON.parse(flags['params']) as unknown) : {},
       outputMode,
     });
     return { session, isStart: true };
@@ -285,9 +290,10 @@ async function handleDispatcher(
   const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], tools, isSubagent);
 
   if (isStart) {
-    const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
-    const engine = new WorkflowEngine(def, handshake, context, refs);
-    const result = engine.start();
+    const params = parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {};
+    const engine = new WorkflowEngine(def, handshake, params, refs);
+    const startResult = engine.start();
+    const result = await autoAdvance(engine, startResult, sessionWriter(session));
     writeStartOutput(result, session);
     return;
   }
@@ -299,21 +305,23 @@ async function handleDispatcher(
     const sub = def.subskills?.[subskillName];
     if (!sub) throw new Error(`Unknown sub-skill "${subskillName}"`);
     const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, subskillName);
-    subEngine.replayHistory(history);
+    subEngine.replayHistory(history as HistoryEntry[]);
     subEngine.startForReplay();
-    const result = await subEngine.advance(stepName, output);
+    const subResult = await subEngine.advance(stepName, output);
+    const result = await autoAdvance(subEngine, subResult, sessionWriter(session));
     writeOutput(result, session);
     return;
   }
 
   const engine = new WorkflowEngine(def, handshake, {}, refs);
-  const dispatcherHistory = extractDispatcherHistory(history);
+  const dispatcherHistory = extractDispatcherHistory(history as HistoryEntry[]);
   if (dispatcherHistory.length > 0) {
     engine.replayHistory(dispatcherHistory);
   }
   engine.start();
 
-  const result = await engine.advance(stepName, output);
+  const advanceResult = await engine.advance(stepName, output);
+  const result = await autoAdvance(engine, advanceResult, sessionWriter(session));
 
   if ('redirect' in result) {
     await handleRedirect(def, result as RedirectResult, handshake, refs, session);
@@ -340,17 +348,20 @@ async function handleSubskill(
   const handshake = resolveHost(session?.header.host ?? parsed.flags['host'], subTools, subIsSubagent);
 
   if (isStart) {
-    const context = parsed.flags['context'] ? (JSON.parse(parsed.flags['context']) as unknown) : {};
-    const subEngine = new SubskillEngine(sub.definition, handshake, context, refs, parsed.name);
-    writeStartOutput(subEngine.start(), session);
+    const params = parsed.flags['params'] ? (JSON.parse(parsed.flags['params']) as unknown) : {};
+    const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, parsed.name);
+    const startResult = subEngine.start();
+    const result = await autoAdvance(subEngine, startResult, sessionWriter(session));
+    writeStartOutput(result, session);
     return;
   }
 
   const { stepName, output, history } = resolveAdvanceInput(parsed.flags, session);
   const subEngine = new SubskillEngine(sub.definition, handshake, {}, refs, parsed.name);
-  subEngine.replayHistory(history);
+  subEngine.replayHistory(history as HistoryEntry[]);
   subEngine.startForReplay();
-  const result = await subEngine.advance(stepName, output);
+  const advanceResult = await subEngine.advance(stepName, output);
+  const result = await autoAdvance(subEngine, advanceResult, sessionWriter(session));
   writeOutput(result, session);
 }
 
@@ -381,10 +392,10 @@ async function handleRedirect(
       throw new Error(`Redirect to unknown sub-skill "${subName}"`);
     }
 
-    const context = sub.contextMap ? sub.contextMap(redirect.completed.output, redirect.stash) : {};
-    const subEngine = new SubskillEngine(sub.definition, handshake, context, refs, subName);
-    const startResult = subEngine.start();
-    // completed is from the dispatcher step that triggered the redirect — already in session convention
+    const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+    const subEngine = new SubskillEngine(sub.definition, handshake, params, refs, subName);
+    const rawStart = subEngine.start();
+    const startResult = await autoAdvance(subEngine, rawStart, sessionWriter(session));
     writeOutput({ ...startResult, completed: redirect.completed }, session);
     return;
   }
@@ -400,7 +411,7 @@ function printCompositeHelp(def: SkillDefinition): void {
     `${def.name} — composite skill`,
     '',
     'Usage:',
-    `  ${def.name} --context '{"key":"value"}' [--host claude-code] [--session new]`,
+    `  ${def.name} --params '{"key":"value"}' [--host claude-code] [--session new]`,
     `  ${def.name} advance --session <id>`,
     `  ${def.name} advance --step <name> --output '{"..."}' --history '[...]'`,
   ];
@@ -413,7 +424,7 @@ function printCompositeHelp(def: SkillDefinition): void {
       lines.push(`  ${name.padEnd(20)} ${desc}`);
     }
     lines.push('');
-    lines.push(`  ${def.name} <subskill> --context '{"..."}' [--host claude-code]`);
+    lines.push(`  ${def.name} <subskill> --params '{"..."}' [--host claude-code]`);
     lines.push(`  ${def.name} <subskill> advance --step <name> --output '{"..."}' --history '[...]'`);
   }
 
@@ -430,7 +441,7 @@ function printCompositeHelp(def: SkillDefinition): void {
 
   lines.push('');
   lines.push('Flags:');
-  lines.push('  --context      JSON string. Validated against context schema. (start only)');
+  lines.push('  --params       JSON string. Validated against skill params schema. (start only)');
   lines.push('  --step         Step name (advance only). Sub-skill steps: <subskill>/<step>');
   lines.push('  --output       JSON string. Agent response for the step. (advance only)');
   lines.push('  --history      JSON array of {step, output, action?} objects. (advance only)');

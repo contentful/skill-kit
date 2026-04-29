@@ -13,7 +13,7 @@ const fixturePath = join(__dirname, 'fixtures', 'simple-skill.ts');
 const multiStepFixturePath = join(__dirname, 'fixtures', 'multi-step-skill.ts');
 
 test('CLI start returns first step prompt as JSON', async () => {
-  const { stdout } = await exec('npx', ['tsx', fixturePath, 'start', '--context', '{}'], {
+  const { stdout } = await exec('npx', ['tsx', fixturePath, 'start', '--params', '{}'], {
     cwd: join(__dirname, '..', '..'),
   });
 
@@ -38,7 +38,7 @@ test('CLI advance returns done for terminal step', async () => {
 });
 
 test('CLI implicit start (no subcommand) returns first step prompt as JSON', async () => {
-  const { stdout } = await exec('npx', ['tsx', fixturePath, '--context', '{}'], {
+  const { stdout } = await exec('npx', ['tsx', fixturePath, '--params', '{}'], {
     cwd: join(__dirname, '..', '..'),
   });
 
@@ -55,7 +55,7 @@ test('CLI --help prints usage to stderr', async () => {
 
   assert.ok(stderr.includes('start'));
   assert.ok(stderr.includes('advance'));
-  assert.ok(stderr.includes('--context'));
+  assert.ok(stderr.includes('--params'));
 });
 
 // --- Session mode tests ---
@@ -68,7 +68,7 @@ test('CLI session start returns session pointer', async () => {
   const dir = createTempDir();
   const { stdout } = await exec(
     'npx',
-    ['tsx', fixturePath, 'start', '--context', '{}', '--host', 'claude-code', '--session', 'new', '--session-dir', dir],
+    ['tsx', fixturePath, 'start', '--params', '{}', '--host', 'claude-code', '--session', 'new', '--session-dir', dir],
     { cwd: join(__dirname, '..', '..') },
   );
 
@@ -97,7 +97,7 @@ test('CLI session advance in flag mode returns line number', async () => {
 
   const { stdout: startOut } = await exec(
     'npx',
-    ['tsx', fixturePath, 'start', '--context', '{}', '--session', 'new', '--session-dir', dir, '--output-mode', 'flag'],
+    ['tsx', fixturePath, 'start', '--params', '{}', '--session', 'new', '--session-dir', dir, '--output-mode', 'flag'],
     { cwd: join(__dirname, '..', '..') },
   );
   const pointer = JSON.parse(startOut.trim());
@@ -141,7 +141,7 @@ test('CLI session advance in file mode reads output from session file', async ()
 
   const { stdout: startOut } = await exec(
     'npx',
-    ['tsx', fixturePath, 'start', '--context', '{}', '--session', 'new', '--session-dir', dir],
+    ['tsx', fixturePath, 'start', '--params', '{}', '--session', 'new', '--session-dir', dir],
     { cwd: join(__dirname, '..', '..') },
   );
   const pointer = JSON.parse(startOut.trim());
@@ -171,7 +171,7 @@ test('CLI session full lifecycle with multi-step skill (file mode)', async () =>
 
   const { stdout: startOut } = await exec(
     'npx',
-    ['tsx', multiStepFixturePath, 'start', '--context', '{}', '--session', 'new', '--session-dir', dir],
+    ['tsx', multiStepFixturePath, 'start', '--params', '{}', '--session', 'new', '--session-dir', dir],
     { cwd: join(__dirname, '..', '..') },
   );
   const pointer = JSON.parse(startOut.trim());

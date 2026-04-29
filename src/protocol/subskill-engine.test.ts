@@ -21,8 +21,8 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({
     output: z.object({ issue: z.string() }),
     action: {
       run: scanAction,
-      input: ({ output }) => ({ path: output.issue }),
-      stash: ({ result }) => ({ scanResult: result.found }),
+      input: ({ stepOutput }) => ({ path: stepOutput.issue }),
+      updateStash: ({ actionOutput }) => ({ scanResult: actionOutput.found }),
     },
     next: 'report',
   })
@@ -85,7 +85,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
     .step('a', {
       prompt: 'A',
       output: z.object({ v: z.string() }),
-      stash: ({ output }) => ({ val: output.v }),
+      updateStash: ({ stepOutput }) => ({ val: stepOutput.v }),
       next: 'b',
     })
     .step('b', {
@@ -106,9 +106,9 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
   const sub = new SubskillEngine(stashSkill, genericHost, {}, { load: () => '', asset: (p) => p }, 'doc');
   // Mixed history: dispatcher entry, this subskill entry, another subskill entry
   sub.replayHistory([
-    { step: 'classify', output: { intent: 'doc' } },
-    { step: 'doc/a', output: { v: 'hello' } },
-    { step: 'other/x', output: {} },
+    { step: 'classify', stepOutput: { intent: 'doc' } },
+    { step: 'doc/a', stepOutput: { v: 'hello' } },
+    { step: 'other/x', stepOutput: {} },
   ]);
   sub.startForReplay();
   // Advance b → builds c prompt which captures stash

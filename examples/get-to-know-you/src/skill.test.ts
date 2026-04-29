@@ -5,7 +5,7 @@ import skill from './skill.js';
 
 test('developer path: greet → ask-role → ask-stack → ask-hobby → confirm → profile-card', async () => {
   const result = await runSkill(skill, {
-    context: { greeting: 'Howdy!' },
+    params: { greeting: 'Howdy!' },
     model: mockModel({
       greet: { name: 'Alice' },
       'ask-role': { role: 'dev' },

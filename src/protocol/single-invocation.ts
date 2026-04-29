@@ -1,19 +1,22 @@
-import type { SkillDefinition } from '../types.js';
+import type { SkillDefinition, CliResult } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { resolveHost } from './host.js';
 import type { SessionFile } from './session.js';
+import { autoAdvance } from './auto-advance.js';
 
 export async function handleStart(
   skill: SkillDefinition,
-  context: unknown,
+  params: unknown,
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
   isSubagent?: boolean,
 ): Promise<void> {
   const handshake = resolveHost(hostName, tools, isSubagent);
-  const engine = new WorkflowEngine(skill, handshake, context);
-  const result = engine.start();
+  const engine = new WorkflowEngine(skill, handshake, params);
+  const startResult = engine.start();
+  const onIntermediate = session ? (r: CliResult) => session.appendResult(r) : undefined;
+  const result = await autoAdvance(engine, startResult, onIntermediate);
 
   if (session) {
     const line = session.appendResult(result);
@@ -27,7 +30,7 @@ export async function handleAdvance(
   skill: SkillDefinition,
   stepName: string,
   output: unknown,
-  history: Array<{ step: string; output: unknown; action?: unknown }>,
+  history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }>,
   hostName?: string,
   session?: SessionFile,
   tools?: string[],
@@ -41,7 +44,9 @@ export async function handleAdvance(
   }
 
   engine.start();
-  const result = await engine.advance(stepName, output);
+  const advanceResult = await engine.advance(stepName, output);
+  const onIntermediate = session ? (r: CliResult) => session.appendResult(r) : undefined;
+  const result = await autoAdvance(engine, advanceResult, onIntermediate);
 
   if (session) {
     const line = session.appendResult(result);
@@ -56,7 +61,7 @@ function printHelp(skillName: string): void {
     `${skillName} — skill-kit CLI`,
     '',
     'Usage:',
-    `  ${skillName} --context '{"key":"value"}' [--host claude-code] [--session new]`,
+    `  ${skillName} --params '{"key":"value"}' [--host claude-code] [--session new]`,
     `  ${skillName} advance --session <id>`,
     `  ${skillName} advance --step <name> --output '{"key":"value"}' --history '[...]' [--host claude-code]`,
     '',
@@ -66,10 +71,10 @@ function printHelp(skillName: string): void {
     '  advance     Submit step output. Returns next prompt or done signal.',
     '',
     'Flags:',
-    '  --context      JSON string. Validated against skill context schema. (start only)',
+    '  --params       JSON string. Validated against skill params schema. (start only)',
     '  --step         Name of the step whose output is being submitted. (advance only)',
     '  --output       JSON string. The agent response for the step. (advance only)',
-    '  --history      JSON array of {step, output, action?} objects. (advance only)',
+    '  --history      JSON array of {step, stepOutput, actionOutput?} objects. (advance only)',
     '  --host         Host identifier for tool resolution. Default: generic.',
     '  --tools        Comma-separated list of available tools (merged with host registry).',
     '  --subagent     Indicates a subagent with a genuine tool subset (no registry merge).',
