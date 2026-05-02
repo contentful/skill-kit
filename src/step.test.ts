@@ -73,3 +73,7 @@ test('step() allows omitting output for output-less steps', () => {
 test('step() throws on missing next', () => {
   assert.throws(() => step({ prompt: 'x', response: type({}), next: undefined as never }), /next is required/);
 });
+
+test('step() allows action-only steps without prompt or response', () => {
+  assert.doesNotThrow(() => step({ next: 'b' }));
+});

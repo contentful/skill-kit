@@ -15,12 +15,12 @@ export default skill({
       issues: 'string[]',
       healthy: 'boolean',
     }),
-    next: ({ response }) => (response.healthy ? 'report-clean' : 'suggest-fix'),
+    next: [{ to: 'report-clean', when: ({ response }) => response.healthy }, { to: 'suggest-fix' }],
   })
 
   .step('suggest-fix', {
     prompt: ({ store }) => {
-      const issues = store.maybe('diagnose')?.issues ?? [];
+      const issues = store.diagnose?.issues ?? [];
       return (
         `Found issues: ${issues.join(', ')}. Suggest fixes for each issue. ` +
         'Explain what each fix does and any risks.'
@@ -42,7 +42,7 @@ export default skill({
       ],
     }),
     response: type({ choice: "'apply' | 'skip'" }),
-    next: ({ response }) => (response.choice === 'apply' ? 'apply-fix' : 'report-issues'),
+    next: [{ to: 'apply-fix', when: ({ response }) => response.choice === 'apply' }, { to: 'report-issues' }],
   })
 
   .step('apply-fix', {
@@ -53,7 +53,7 @@ export default skill({
 
   .step('report-issues', {
     prompt: ({ store }) => {
-      const issues = store.maybe('diagnose')?.issues ?? [];
+      const issues = store.diagnose?.issues ?? [];
       return `Summarize: found ${issues.length} issue(s). Report the status of each.`;
     },
     response: type({ summary: 'string' }),

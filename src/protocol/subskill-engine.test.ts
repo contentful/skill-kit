@@ -96,7 +96,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
     })
     .step('c', {
       prompt: (ctx) => {
-        capturedStoreValue = ctx.store.maybe('a');
+        capturedStoreValue = ctx.store.a;
         return 'C';
       },
       response: type({}),

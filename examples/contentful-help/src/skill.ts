@@ -22,11 +22,11 @@ export default skill({
       ],
     }),
     response: type({ choice: "'doctor' | 'setup' | 'faq'" }),
-    next: ({ response }) => {
-      if (response.choice === 'faq') return 'ask-topic';
-      if (response.choice === 'doctor') return 'get-space';
-      return `subskill:${response.choice}`;
-    },
+    next: [
+      { to: 'ask-topic', when: ({ response }) => response.choice === 'faq' },
+      { to: 'get-space', when: ({ response }) => response.choice === 'doctor' },
+      { to: 'subskill:setup' },
+    ],
   })
 
   .step('get-space', {
@@ -51,7 +51,7 @@ export default skill({
   })
 
   .subskill('doctor', doctorSkill, {
-    params: (_output, store) => ({ spaceId: store.maybe('get-space')?.spaceId ?? '' }),
+    params: (_output, store) => ({ spaceId: store['get-space']?.spaceId ?? '' }),
   })
   .subskill('setup', setupSkill)
 

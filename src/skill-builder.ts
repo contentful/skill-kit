@@ -34,7 +34,15 @@ function checkActionInputCompat(stepName: string, outputSchema: type.Any, action
   }
 }
 
-export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Record<string, never>> {
+import type { ExtractBranchTargets } from './types/store.js';
+
+export class SkillBuilder<
+  TParams,
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  TSteps extends Record<string, unknown> = {},
+  TGuaranteed extends string = never,
+  TBranched extends string = never,
+> {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
   private readonly subskills: Record<string, SubskillRegistration> = {};
@@ -45,13 +53,44 @@ export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Reco
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  step<Name extends string, TOutput extends type.Any, A extends ActionDefinition<any, any> | undefined = undefined>(
+  step<
+    Name extends string,
+    TOutput extends type.Any,
+    A extends ActionDefinition<any, any> | undefined = undefined,
+    TResultValue = A extends ActionDefinition<any, infer TActionOut>
+      ? TActionOut['infer']
+      : TOutput extends type.Any
+        ? TOutput['infer']
+        : unknown,
+    const TNext extends StepConfig<
+      TOutput,
+      TParams,
+      A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
+      TSteps
+    >['next'] = StepConfig<
+      TOutput,
+      TParams,
+      A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
+      TSteps
+    >['next'],
+  >(
     name: Name,
     configOrDef:
       | (Omit<
-          StepConfig<TOutput, TParams, A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined, TSteps>,
-          'action'
+          StepConfig<
+            TOutput,
+            TParams,
+            A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
+            TSteps,
+            Exclude<TGuaranteed, Name>
+          >,
+          'action' | 'next' | 'result'
         > & {
+          next: TNext;
+          result?: (ctx: {
+            response: TOutput['infer'];
+            actionResult: A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined;
+          }) => TResultValue;
           action?: A extends ActionDefinition<any, any>
             ? {
                 run: A;
@@ -60,7 +99,12 @@ export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Reco
             : undefined;
         })
       | StepDefinition,
-  ): SkillBuilder<TParams, TSteps & { [K in Name]: TOutput extends type.Any ? TOutput['infer'] : unknown }> {
+  ): SkillBuilder<
+    TParams,
+    TSteps & { [K in Name]: TResultValue },
+    Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
+    TBranched | ExtractBranchTargets<TNext, Extract<keyof TSteps, string> | Name>
+  > {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
@@ -70,22 +114,37 @@ export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Reco
       }
       this.steps[name] = createStep(config);
     }
-    return this as SkillBuilder<
+    return this as unknown as SkillBuilder<
       TParams,
-      TSteps & { [K in Name]: TOutput extends type.Any ? TOutput['infer'] : unknown }
+      TSteps & { [K in Name]: TResultValue },
+      Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
+      TBranched | ExtractBranchTargets<TNext, Extract<keyof TSteps, string> | Name>
     >;
   }
 
   extend<Name extends string, TOutput extends type.Any>(
     name: Name,
     base: StepDefinition<TOutput>,
-    overrides: Partial<StepConfig<TOutput, TParams, unknown, TSteps>>,
-  ): SkillBuilder<TParams, TSteps & { [K in Name]: TOutput['infer'] }> {
+    overrides: Partial<StepConfig<TOutput, TParams, unknown, TSteps, Exclude<TGuaranteed, Name>>>,
+  ): SkillBuilder<
+    TParams,
+    TSteps & { [K in Name]: TOutput['infer'] },
+    Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
+    TBranched
+  > {
     this.steps[name] = createStep({ ...base.config, ...overrides } as StepConfig);
-    return this as SkillBuilder<TParams, TSteps & { [K in Name]: TOutput['infer'] }>;
+    return this as unknown as SkillBuilder<
+      TParams,
+      TSteps & { [K in Name]: TOutput['infer'] },
+      Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
+      TBranched
+    >;
   }
 
-  register(mod: ModuleDefinition, opts: { next: string }): SkillBuilder<TParams, TSteps> {
+  register<TModuleSteps extends Record<string, unknown>>(
+    mod: ModuleDefinition<TModuleSteps>,
+    opts: { next: string },
+  ): SkillBuilder<TParams, TSteps & TModuleSteps, TGuaranteed, TBranched> {
     for (const [name, stepDef] of Object.entries(mod.steps)) {
       const isExit = stepDef.config.next === '__parent__';
       if (isExit) {
@@ -95,14 +154,14 @@ export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Reco
       }
     }
 
-    return this;
+    return this as unknown as SkillBuilder<TParams, TSteps & TModuleSteps, TGuaranteed, TBranched>;
   }
 
   subskill(
     name: string,
     definition: SkillDefinition,
-    opts?: { params?: (response: unknown, store: StoreAccessor) => unknown },
-  ): SkillBuilder<TParams, TSteps> {
+    opts?: { params?: (response: unknown, store: StoreAccessor<TSteps, TGuaranteed>) => unknown },
+  ): SkillBuilder<TParams, TSteps, TGuaranteed, TBranched> {
     if (definition.subskills && Object.keys(definition.subskills).length > 0) {
       throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);
     }
@@ -113,7 +172,7 @@ export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Reco
     return this;
   }
 
-  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TSteps> {
+  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TSteps, TGuaranteed, TBranched> {
     this.topics[name] = config;
     return this;
   }

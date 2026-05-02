@@ -169,8 +169,13 @@ test('store accessor is available in step prompt callbacks', () => {
     entry: 'a',
   })
     .step('a', {
+      prompt: 'First',
+      response: type({ name: 'string' }),
+      next: 'b',
+    })
+    .step('b', {
       prompt: ({ store }) => {
-        void store.maybe('a');
+        void store.a.name;
         return 'hi';
       },
       response: type({}),

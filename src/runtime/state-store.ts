@@ -1,33 +1,32 @@
 import type { StepResult } from '../types.js';
+import type { StoreView } from '../types/store.js';
 
-export interface StoreAccessor<TSteps extends Record<string, unknown> = Record<string, unknown>> {
-  maybe<K extends string & keyof TSteps>(step: K): TSteps[K] | undefined;
-  all<K extends string & keyof TSteps>(step: K): TSteps[K][];
-  ran<K extends string & keyof TSteps>(step: K): boolean;
-  readonly history: readonly StepResult[];
+export type { StoreView as StoreAccessor };
+
+function findLast(records: readonly StepResult[], step: string): unknown {
+  for (let i = records.length - 1; i >= 0; i--) {
+    if (records[i]!.step === step) return records[i]!.result;
+  }
+  return undefined;
 }
 
 export class StateStore {
   private readonly records: StepResult[] = [];
 
-  append(step: string, response: unknown, actionResult?: unknown): void {
-    const record: StepResult = Object.freeze({ step, response, actionResult });
+  append(step: string, response: unknown, actionResult?: unknown, result?: unknown): void {
+    const record: StepResult = Object.freeze({ step, response, actionResult, result: result ?? response });
     this.records.push(record);
   }
 
-  buildAccessor<TSteps extends Record<string, unknown> = Record<string, unknown>>(): StoreAccessor<TSteps> {
+  buildAccessor<
+    TSteps extends Record<string, unknown> = Record<string, unknown>,
+    TGuaranteed extends keyof TSteps = never,
+  >(): StoreView<TSteps, TGuaranteed> {
     const records = this.records;
 
-    return {
-      maybe<K extends string & keyof TSteps>(step: K): TSteps[K] | undefined {
-        for (let i = records.length - 1; i >= 0; i--) {
-          if (records[i]!.step === step) return records[i]!.response as TSteps[K];
-        }
-        return undefined;
-      },
-
+    const methods = {
       all<K extends string & keyof TSteps>(step: K): TSteps[K][] {
-        return records.filter((r) => r.step === step).map((r) => r.response as TSteps[K]);
+        return records.filter((r) => r.step === step).map((r) => r.result as TSteps[K]);
       },
 
       ran<K extends string & keyof TSteps>(step: K): boolean {
@@ -38,6 +37,14 @@ export class StateStore {
         return records;
       },
     };
+
+    return new Proxy(methods, {
+      get(target, prop, receiver) {
+        if (prop in target) return Reflect.get(target, prop, receiver);
+        if (typeof prop === 'string') return findLast(records, prop);
+        return undefined;
+      },
+    }) as StoreView<TSteps, TGuaranteed>;
   }
 
   last(): StepResult | undefined {

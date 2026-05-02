@@ -31,6 +31,7 @@ export type {
   PromptContext,
   PromptFn,
   TransitionFn,
+  NextBranch,
   NextTarget,
   ObserverMap,
   StepResult,

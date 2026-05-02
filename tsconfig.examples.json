@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["examples/*/src/**/*.ts"],
+  "exclude": ["node_modules", "examples/*/skill"]
+}

@@ -30,14 +30,14 @@ test('module steps can access store in prompt callbacks', () => {
   })
     .step('login', {
       prompt: ({ store }) => {
-        void store.maybe('login');
+        void store.login;
         return 'Login';
       },
       response: type({ userId: 'string' }),
       next: 'verify',
     })
     .step('verify', {
-      prompt: ({ store }) => `Verify ${(store.maybe('login') as { userId: string } | undefined)?.userId ?? 'unknown'}`,
+      prompt: ({ store }) => `Verify ${(store.login as { userId: string } | undefined)?.userId ?? 'unknown'}`,
       response: type({ ok: 'boolean' }),
       next: '__parent__',
     })
@@ -71,8 +71,8 @@ test('skill.register() merges module steps and wires __parent__', async () => {
     .register(authModule, { next: 'dashboard' })
     .step('dashboard', {
       prompt: ({ store }) => {
-        const userId = (store.maybe('auth-login') as { userId: string } | undefined)?.userId ?? 'unknown';
-        const appName = store.maybe('start')?.appName ?? 'unknown';
+        const userId = store['auth-login']?.userId ?? 'unknown';
+        const appName = store.start?.appName ?? 'unknown';
         return `Welcome ${userId} to ${appName}`;
       },
       response: type({}),

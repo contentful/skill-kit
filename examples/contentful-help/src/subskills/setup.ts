@@ -22,19 +22,23 @@ export default skill({
   entry: 'check-env',
 })
   .step('check-env', {
-    prompt: 'Acknowledge the environment check results and proceed.',
-    response: type({ acknowledged: 'boolean' }),
     action: { run: checkEnv },
-    next: ({ actionResult }) => (actionResult.hasSpaceId && actionResult.hasToken ? 'configure' : 'guide-env'),
+    result: ({ actionResult }) => ({
+      ready: actionResult.hasSpaceId && actionResult.hasToken,
+      missing: [
+        ...(!actionResult.hasSpaceId ? ['CONTENTFUL_SPACE_ID'] : []),
+        ...(!actionResult.hasToken ? ['CONTENTFUL_ACCESS_TOKEN'] : []),
+      ],
+    }),
+    next: [
+      { to: 'configure', when: ({ actionResult }) => actionResult.hasSpaceId && actionResult.hasToken },
+      { to: 'guide-env' },
+    ],
   })
 
   .step('guide-env', {
     prompt: ({ store }) => {
-      const checkRecord = store.history.find((r) => r.step === 'check-env');
-      const actionResult = checkRecord?.actionResult as { hasSpaceId: boolean; hasToken: boolean } | undefined;
-      const missing: string[] = [];
-      if (!actionResult?.hasSpaceId) missing.push('CONTENTFUL_SPACE_ID');
-      if (!actionResult?.hasToken) missing.push('CONTENTFUL_ACCESS_TOKEN');
+      const missing = store['check-env'].missing;
       return (
         `The following environment variables are missing: ${missing.join(', ')}.\n\n` +
         'Guide the user to set them up. Explain where to find these values in the Contentful web app ' +
@@ -56,10 +60,11 @@ export default skill({
       ],
     }),
     response: type({ choice: "'locales' | 'webhooks' | 'done'" }),
-    next: ({ response }) => {
-      if (response.choice === 'done') return 'summary';
-      return `setup-${response.choice}`;
-    },
+    next: [
+      { to: 'setup-locales', when: ({ response }) => response.choice === 'locales' },
+      { to: 'setup-webhooks', when: ({ response }) => response.choice === 'webhooks' },
+      { to: 'summary' },
+    ],
   })
 
   .step('setup-locales', {

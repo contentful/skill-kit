@@ -22,10 +22,11 @@ const saveGameConfig = action({
   },
 });
 
-// --- Reusable open question step ---
+// --- Reusable approval gate ---
 
-const openQuestionStep = step({
-  response: type({ answer: 'string' }),
+const approvalGate = step({
+  prompt: act.confirm({ message: 'Continue?', defaultAnswer: 'yes' }),
+  response: type({ approved: 'boolean' }),
   next: '__parent__',
 });
 
@@ -88,9 +89,9 @@ export default skill({
   // --- Design review (confirm) ---
   .step('design-review', {
     prompt: ({ store }) => {
-      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
-      const name = store.maybe('name-game')?.name ?? 'unnamed';
-      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      const variant = store['choose-variant'].variant;
+      const name = store['name-game'].name;
+      const renderer = store['choose-renderer'].renderer;
       return [
         act.confirm({
           message: 'Design choices are locked in. Ready to start planning the build?',
@@ -100,13 +101,13 @@ export default skill({
       ];
     },
     response: type({ approved: 'boolean' }),
-    next: ({ response }) => (response.approved ? 'research-renderer' : 'choose-variant'),
+    next: [{ to: 'research-renderer', when: ({ response }) => response.approved }, { to: 'choose-variant' }],
   })
 
   // --- Research renderer (subagent) ---
   .step('research-renderer', {
     prompt: ({ store, refs }) => {
-      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      const renderer = store['choose-renderer'].renderer;
       return [
         act.subagent({
           prompt:
@@ -127,10 +128,10 @@ export default skill({
   // --- Implementation plan (act.plan — dynamic from store) ---
   .step('implementation-plan', {
     prompt: ({ store, act }) => {
-      const name = store.maybe('name-game')?.name ?? 'unnamed';
-      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
-      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
-      const researchSummary = store.maybe('research-renderer')?.summary ?? '';
+      const name = store['name-game'].name;
+      const variant = store['choose-variant'].variant;
+      const renderer = store['choose-renderer'].renderer;
+      const researchSummary = store['research-renderer']?.summary ?? '';
       return [
         act.plan({
           summary: `Build "${name}" — a ${variant} Tetris game with ${renderer} rendering`,
@@ -147,22 +148,23 @@ export default skill({
       ];
     },
     response: type({ approved: 'boolean', 'modifications?': 'string' }),
-    next: ({ response }) => (response.approved ? 'build' : 'revise-plan'),
+    next: [{ to: 'build', when: ({ response }) => response.approved }, { to: 'revise-plan' }],
   })
 
   // --- Revise plan (askUser open, loops back) ---
-  .extend('revise-plan', openQuestionStep, {
+  .step('revise-plan', {
     prompt: act.askUser({ type: 'open', question: 'What should we change about the plan?' }),
+    response: type({ answer: 'string' }),
     next: 'implementation-plan',
   })
 
   // --- Build (checklist + work in one step via array composition) ---
   .step('build', {
     prompt: ({ store, act, system }) => {
-      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
-      const name = store.maybe('name-game')?.name ?? 'unnamed';
-      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
-      const researchSummary = store.maybe('research-renderer')?.summary ?? '';
+      const variant = store['choose-variant'].variant;
+      const name = store['name-game'].name;
+      const renderer = store['choose-renderer'].renderer;
+      const researchSummary = store['research-renderer']?.summary ?? '';
       return [
         system`Be methodical — complete each checklist item before moving to the next.`,
 
@@ -191,9 +193,9 @@ export default skill({
   // --- Generate README (subagent) ---
   .step('generate-readme', {
     prompt: ({ store }) => {
-      const name = store.maybe('name-game')?.name ?? 'unnamed';
-      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
-      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      const name = store['name-game'].name;
+      const variant = store['choose-variant'].variant;
+      const renderer = store['choose-renderer'].renderer;
       return [
         act.subagent({
           prompt:
@@ -209,19 +211,19 @@ export default skill({
     next: 'final-review',
   })
 
-  // --- Final review (confirm) ---
-  .step('final-review', {
+  // --- Final review (reusable approval gate with custom message + routing) ---
+  .extend('final-review', approvalGate, {
     prompt: act.confirm({
       message: 'The game is built! Want to add any finishing touches?',
       defaultAnswer: 'no',
     }),
-    response: type({ approved: 'boolean' }),
-    next: ({ response }) => (response.approved ? 'polish' : 'summary'),
+    next: [{ to: 'polish', when: ({ response }) => response.approved }, { to: 'summary' }],
   })
 
   // --- Polish loop (askUser open, maxVisits) ---
-  .extend('polish', openQuestionStep, {
+  .step('polish', {
     prompt: act.askUser({ type: 'open', question: 'What would you like to polish or change?' }),
+    response: type({ answer: 'string' }),
     next: 'final-review',
     maxVisits: 2,
     onMaxVisits: 'summary',
@@ -230,9 +232,9 @@ export default skill({
   // --- Summary card (terminal) ---
   .step('summary', {
     prompt: ({ store }) => {
-      const name = store.maybe('name-game')?.name ?? 'unnamed';
-      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
-      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      const name = store['name-game'].name;
+      const variant = store['choose-variant'].variant;
+      const renderer = store['choose-renderer'].renderer;
       return [
         view(
           render.section(
@@ -263,9 +265,9 @@ export default skill({
       run: saveGameConfig,
       input: ({ store }) => ({
         config: {
-          name: store.maybe('name-game')?.name ?? '',
-          variant: store.maybe('choose-variant')?.variant ?? 'classic',
-          renderer: store.maybe('choose-renderer')?.renderer ?? 'canvas',
+          name: store['name-game']?.name ?? '',
+          variant: store['choose-variant']?.variant ?? 'classic',
+          renderer: store['choose-renderer']?.renderer ?? 'canvas',
         },
       }),
     },

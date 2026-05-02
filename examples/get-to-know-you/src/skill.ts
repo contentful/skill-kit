@@ -1,4 +1,4 @@
-import { skill, step, type, action, prompt, render, act, view } from '@contentful/skill-kit';
+import { skill, type, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
@@ -22,13 +22,6 @@ const writeProfile = action({
     void input;
     return { path };
   },
-});
-
-// --- Reusable open-ended question step ---
-
-const openQuestionStep = step({
-  response: type({ answer: 'string' }),
-  next: '__parent__',
 });
 
 // --- Skill ---
@@ -81,23 +74,17 @@ export default skill({
       ],
     }),
     response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
-    next: ({ response }) => {
-      switch (response.role) {
-        case 'dev':
-          return 'ask-stack';
-        case 'designer':
-          return 'ask-tools';
-        case 'manager':
-          return 'ask-team-size';
-        default:
-          return 'ask-specialty';
-      }
-    },
+    next: [
+      { to: 'ask-stack', when: ({ response }) => response.role === 'dev' },
+      { to: 'ask-tools', when: ({ response }) => response.role === 'designer' },
+      { to: 'ask-team-size', when: ({ response }) => response.role === 'manager' },
+      { to: 'ask-specialty' },
+    ],
   })
 
-  .extend('ask-stack', openQuestionStep, {
+  .step('ask-stack', {
     prompt: ({ store }) => {
-      const name = store.maybe('greet')?.name ?? 'Friend';
+      const name = store.greet.name;
       return [
         prompt`
           ${name} is a developer — nice!
@@ -107,30 +94,34 @@ export default skill({
         act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
       ];
     },
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
-  .extend('ask-tools', openQuestionStep, {
+  .step('ask-tools', {
     prompt: [
       'A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?',
       act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
     ],
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
-  .extend('ask-team-size', openQuestionStep, {
+  .step('ask-team-size', {
     prompt: [
       'A manager! Ask about their team — how big, what they work on.',
       act.askUser({ type: 'open', question: 'Tell me about your team.' }),
     ],
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
-  .extend('ask-specialty', openQuestionStep, {
+  .step('ask-specialty', {
     prompt: [
       'Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.',
       act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     ],
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
@@ -147,7 +138,7 @@ export default skill({
     }),
     maxVisits: 2,
     onMaxVisits: 'confirm-profile',
-    next: ({ response }) => (response.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+    next: [{ to: 'ask-hobby', when: ({ response }) => response.wantsMore }, { to: 'confirm-profile' }],
   })
 
   .step('confirm-profile', {
@@ -156,21 +147,21 @@ export default skill({
       defaultAnswer: 'yes',
     }),
     response: type({ approved: 'boolean' }),
-    next: ({ response }) => (response.approved ? 'profile-card' : 'ask-hobby'),
+    next: [{ to: 'profile-card', when: ({ response }) => response.approved }, { to: 'ask-hobby' }],
     maxVisits: 3,
     onMaxVisits: 'profile-card',
   })
 
   .step('profile-card', {
     prompt: ({ store, refs }) => {
-      const name = store.maybe('greet')?.name ?? 'Mystery Person';
-      const role = store.maybe('ask-role')?.role ?? 'Enigma';
+      const name = store.greet.name;
+      const role = store['ask-role'].role;
 
       const specialty =
-        store.maybe('ask-stack')?.answer ??
-        store.maybe('ask-tools')?.answer ??
-        store.maybe('ask-team-size')?.answer ??
-        store.maybe('ask-specialty')?.answer ??
+        store['ask-stack']?.answer ??
+        store['ask-tools']?.answer ??
+        store['ask-team-size']?.answer ??
+        store['ask-specialty']?.answer ??
         'Classified';
 
       const hobbies = store.all('ask-hobby').map((v) => v.hobby);

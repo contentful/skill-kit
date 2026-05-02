@@ -54,6 +54,10 @@ function buildGraph(
 
     if (typeof next === 'string') {
       if (next in steps) targets.add(next);
+    } else if (Array.isArray(next)) {
+      for (const branch of next) {
+        if (branch.to in steps) targets.add(branch.to);
+      }
     } else if (typeof next === 'function') {
       // Conservative: assume all steps are reachable from a function transition
       for (const target of stepNames) {

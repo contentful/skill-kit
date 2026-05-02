@@ -52,8 +52,8 @@ export default skill({
   // --- subagent: delegated research ---
   .step('research', {
     prompt: ({ store }) => {
-      const theme = store.maybe('gather-preferences')?.theme ?? '';
-      const framework = store.maybe('gather-preferences')?.framework ?? '';
+      const theme = store['gather-preferences']?.theme ?? '';
+      const framework = store['gather-preferences']?.framework ?? '';
       return [
         prompt`Research ${theme} best practices for ${framework} projects.`,
         act.subagent({
@@ -69,8 +69,8 @@ export default skill({
   // --- plan: structured approval ---
   .step('plan-report', {
     prompt: ({ store }) => {
-      const theme = store.maybe('gather-preferences')?.theme ?? '';
-      const framework = store.maybe('gather-preferences')?.framework ?? '';
+      const theme = store['gather-preferences']?.theme ?? '';
+      const framework = store['gather-preferences']?.framework ?? '';
       return [
         prompt`Based on the research, plan the report structure.`,
         act.plan({
@@ -80,7 +80,7 @@ export default skill({
       ];
     },
     response: type({ approved: 'boolean', 'modifications?': 'string' }),
-    next: ({ response }) => (response.approved ? 'write-report' : 'ask-changes'),
+    next: [{ to: 'write-report', when: ({ response }) => response.approved }, { to: 'ask-changes' }],
   })
 
   // --- askUser (open): free-form feedback ---
@@ -98,9 +98,9 @@ export default skill({
   // --- checklist: tracked work items ---
   .step('write-report', {
     prompt: ({ store, act, system }) => {
-      const theme = store.maybe('gather-preferences')?.theme ?? '';
-      const framework = store.maybe('gather-preferences')?.framework ?? '';
-      const researchSummary = store.maybe('research')?.summary ?? '';
+      const theme = store['gather-preferences']?.theme ?? '';
+      const framework = store['gather-preferences']?.framework ?? '';
+      const researchSummary = store.research?.summary ?? '';
       return [
         system`Write concisely. Each section should be 2-3 sentences.`,
         act.checklist({
@@ -120,6 +120,11 @@ export default skill({
     },
     response: type({ title: 'string', body: 'string' }),
     action: { run: saveReport },
+    result: ({ response, actionResult }) => ({
+      title: response.title,
+      path: actionResult.path,
+      bytes: actionResult.bytes,
+    }),
     next: 'confirm-publish',
   })
 
@@ -130,17 +135,16 @@ export default skill({
       act.confirm({ message: 'Publish the report?', destructive: false, defaultAnswer: 'yes' }),
     ],
     response: type({ publish: 'boolean' }),
-    next: ({ response }) => (response.publish ? 'summary' : 'ask-changes'),
+    next: [{ to: 'summary', when: ({ response }) => response.publish }, { to: 'ask-changes' }],
   })
 
   // --- view + terminal: pre-rendered card ---
   .step('summary', {
     prompt: ({ store }) => {
-      const theme = store.maybe('gather-preferences')?.theme ?? '';
-      const framework = store.maybe('gather-preferences')?.framework ?? '';
-      const writeRecord = store.history.find((r) => r.step === 'write-report');
-      const savedPath = (writeRecord?.actionResult as { path: string } | undefined)?.path ?? '';
-      const published = store.maybe('confirm-publish')?.publish ?? false;
+      const theme = store['gather-preferences']?.theme ?? '';
+      const framework = store['gather-preferences']?.framework ?? '';
+      const savedPath = store['write-report']?.path ?? '';
+      const published = store['confirm-publish']?.publish ?? false;
       return [
         view([
           render.section(

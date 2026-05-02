@@ -57,7 +57,7 @@ const composite = skill({
   .topic('basics', { label: 'Basic FAQ', content: () => 'This is the basics FAQ content.' })
   .subskill('doctor', doctorSkill, {
     params: (_output: unknown, store) => ({
-      from: (store.maybe('classify') as { intent: string } | undefined)?.intent ?? '',
+      from: (store.classify as { intent: string } | undefined)?.intent ?? '',
     }),
   })
   .subskill('setup', setupSkill)

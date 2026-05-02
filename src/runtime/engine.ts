@@ -139,7 +139,16 @@ export class WorkflowEngine implements SkillEngine {
       actionResult = Object.freeze(actionResult);
     }
 
-    this.state.append(stepName, response, actionResult);
+    let stepResult: unknown;
+    if (stepDef.config.result) {
+      stepResult = Object.freeze(stepDef.config.result({ response, actionResult }));
+    } else if (actionResult !== undefined) {
+      stepResult = actionResult;
+    } else {
+      stepResult = response;
+    }
+
+    this.state.append(stepName, response, actionResult, stepResult);
 
     this.observers.fire('onStepComplete', {
       step: stepName,
@@ -147,7 +156,7 @@ export class WorkflowEngine implements SkillEngine {
       durationMs: Date.now() - stepStartTime,
     });
 
-    const completed: StepResult = Object.freeze({ step: stepName, response, actionResult });
+    const completed: StepResult = Object.freeze({ step: stepName, response, actionResult, result: stepResult });
     const nextStep = this.resolveNext(stepDef, response, stepName, actionResult);
 
     if (nextStep === null) {
@@ -200,7 +209,16 @@ export class WorkflowEngine implements SkillEngine {
         response = Object.freeze(entry.response ?? {});
       }
 
-      this.state.append(entry.step, response, entry.actionResult);
+      let replayResult: unknown;
+      if (stepDef.config.result) {
+        replayResult = Object.freeze(stepDef.config.result({ response, actionResult: entry.actionResult }));
+      } else if (entry.actionResult !== undefined) {
+        replayResult = entry.actionResult;
+      } else {
+        replayResult = response;
+      }
+
+      this.state.append(entry.step, response, entry.actionResult, replayResult);
     }
   }
 
@@ -222,6 +240,14 @@ export class WorkflowEngine implements SkillEngine {
     } else if (typeof next === 'function') {
       const attempts = this.state.visitCount(stepName);
       target = next({ response, attempts, actionResult, params: this.skillParams, store: this.state.buildAccessor() });
+    } else if (Array.isArray(next)) {
+      const attempts = this.state.visitCount(stepName);
+      const ctx = { response, actionResult, params: this.skillParams, store: this.state.buildAccessor(), attempts };
+      const match = next.find((branch) => !branch.when || branch.when(ctx));
+      if (!match) {
+        throw new Error(`Step "${stepName}": no branch matched and no default (entry without \`when\`) was provided.`);
+      }
+      target = match.to;
     } else {
       return null;
     }

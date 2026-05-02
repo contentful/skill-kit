@@ -53,6 +53,70 @@ test('engine routes conditionally based on output', async () => {
   assert.equal((r2 as PromptResult).step, 'fix');
 });
 
+test('engine routes via NextBranch array (declarative branching)', async () => {
+  const s = skill({ name: 'branching', entry: 'pick' })
+    .step('pick', {
+      prompt: 'Pick a role',
+      response: type({ role: "'dev' | 'designer' | 'other'" }),
+      next: [
+        { to: 'dev-path', when: ({ response }) => response.role === 'dev' },
+        { to: 'design-path', when: ({ response }) => response.role === 'designer' },
+        { to: 'other-path' },
+      ],
+    })
+    .step('dev-path', { prompt: 'Dev', response: type({}), next: { terminal: true } })
+    .step('design-path', { prompt: 'Design', response: type({}), next: { terminal: true } })
+    .step('other-path', { prompt: 'Other', response: type({}), next: { terminal: true } })
+    .build();
+
+  const e1 = new WorkflowEngine(s, genericHost, {});
+  e1.start();
+  assert.equal(((await e1.advance('pick', { role: 'dev' })) as PromptResult).step, 'dev-path');
+
+  const e2 = new WorkflowEngine(s, genericHost, {});
+  e2.start();
+  assert.equal(((await e2.advance('pick', { role: 'designer' })) as PromptResult).step, 'design-path');
+
+  const e3 = new WorkflowEngine(s, genericHost, {});
+  e3.start();
+  assert.equal(((await e3.advance('pick', { role: 'other' })) as PromptResult).step, 'other-path');
+});
+
+test('NextBranch default (no when) catches unmatched values', async () => {
+  const s = skill({ name: 'default-branch', entry: 'pick' })
+    .step('pick', {
+      prompt: 'Pick',
+      response: type({ val: 'string' }),
+      next: [{ to: 'a', when: ({ response }) => response.val === 'x' }, { to: 'fallback' }],
+    })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+    .step('fallback', { prompt: 'Fallback', response: type({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  assert.equal(((await engine.advance('pick', { val: 'y' })) as PromptResult).step, 'fallback');
+});
+
+test('NextBranch throws when no branch matches and no default', async () => {
+  const s = skill({ name: 'no-default', entry: 'pick' })
+    .step('pick', {
+      prompt: 'Pick',
+      response: type({ val: 'string' }),
+      next: [
+        { to: 'a', when: ({ response }) => response.val === 'x' },
+        { to: 'b', when: ({ response }) => response.val === 'y' },
+      ],
+    })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+    .step('b', { prompt: 'B', response: type({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await assert.rejects(() => engine.advance('pick', { val: 'z' }), /no branch matched/);
+});
+
 test('engine returns validation error for bad output', async () => {
   const s = skill({ name: 'validated', entry: 'a' })
     .step('a', { prompt: 'Go', response: type({ count: 'number' }), next: { terminal: true } })
@@ -144,7 +208,7 @@ test('engine replays history for single-invocation mode', () => {
       next: 'b',
     })
     .step('b', {
-      prompt: (ctx) => `Store: ${JSON.stringify(ctx.store.maybe('a'))}`,
+      prompt: (ctx) => `Store: ${JSON.stringify(ctx.store.a)}`,
       response: type({}),
       next: { terminal: true },
     })
@@ -299,7 +363,7 @@ test('actionInput receives store accessor', async () => {
       action: {
         run: myAction,
         input: ({ response, store }) => ({
-          prefix: store.maybe('setup')?.prefix ?? '',
+          prefix: store.setup?.prefix ?? '',
           val: response.val,
         }),
       },
@@ -432,7 +496,7 @@ test('action result is replayed correctly from history', () => {
 });
 
 test('action result and step response survive replay into next prompt', async () => {
-  let capturedData: { fromStep: unknown; fromAction: unknown } | undefined;
+  let capturedData: { fromResult: unknown; fromResponse: unknown; fromAction: unknown } | undefined;
 
   const fetchAction = action({
     name: 'fetch',
@@ -458,10 +522,11 @@ test('action result and step response survive replay into next prompt', async ()
     })
     .step('report', {
       prompt: (ctx) => {
-        const exploreResponse = ctx.store.maybe('explore');
+        const exploreResult = ctx.store.explore;
         const exploreRecord = ctx.store.history.find((r) => r.step === 'explore');
         capturedData = {
-          fromStep: exploreResponse?.url,
+          fromResult: exploreResult?.spaceId,
+          fromResponse: (exploreRecord?.response as { url: string })?.url,
           fromAction: (exploreRecord?.actionResult as { spaceId: string })?.spaceId,
         };
         return 'Report';
@@ -472,12 +537,13 @@ test('action result and step response survive replay into next prompt', async ()
     .build();
 
   // Simulate: explore completed (with action), triage being advanced -> report prompt built
+  // store['step'] returns the step result (action output when action exists)
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([{ step: 'explore', response: { url: 'https://x.com' }, actionResult: { spaceId: 'abc123' } }]);
   engine.start();
   await engine.advance('triage', { decision: 'go' });
 
-  assert.deepEqual(capturedData, { fromStep: 'https://x.com', fromAction: 'abc123' });
+  assert.deepEqual(capturedData, { fromResult: 'abc123', fromResponse: 'https://x.com', fromAction: 'abc123' });
 });
 
 test('action result survives cross-process replay into next step prompt', async () => {
@@ -526,14 +592,150 @@ test('action result survives cross-process replay into next step prompt', async 
   assert.equal(capturedScanResult, '58j6jt5cfhic');
 });
 
-test('store.maybe provides typed history access', async () => {
+test('result callback transforms what gets stored', async () => {
+  const checkLinks = action({
+    name: 'check-links',
+    input: type({ urls: 'string[]' }),
+    output: type({ statuses: type({ url: 'string', ok: 'boolean' }).array() }),
+    run: async ({ input }) => ({
+      statuses: input.urls.map((url: string) => ({ url, ok: url !== 'broken.com' })),
+    }),
+  });
+
+  let storedResult: unknown;
+
+  const s = skill({ name: 'with-result', entry: 'find-links' })
+    .step('find-links', {
+      prompt: 'Find links',
+      response: type({ links: 'string[]' }),
+      action: {
+        run: checkLinks,
+        input: ({ response }) => ({ urls: response.links }),
+      },
+      result: ({ response, actionResult }) => ({
+        totalLinks: response.links.length,
+        broken: (actionResult as { statuses: { url: string; ok: boolean }[] }).statuses
+          .filter((s) => !s.ok)
+          .map((s) => s.url),
+      }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storedResult = ctx.store['find-links'];
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('find-links', { links: ['good.com', 'broken.com', 'ok.com'] });
+  await engine.advance('report', {});
+
+  assert.deepEqual(storedResult, { totalLinks: 3, broken: ['broken.com'] });
+});
+
+test('result defaults to action output when action exists but no result callback', async () => {
+  const writeFile = action({
+    name: 'write-file',
+    input: type({ content: 'string' }),
+    output: type({ path: 'string', bytes: 'number' }),
+    run: async ({ input }) => ({ path: '/tmp/out.txt', bytes: input.content.length }),
+  });
+
+  let storedResult: unknown;
+
+  const s = skill({ name: 'action-default', entry: 'write' })
+    .step('write', {
+      prompt: 'Write something',
+      response: type({ content: 'string' }),
+      action: { run: writeFile },
+      next: 'done',
+    })
+    .step('done', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.write;
+        return 'Done';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('write', { content: 'hello world' });
+  await engine.advance('done', {});
+
+  assert.deepEqual(storedResult, { path: '/tmp/out.txt', bytes: 11 });
+});
+
+test('result defaults to response when no action and no result callback', async () => {
+  let storedResult: unknown;
+
+  const s = skill({ name: 'response-default', entry: 'greet' })
+    .step('greet', {
+      prompt: 'Say hello',
+      response: type({ name: 'string' }),
+      next: 'done',
+    })
+    .step('done', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.greet;
+        return 'Done';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('greet', { name: 'Alice' });
+  await engine.advance('done', {});
+
+  assert.deepEqual(storedResult, { name: 'Alice' });
+});
+
+test('DAG narrowing: linear predecessors are guaranteed on store', async () => {
+  let capturedName: string | undefined;
+
+  const s = skill({ name: 'linear-narrow', entry: 'greet' })
+    .step('greet', {
+      prompt: 'Say hi',
+      response: type({ name: 'string' }),
+      next: 'profile',
+    })
+    .step('profile', {
+      prompt: ({ store }) => {
+        // greet is a guaranteed predecessor (linear chain) — non-optional access
+        capturedName = store.greet.name;
+        return 'Profile';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('greet', { name: 'Alice' });
+  await engine.advance('profile', {});
+
+  assert.equal(capturedName, 'Alice');
+});
+
+test('store property access provides typed history access', async () => {
   let stepAResult: unknown;
 
   const s = skill({ name: 'get-step', entry: 'a' })
     .step('a', { prompt: 'A', response: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
-        stepAResult = ctx.store.maybe('a');
+        stepAResult = ctx.store.a;
         return 'B';
       },
       response: type({}),
@@ -547,13 +749,13 @@ test('store.maybe provides typed history access', async () => {
   assert.deepEqual(stepAResult, { val: 42 });
 });
 
-test('store.maybe returns undefined for missing step', async () => {
+test('store property access returns undefined for missing step', async () => {
   let result: unknown = 'not-set';
 
   const s = skill({ name: 'get-step-missing', entry: 'a' })
     .step('a', {
       prompt: (ctx) => {
-        result = ctx.store.maybe('nonexistent');
+        result = (ctx.store as unknown as Record<string, unknown>)['nonexistent'];
         return 'A';
       },
       response: type({}),
@@ -585,10 +787,11 @@ test('engine returns RedirectResult when next target is not a local step', async
     step: 'classify',
     response: { intent: 'doctor' },
     actionResult: undefined,
+    result: { intent: 'doctor' },
   });
   // store is a StoreAccessor
   assert.ok(redirect.store);
-  assert.equal(typeof redirect.store.maybe, 'function');
+  assert.equal(typeof redirect.store.ran, 'function');
 });
 
 test('engine returns RedirectResult for topic targets', async () => {

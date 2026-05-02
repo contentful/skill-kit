@@ -2,25 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { StateStore } from './state-store.js';
 
-test('StateStore: maybe() returns undefined for unvisited step', () => {
+test('StateStore: optional property returns undefined for unvisited step', () => {
   const store = new StateStore();
   const accessor = store.buildAccessor<{ greet: { name: string } }>();
-  assert.equal(accessor.maybe('greet'), undefined);
+  assert.equal(accessor.greet, undefined);
 });
 
-test('StateStore: maybe() returns last response for visited step', () => {
+test('StateStore: optional property returns last response for visited step', () => {
   const store = new StateStore();
   store.append('greet', { name: 'Alice' });
   const accessor = store.buildAccessor<{ greet: { name: string } }>();
-  assert.deepEqual(accessor.maybe('greet'), { name: 'Alice' });
+  assert.deepEqual(accessor.greet, { name: 'Alice' });
 });
 
-test('StateStore: maybe() returns last visit for looping step', () => {
+test('StateStore: optional property returns last visit for looping step', () => {
   const store = new StateStore();
   store.append('ask-hobby', { hobby: 'Chess', wantsMore: true });
   store.append('ask-hobby', { hobby: 'Baking', wantsMore: false });
   const accessor = store.buildAccessor<{ 'ask-hobby': { hobby: string; wantsMore: boolean } }>();
-  assert.deepEqual(accessor.maybe('ask-hobby'), { hobby: 'Baking', wantsMore: false });
+  assert.deepEqual(accessor['ask-hobby'], { hobby: 'Baking', wantsMore: false });
 });
 
 test('StateStore: all() returns empty array for unvisited step', () => {
@@ -69,9 +69,9 @@ test('StateStore: history returns all records in append order', () => {
 test('StateStore: accessor reflects appends made after creation', () => {
   const store = new StateStore();
   const accessor = store.buildAccessor<{ greet: { name: string } }>();
-  assert.equal(accessor.maybe('greet'), undefined);
+  assert.equal(accessor.greet, undefined);
   store.append('greet', { name: 'Alice' });
-  assert.deepEqual(accessor.maybe('greet'), { name: 'Alice' });
+  assert.deepEqual(accessor.greet, { name: 'Alice' });
 });
 
 test('StateStore: visitCount tracks per-step visits', () => {
@@ -99,6 +99,27 @@ test('StateStore: actionResult preserved in records', () => {
   assert.deepEqual(accessor.history[0]!.actionResult, { statuses: [{ ok: true }] });
 });
 
+test('StateStore: result field overrides response in store access', () => {
+  const store = new StateStore();
+  const response = { links: ['a.com', 'b.com'] };
+  const actionResult = { statuses: [{ url: 'a.com', ok: true }] };
+  const result = { totalLinks: 2, broken: [] };
+  store.append('check', response, actionResult, result);
+
+  const accessor = store.buildAccessor<{ check: { totalLinks: number; broken: string[] } }>();
+  assert.deepEqual(accessor.check, { totalLinks: 2, broken: [] });
+  assert.equal(accessor.history[0]!.response, response);
+  assert.equal(accessor.history[0]!.result, result);
+});
+
+test('StateStore: result defaults to response when not provided', () => {
+  const store = new StateStore();
+  store.append('greet', { name: 'Alice' });
+  const accessor = store.buildAccessor<{ greet: { name: string } }>();
+  assert.deepEqual(accessor.greet, { name: 'Alice' });
+  assert.equal(accessor.history[0]!.result, accessor.history[0]!.response);
+});
+
 test('StateStore: branching — only visited branch appears', () => {
   const store = new StateStore();
   store.append('greet', { name: 'Alice' });
@@ -112,8 +133,8 @@ test('StateStore: branching — only visited branch appears', () => {
     'ask-tools': { answer: string };
   }>();
 
-  assert.deepEqual(accessor.maybe('ask-stack'), { answer: 'TypeScript' });
-  assert.equal(accessor.maybe('ask-tools'), undefined);
+  assert.deepEqual(accessor['ask-stack'], { answer: 'TypeScript' });
+  assert.equal(accessor['ask-tools'], undefined);
   assert.equal(accessor.ran('ask-stack'), true);
   assert.equal(accessor.ran('ask-tools'), false);
 });

@@ -17,7 +17,7 @@ export function step<
     extend(
       overrides: Partial<StepConfig<TOutput, TParams, TActionOutput, TSteps>>,
     ): StepDefinition<TOutput, TParams, TActionOutput, TSteps> {
-      return step({ ...config, ...overrides });
+      return step({ ...config, ...overrides } as StepConfig<TOutput, TParams, TActionOutput, TSteps>);
     },
   };
 
