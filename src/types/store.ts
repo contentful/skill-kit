@@ -52,14 +52,22 @@
  * guarantee set to split properties into required (guaranteed) vs. optional
  * (branch targets), giving developers correct autocomplete and type errors.
  *
- * ## Limitation: transitive reconvergence
+ * ## Reconvergence: two complementary rules
  *
- * The reconvergence check is direct, not transitive. If A branches to [B, C],
- * and B routes to D, and C routes to D, and D routes to E — then D is promoted
- * (all siblings route to it), but E is not automatically promoted even though
- * it's reachable from all paths. E would need its own reconvergence evidence.
- * In practice this rarely matters because most workflows reconverge at one
- * explicit merge point.
+ * Branch targets are promoted to guaranteed via two rules:
+ *
+ * 1. **Sibling reconvergence**: all siblings from the same branch point route
+ *    to the target via string next. Detected by `ShouldPromote`.
+ *
+ * 2. **Guaranteed-step routing**: a guaranteed step (not branched, or already
+ *    promoted) routes to a branch target via string next. Since the guaranteed
+ *    step runs on all paths, the target is also on all paths. Detected by
+ *    `GuaranteedRouteTarget`, which removes the target from `TBranched`.
+ *
+ * Together these handle transitive chains: A → [B, E], B → C → D → E.
+ * B and E enter TBranched. C and D are never branched (guaranteed). When D
+ * is defined with next: 'E', rule 2 fires — D is guaranteed, E is removed
+ * from TBranched, so E becomes guaranteed when defined.
  */
 
 import type { type } from 'arktype';
@@ -479,8 +487,9 @@ export type GuaranteeState<TStepKeys extends string = never, TStoreWrites extend
 // have ALL its sibling targets (from the same branch group) recorded
 // a routing edge to Name? If yes, Name is on all paths → promote.
 //
-// This check is direct (one hop), not transitive. See the file-level
-// comment for the transitive limitation discussion.
+// This is complemented by `GuaranteedRouteTarget` in `AddStepBranches`,
+// which handles transitive cases by removing branch targets when a
+// guaranteed step routes to them. See the file-level comment.
 // ============================================================
 
 /**
@@ -643,6 +652,11 @@ export type AddStepGuarantees<
  *    is recorded when a branched step's string `next` points to another branched
  *    step (sibling-to-sibling routing for reconvergence).
  *
+ * Additionally, if the current step is guaranteed and routes to a branch target
+ * via string next, that target is removed from `branched` (`GuaranteedRouteTarget`).
+ * This handles transitive reconvergence: a guaranteed step proves all paths reach
+ * the target, so the target no longer needs to be optional.
+ *
  * `TKnownSteps` is the set of step names already defined in the builder (including
  * the current step). It's used by `ExtractBranchTargets` to identify backward edges.
  *
@@ -657,10 +671,28 @@ export type AddStepBranches<
   TNext,
   TKnownSteps extends string,
 > = BranchState<
-  TBranches['branched'] | ExtractBranchTargets<TNext, TKnownSteps>,
+  | Exclude<TBranches['branched'], GuaranteedRouteTarget<Name, TNext, TBranches['branched']>>
+  | ExtractBranchTargets<TNext, TKnownSteps>,
   TBranches['groups'] & ExtractBranchGroupEntries<TNext, Name, TKnownSteps>,
   TBranches['edges'] | ExtractBranchEdge<Name, TNext, TBranches['branched']>
 >;
+
+/**
+ * If a guaranteed (non-branched) step routes via string next to a branch target,
+ * that target is on all paths — remove it from TBranched.
+ *
+ * A guaranteed step has been proven to run on every possible execution path.
+ * If it routes to a branch target, that target is also on every path.
+ * This handles transitive reconvergence: A → [B, E], B → C → D → E.
+ * When D (guaranteed) is defined with next: 'E', E is removed from TBranched.
+ */
+type GuaranteedRouteTarget<Name extends string, TNext, TBranched extends string> = Name extends TBranched
+  ? never
+  : TNext extends string
+    ? TNext extends TBranched
+      ? TNext
+      : never
+    : never;
 
 /**
  * Maps each forward branch target to its origin step name.

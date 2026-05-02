@@ -600,3 +600,39 @@ skill({ name: 'partial-reconvergence', entry: 'root' })
     response: type({}),
     next: { terminal: true },
   });
+
+// ============================================================
+// 16. Transitive reconvergence: guaranteed step routes to branch target
+// ============================================================
+// a → [b, e], b → c → d → e
+// e is a branch target. b doesn't route directly to e.
+// But d is guaranteed and routes to e → e is removed from TBranched.
+
+skill({ name: 'transitive-reconvergence', entry: 'a' })
+  .step('a', {
+    prompt: 'A',
+    response: type({ v: 'string' }),
+    next: [{ to: 'b', when: ({ response }) => response.v === 'b' }, { to: 'e' }],
+  })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'c' })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'd' })
+  .step('d', { prompt: 'D', response: type({ dv: 'string' }), next: 'e' })
+  .step('e', {
+    prompt: ({ store }) => {
+      // a, c, d are guaranteed. d routes to e → e is promoted.
+      const av: string = store.steps.a.v;
+      const cv: string = store.steps.c.cv;
+      const dv: string = store.steps.d.dv;
+      void av;
+      void cv;
+      void dv;
+
+      // b is still a branch target — optional
+      const bv = store.steps.b?.bv;
+      void bv;
+
+      return 'E';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
