@@ -79,19 +79,16 @@ interface BranchEntry {
  * If after filtering backward edges only one forward target remains,
  * there's no actual branch — the forward step is guaranteed.
  */
-export type ExtractBranchTargets<
-  T,
-  TKnownSteps extends string = never,
-> = T extends readonly [BranchEntry, BranchEntry, ...BranchEntry[]]
+export type ExtractBranchTargets<T, TKnownSteps extends string = never> = T extends readonly [
+  BranchEntry,
+  BranchEntry,
+  ...BranchEntry[],
+]
   ? ForwardTargetsOrNever<Exclude<ExtractTo<T[number]>, TKnownSteps>>
   : never;
 
 /** If the union has 2+ members, return it. If 0 or 1, return never (not a real branch). */
-type ForwardTargetsOrNever<T extends string> = [T] extends [never]
-  ? never
-  : IsUnion<T> extends true
-    ? T
-    : never;
+type ForwardTargetsOrNever<T extends string> = [T] extends [never] ? never : IsUnion<T> extends true ? T : never;
 
 /** True if T is a union (2+ members), false if it's a single literal or never. */
 type IsUnion<T, U = T> = [T] extends [never] ? false : T extends U ? ([U] extends [T] ? false : true) : false;
@@ -120,7 +117,8 @@ export type AddToGuaranteed<
  * TKnownSteps are existing step names — backward edges to these are ignored.
  */
 export type AddToBranched<TBranched extends string, TNext, TKnownSteps extends string = never> =
-  TBranched | ExtractBranchTargets<TNext, TKnownSteps>;
+  | TBranched
+  | ExtractBranchTargets<TNext, TKnownSteps>;
 
 /**
  * Compute the step result type for builder accumulation.

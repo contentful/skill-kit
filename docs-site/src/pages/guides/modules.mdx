@@ -3,7 +3,7 @@ layout: ../../layouts/DocsLayout.astro
 title: 'Modules & Composition'
 ---
 
-Modules are composable step groups with their own stash scope. They let you extract a reusable sequence of steps — authentication, onboarding, data gathering — and plug it into different skills. Module steps cannot access the parent skill's params, which enforces portability: a module that works in one skill works in any skill.
+Modules are composable step groups that merge their step types into the parent skill's store. They let you extract a reusable sequence of steps — authentication, onboarding, data gathering — and plug it into different skills. Module steps cannot access the parent skill's params, which enforces portability: a module that works in one skill works in any skill.
 
 Most composition needs are met by shared steps + `.extend()`. Modules are for groups of steps that are reused across skills and carry their own state.
 
@@ -12,12 +12,11 @@ Most composition needs are met by shared steps + `.extend()`. Modules are for gr
 `module(config)` returns a `ModuleBuilder`. The configuration shape is smaller than a skill — modules have no params and no observers.
 
 ```typescript
-import { module, z } from '@contentful/skill-kit';
+import { module, type } from '@contentful/skill-kit';
 
 export const authModule = module({
   name: 'auth',
   entry: 'auth-login',
-  stash: z.object({ userId: z.string(), token: z.string() }),
 })
   .step('auth-login', {
     /* ... */
@@ -28,32 +27,28 @@ export const authModule = module({
   .build();
 ```
 
-| Field   | Type        | Required | Description                                                                                        |
-| ------- | ----------- | -------- | -------------------------------------------------------------------------------------------------- |
-| `name`  | `string`    | Yes      | Module identifier. Used for error messages and debugging.                                          |
-| `entry` | `string`    | Yes      | Name of the first step in the module. Must match a registered step.                                |
-| `stash` | `z.ZodType` | Yes      | Zod schema for the module's own stash scope. Merged into the parent skill's stash on registration. |
+| Field   | Type     | Required | Description                                                         |
+| ------- | -------- | -------- | ------------------------------------------------------------------- |
+| `name`  | `string` | Yes      | Module identifier. Used for error messages and debugging.           |
+| `entry` | `string` | Yes      | Name of the first step in the module. Must match a registered step. |
 
 ## `.step()` within modules
 
-Module steps work identically to skill steps, with one difference: they receive the **module's** stash type, not the parent skill's. The `params` parameter is typed as `unknown` since modules are params-independent.
+Module steps work identically to skill steps. The `params` parameter is typed as `unknown` since modules are params-independent. Step results are stored in the parent skill's store and accessible by later steps.
 
 ```typescript
 module({
   name: 'auth',
   entry: 'auth-login',
-  stash: z.object({ userId: z.string(), token: z.string() }),
 })
   .step('auth-login', {
     prompt: "Ask for the user's credentials.",
-    output: z.object({ userId: z.string(), password: z.string() }),
-    updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
+    response: type({ userId: 'string', password: 'string' }),
     next: 'auth-verify',
   })
   .step('auth-verify', {
-    prompt: ({ stash }) => `Verify credentials for user ${stash.userId}.`,
-    output: z.object({ token: z.string(), valid: z.boolean() }),
-    updateStash: ({ stepOutput }) => ({ token: stepOutput.token }),
+    prompt: ({ store }) => `Verify credentials for user ${store['auth-login'].userId}.`,
+    response: type({ token: 'string', valid: 'boolean' }),
     next: '__parent__', // exits back to the registering skill
   })
   .build();
@@ -70,30 +65,28 @@ A module must have at least one step with `next: '__parent__'` — otherwise the
 Registers a module into a skill. This does two things:
 
 1. **Merges the module's steps** into the skill's step map. Any step with `next: '__parent__'` is rewired to the provided `next` target.
-2. **Widens the stash type** via intersection. After registration, the skill's stash type includes both its own fields and the module's fields.
+2. **Widens the store type**. After registration, subsequent steps can access module step results via the store.
 
 ```typescript
-import { skill, z } from '@contentful/skill-kit';
+import { skill, type } from '@contentful/skill-kit';
 import { authModule } from './modules/auth.js';
 
 export default skill({
   name: 'my-app',
   entry: 'welcome',
-  stash: z.object({ appName: z.string() }),
 })
   .step('welcome', {
     prompt: 'Welcome the user and ask them to log in.',
-    output: z.object({ ready: z.boolean() }),
-    updateStash: () => ({ appName: 'MyApp' }),
+    response: type({ ready: 'boolean' }),
     next: 'auth-login', // enter the module
   })
 
   .register(authModule, { next: 'dashboard' })
 
   .step('dashboard', {
-    // stash type is now { appName: string } & { userId: string, token: string }
-    prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}. Your session token: ${stash.token}`,
-    output: z.object({ action: z.string() }),
+    // store includes module step results — auth-login and auth-verify
+    prompt: ({ store }) => `Welcome ${store['auth-login'].userId}. Your session token: ${store['auth-verify'].token}`,
+    response: type({ action: 'string' }),
     next: { terminal: true },
   })
 
@@ -102,7 +95,7 @@ export default skill({
 
 ### Registration order matters
 
-Register the module **before** defining steps that depend on the module's stash fields. The type widening happens at the `.register()` call — steps added afterward see the merged stash type.
+Register the module **before** defining steps that depend on the module's store entries. The type widening happens at the `.register()` call — steps added afterward see the merged store type.
 
 ## Complete example
 
@@ -112,15 +105,11 @@ An authentication module registered into an application skill.
 
 ```typescript
 // modules/auth.ts
-import { module, z, act } from '@contentful/skill-kit';
+import { module, type, act } from '@contentful/skill-kit';
 
 export const authModule = module({
   name: 'auth',
   entry: 'auth-login',
-  stash: z.object({
-    userId: z.string(),
-    authMethod: z.string(),
-  }),
 })
   .step('auth-login', {
     prompt: act.askUser({
@@ -132,25 +121,22 @@ export const authModule = module({
         { value: 'sso', label: 'SSO' },
       ],
     }),
-    output: z.object({ method: z.enum(['github', 'email', 'sso']) }),
-    updateStash: ({ stepOutput }) => ({ authMethod: stepOutput.method }),
+    response: type({ method: "'github' | 'email' | 'sso'" }),
     next: 'auth-credentials',
   })
   .step('auth-credentials', {
-    prompt: ({ stash }) => `Collect credentials for ${stash.authMethod} authentication.`,
-    output: z.object({ userId: z.string(), success: z.boolean() }),
-    updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
-    next: ({ stepOutput }) => (stepOutput.success ? 'auth-confirm' : 'auth-login'),
+    prompt: ({ store }) => `Collect credentials for ${store['auth-login'].method} authentication.`,
+    response: type({ userId: 'string', success: 'boolean' }),
+    next: [{ to: 'auth-confirm', when: ({ response }) => response.success }, { to: 'auth-login' }],
     maxVisits: 3,
     onMaxVisits: 'auth-confirm',
   })
   .step('auth-confirm', {
     prompt: act.confirm({
       message: 'Authentication successful. Continue to the application?',
-      destructive: false,
       defaultAnswer: 'yes',
     }),
-    output: z.object({ approved: z.boolean() }),
+    response: type({ approved: 'boolean' }),
     next: '__parent__', // wired to { next } at registration
   })
   .build();
@@ -160,21 +146,17 @@ export const authModule = module({
 
 ```typescript
 // skill.ts
-import { skill, z, prompt, render } from '@contentful/skill-kit';
+import { skill, type, prompt, render, terminal } from '@contentful/skill-kit';
 import { authModule } from './modules/auth.js';
 
 export default skill({
   name: 'project-manager',
   version: '1.0.0',
   entry: 'welcome',
-  stash: z.object({
-    projectName: z.string(),
-  }),
 })
   .step('welcome', {
     prompt: 'Greet the user and introduce the project manager.',
-    output: z.object({ projectName: z.string() }),
-    updateStash: ({ stepOutput }) => ({ projectName: stepOutput.projectName }),
+    response: type({ projectName: 'string' }),
     next: 'auth-login',
   })
 
@@ -182,45 +164,30 @@ export default skill({
   .register(authModule, { next: 'dashboard' })
 
   .step('dashboard', {
-    // Type-safe access to both skill stash and module stash
-    prompt: ({ stash }) => prompt`
-      Welcome back, ${stash.userId}!
-      Project: ${stash.projectName}
-      Auth method: ${stash.authMethod}
+    // Type-safe access to both skill steps and module steps via the store
+    prompt: ({ store }) => prompt`
+      Welcome back, ${store['auth-credentials'].userId}!
+      Project: ${store.welcome.projectName}
+      Auth method: ${store['auth-login'].method}
 
       What would you like to do?
     `,
-    output: z.object({ choice: z.string() }),
-    next: { terminal: true },
+    response: type({ choice: 'string' }),
+    next: terminal,
   })
 
   .build();
 ```
 
-## Type-level stash widening
+## Store type widening
 
-When you call `.register(module, { next })`, the builder's stash type changes from `TStash` to `TStash & z.infer<TModuleStash>`. This is an intersection type — all fields from both the skill's stash and the module's stash become available in subsequent step callbacks.
+When you call `.register(module, { next })`, the builder's store type expands to include the module's step results. This means:
 
-```typescript
-// Before .register():
-//   stash type = { projectName: string }
-//   stash.userId → type error
+- Steps defined **before** `.register()` only see the skill's own step results
+- Steps defined **after** `.register()` see both the skill's and the module's step results
+- The module's own steps only see results from earlier module steps
 
-.register(authModule, { next: 'dashboard' })
-
-// After .register():
-//   stash type = { projectName: string } & { userId: string, authMethod: string }
-//   stash.userId → string ✓
-//   stash.projectName → string ✓
-```
-
-This means:
-
-- Steps defined **before** `.register()` only see the skill's own stash fields
-- Steps defined **after** `.register()` see both the skill's and the module's stash fields
-- The module's own steps only see the module's stash type (enforced by the `ModuleBuilder`)
-
-If two modules define overlapping stash keys, the intersection type merges them. Avoid key collisions by namespacing module stash fields (e.g., `authUserId` rather than `userId`).
+If two modules define steps with the same name, the later registration wins. Use distinctive prefixes in module step names to avoid collisions.
 
 ## Three patterns for composition
 
@@ -232,7 +199,7 @@ Plain TypeScript imports. No ceremony needed.
 
 ```typescript
 // shared/schemas.ts
-export const CheckResult = z.object({ name: z.string(), passed: z.boolean() });
+export const CheckResult = type({ name: 'string', passed: 'boolean' });
 
 // In any skill:
 import { CheckResult } from '../../shared/schemas.js';
@@ -246,7 +213,7 @@ import { CheckResult } from '../../shared/schemas.js';
 // shared/steps/gather-facts.ts
 export const gatherFacts = step({
   prompt: 'Inspect the repo and list languages, build tools, CI config.',
-  output: RepoFactsSchema,
+  response: RepoFactsSchema,
   next: '__parent__',
 });
 
@@ -263,7 +230,7 @@ For groups of steps that belong together, are reused across skills, and carry th
 
 ### 4. Composite skills (sub-skills)
 
-For independent workflows bundled into a single artifact with shared references. Sub-skills have isolated stash, their own entry points, and can be tested standalone — unlike modules which flatten into the parent. Use when you have related skills that overlap in scope (e.g., doctor + setup + FAQ under one dispatcher). See the [Composite Skills guide](/guides/composite-skills/).
+For independent workflows bundled into a single artifact with shared references. Sub-skills have isolated stores, their own entry points, and can be tested standalone — unlike modules which flatten into the parent. Use when you have related skills that overlap in scope (e.g., doctor + setup + FAQ under one dispatcher). See the [Composite Skills guide](/guides/composite-skills/).
 
 ## Testing skills with modules
 
@@ -275,7 +242,7 @@ import assert from 'node:assert/strict';
 import { runSkill, mockModel } from '@contentful/skill-kit/test';
 import skill from './skill.js';
 
-test('auth module → dashboard', async () => {
+test('auth module -> dashboard', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       welcome: { projectName: 'Acme' },

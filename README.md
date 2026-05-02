@@ -427,15 +427,15 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 
 `PromptContext` fields available in dynamic prompts:
 
-| Field      | Description                                                                   |
-| ---------- | ----------------------------------------------------------------------------- |
+| Field      | Description                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------- |
 | `store`    | Typed accessor for prior step results (guaranteed steps non-optional, branch targets use `?.`) |
-| `params`   | Global skill params (typed from `skill({ params: ... })`)                     |
-| `refs`     | Lazy loader for `references/` files                                           |
-| `attempts` | How many times this step has been visited                                     |
-| `host`     | Current host info                                                             |
-| `act`      | Primitive directive builders (`askUser`, `confirm`, `plan`, etc.)             |
-| `system`   | System segment tag/function for persona/frame                                 |
+| `params`   | Global skill params (typed from `skill({ params: ... })`)                                      |
+| `refs`     | Lazy loader for `references/` files                                                            |
+| `attempts` | How many times this step has been visited                                                      |
+| `host`     | Current host info                                                                              |
+| `act`      | Primitive directive builders (`askUser`, `confirm`, `plan`, etc.)                              |
+| `system`   | System segment tag/function for persona/frame                                                  |
 
 </details>
 

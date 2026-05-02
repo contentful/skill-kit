@@ -14,7 +14,7 @@ Primitives can be used two ways:
 1. **Directly in the `prompt` field** — pass `act.askUser(...)` (or any primitive) straight to `prompt` for steps that consist entirely of one primitive with no additional prose.
 2. **`act` methods in prompt functions** — composable directives mixed with other prompt pieces.
 
-When a step uses a primitive, the SDK renders it as an XML tag (e.g., `<ask-user>`, `<plan>`, `<checklist>`). The preamble (sent once at session start) maps each tag to the host's tools via a markdown table. The `output` schema is the contract regardless of host — downstream steps never know how the answer was obtained.
+When a step uses a primitive, the SDK renders it as an XML tag (e.g., `<ask-user>`, `<plan>`, `<checklist>`). The preamble (sent once at session start) maps each tag to the host's tools via a markdown table. The `response` schema is the contract regardless of host — downstream steps never know how the answer was obtained.
 
 ## `act.askUser()` — structured and open questions
 
@@ -25,7 +25,7 @@ A single primitive with two modes, discriminated by `type`.
 Presents fixed options via the host's structured question tool (if available) or via a prose option list.
 
 ```typescript
-import { act, z } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
 // Single-primitive step — passed directly to prompt
 .step('choose-target', {
@@ -38,8 +38,8 @@ import { act, z } from '@contentful/skill-kit';
       { value: 'local', label: 'Local', description: 'Dev environment' },
     ],
   }),
-  output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
-  next: ({ stepOutput }) => `deploy-${stepOutput.target}`,
+  response: type({ target: "'production' | 'staging' | 'local'" }),
+  next: ({ response }) => `deploy-${response.target}`,
 })
 
 // Or composed with other prompt pieces
@@ -56,8 +56,8 @@ import { act, z } from '@contentful/skill-kit';
     }),
     `Explain what each environment is used for before asking.`,
   ],
-  output: z.object({ target: z.enum(['production', 'staging', 'local']) }),
-  next: ({ stepOutput }) => `deploy-${stepOutput.target}`,
+  response: type({ target: "'production' | 'staging' | 'local'" }),
+  next: ({ response }) => `deploy-${response.target}`,
 })
 ```
 
@@ -77,7 +77,7 @@ Free-text conversation. Never uses a structured question tool — the agent asks
 ```typescript
 .step('ask-stack', {
   prompt: act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-  output: z.object({ answer: z.string() }),
+  response: type({ answer: 'string' }),
   next: 'done',
 })
 ```
@@ -92,7 +92,7 @@ Free-text conversation. Never uses a structured question tool — the agent asks
 Binary yes/no confirmation with support for destructive-operation warnings and default answers.
 
 ```typescript
-import { act, z } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
 .step('confirm-delete', {
   prompt: act.confirm({
@@ -100,8 +100,8 @@ import { act, z } from '@contentful/skill-kit';
     destructive: true,
     defaultAnswer: 'no',
   }),
-  output: z.object({ approved: z.boolean() }),
-  next: ({ stepOutput }) => stepOutput.approved ? 'proceed' : 'abort',
+  response: type({ approved: 'boolean' }),
+  next: ({ response }) => response.approved ? 'proceed' : 'abort',
 })
 ```
 
@@ -118,7 +118,7 @@ The `confirm` primitive is distinct from `askUser` because destructive-op confir
 Shows a structured plan (summary + ordered steps) and asks the user whether to proceed.
 
 ```typescript
-import { act, z } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
 .step('review-plan', {
   prompt: act.plan({
@@ -131,8 +131,8 @@ import { act, z } from '@contentful/skill-kit';
       'Migration script for active sessions',
     ],
   }),
-  output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-  next: ({ stepOutput }) => stepOutput.approved ? 'execute' : 'revise',
+  response: type({ approved: 'boolean', 'modifications?': 'string' }),
+  next: ({ response }) => response.approved ? 'execute' : 'revise',
 })
 ```
 
@@ -148,7 +148,7 @@ On Claude Code, this maps to `EnterPlanMode`/`ExitPlanMode` for a first-class pl
 Creates a tracked list of tasks the agent should work through.
 
 ```typescript
-import { act, z } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
 .step('create-tasks', {
   prompt: act.checklist({
@@ -158,7 +158,7 @@ import { act, z } from '@contentful/skill-kit';
       { title: 'Run integration tests', status: 'pending' },
     ],
   }),
-  output: z.object({ acknowledged: z.boolean() }),
+  response: type({ acknowledged: 'boolean' }),
   next: 'execute-tasks',
 })
 ```
@@ -172,14 +172,14 @@ import { act, z } from '@contentful/skill-kit';
 Delegates a focused piece of work to a sub-agent with its own context window. The sub-agent works independently and returns structured output.
 
 ```typescript
-import { act, z } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
-const ResearchSummary = z.object({
-  findings: z.array(z.object({
-    cve: z.string(),
-    severity: z.enum(['low', 'medium', 'high', 'critical']),
-    affected: z.string(),
-  })),
+const ResearchSummary = type({
+  findings: {
+    cve: 'string',
+    severity: "'low' | 'medium' | 'high' | 'critical'",
+    affected: 'string',
+  }[],
 });
 
 .step('research', {
@@ -187,16 +187,16 @@ const ResearchSummary = z.object({
     prompt: 'Research the top 5 CVEs affecting our dependency tree. Return a structured summary.',
     output: ResearchSummary,
   }),
-  output: ResearchSummary,
+  response: ResearchSummary,
   next: 'incorporate-findings',
 })
 ```
 
-| Field            | Type        | Required | Description                                                                                                                                                                                     |
-| ---------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prompt`         | `string`    | Yes      | Instructions for the sub-agent.                                                                                                                                                                 |
-| `output`         | `z.ZodType` | Yes      | Zod schema the sub-agent's result must match.                                                                                                                                                   |
-| `allowRecursion` | `boolean`   | No       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
+| Field            | Type       | Required | Description                                                                                                                                                                                     |
+| ---------------- | ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | `string`   | Yes      | Instructions for the sub-agent.                                                                                                                                                                 |
+| `output`         | `type.Any` | Yes      | ArkType schema the sub-agent's result must match.                                                                                                                                               |
+| `allowRecursion` | `boolean`  | No       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
 
 On hosts without real agent isolation (no `Agent` tool), the prose fallback still produces correct output but doesn't get the isolated context-window benefit.
 
@@ -205,7 +205,7 @@ On hosts without real agent isolation (no `Agent` tool), the prose fallback stil
 Collects answers to multiple questions in a single step, presented as a batch:
 
 ```typescript
-import { act, z } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
 .step('gather-preferences', {
   prompt: act.survey({
@@ -215,10 +215,10 @@ import { act, z } from '@contentful/skill-kit';
       { key: 'os', question: 'Primary operating system?' },
     ],
   }),
-  output: z.object({
-    language: z.string(),
-    editor: z.string(),
-    os: z.string(),
+  response: type({
+    language: 'string',
+    editor: 'string',
+    os: 'string',
   }),
   next: 'done',
 })
@@ -282,15 +282,15 @@ import { prompt } from '@contentful/skill-kit';
 import { enterpriseTone, jsonOutputRules } from '../fragments/tone.js';
 
 .step('analyze', {
-  prompt: ({ getStep }) => prompt`
+  prompt: ({ store }) => prompt`
     ${enterpriseTone}
 
-    Analyze the dependency tree at ${getStep('gather')!.stepOutput.repoPath}.
+    Analyze the dependency tree at ${store.gather.repoPath}.
     Flag packages with known CVEs.
 
     ${jsonOutputRules}
   `,
-  output: AnalysisSchema,
+  response: AnalysisSchema,
   next: 'report',
 })
 ```

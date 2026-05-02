@@ -7,13 +7,13 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 ## Workflow Builder
 
 ```typescript
-import { skill, z } from '@contentful/skill-kit';
+import { skill, type } from '@contentful/skill-kit';
 
-skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd?, argumentHint?, allowedTools?, paths?, context? })
+skill({ name, entry, system?, params?, observers?, finalOutput?, skillMd?, argumentHint?, allowedTools?, paths?, context? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
-  .register(module, { next })               // merge module steps, widen stash type
-  .build()                                  // → SkillDefinition (frozen)
+  .register(module, { next })               // merge module steps, widen store type
+  .build()                                  // -> SkillDefinition (frozen)
 ```
 
 ### `skill()` config
@@ -27,9 +27,8 @@ skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd
 | `resolveVersion`         | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`                              |
 | `description`            | `string`                                       | no       | Used in generated SKILL.md                                                                                           |
 | `triggers`               | `string[]`                                     | no       | Keywords appended to description for agent discoverability                                                           |
-| `params`                 | `z.ZodType`                                    | no       | Zod schema for immutable skill-wide params                                                                           |
-| `stash`                  | `z.ZodType`                                    | no       | Zod schema for mutable cross-step state                                                                              |
-| `finalOutput`            | `z.ZodType`                                    | no       | Schema for the terminal step's output                                                                                |
+| `params`                 | `type.Any`                                     | no       | ArkType schema for immutable skill-wide params                                                                       |
+| `finalOutput`            | `type.Any`                                     | no       | Schema for the terminal step's output                                                                                |
 | `observers`              | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                                                        |
 | `skillMd`                | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                                                    |
 | `package`                | `PackageConfig`                                | no       | Fields written to the output `package.json` (see [Package Config](#package-config))                                  |
@@ -46,7 +45,7 @@ skill({ name, entry, system?, params?, stash?, observers?, finalOutput?, skillMd
 | `disableModelInvocation` | `boolean`                                      | no       | Prevent auto-loading by the agent. Emitted as `disable-model-invocation` in SKILL.md frontmatter                     |
 | `userInvocable`          | `boolean`                                      | no       | Whether visible in `/` menu. Emitted as `user-invocable` in SKILL.md frontmatter                                     |
 
-Params and stash types flow into step callbacks automatically via contextual inference — no annotations needed.
+Params types flow into step callbacks automatically via contextual inference — no annotations needed.
 
 ### `.step(name, config)`
 
@@ -57,18 +56,18 @@ Adds a step. Returns the builder for chaining. See [Step Config](#step-config) f
 Inherits a shared step definition and overrides specific fields. The base step's config is shallow-merged with overrides (overrides win).
 
 ```typescript
-import { step, z } from '@contentful/skill-kit';
+import { step, type } from '@contentful/skill-kit';
 
 const openQuestion = step({
-  output: z.object({ answer: z.string() }),
+  response: type({ answer: 'string' }),
   next: '__parent__',
 });
 
 // In the builder:
 .extend('ask-stack', openQuestion, {
-  prompt: ({ stash, act }) => [
+  prompt: ({ store, act }) => [
     act.askUser({ type: 'open', question: "What's your tech stack?" }),
-    `Ask ${stash.name} about their tech stack.`,
+    `Ask ${store.greet.name} about their tech stack.`,
   ],
   next: 'ask-hobby',
 })
@@ -76,7 +75,7 @@ const openQuestion = step({
 
 ### `.register(module, { next })`
 
-Merges all steps from a module into the skill. Module steps with `next: '__parent__'` are rewritten to point to `next`. Stash types widen automatically — see [Modules](#modules).
+Merges all steps from a module into the skill. Module steps with `next: '__parent__'` are rewritten to point to `next`. Step types accumulate into the store — see [Modules](#modules).
 
 ### `.build()`
 
@@ -90,15 +89,14 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 
 ```typescript
 {
-  prompt?: string | PromptPiece | PromptPiece[] | PromptFn,       // optional — omit for auto-advance steps
-  output?: z.ZodType,                                             // optional — omit for pass-through steps
-  next: string | TransitionFn | { terminal: true },               // required
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn,       // optional -- omit for auto-advance steps
+  response?: type.Any,                                            // optional -- omit for pass-through steps; requires prompt
+  next: string | NextBranch[] | TransitionFn | { terminal: true },  // required
   action?: {
     run: ActionDefinition,
-    input?: (ctx: { stepOutput; stash; params }) => unknown,
-    updateStash?: (ctx: { actionOutput; stash; params }) => Partial<TStash>,
+    input?: (ctx: { response; store; params }) => unknown,
   },
-  updateStash?: (ctx: { stepOutput; actionOutput?; stash; params }) => Partial<TStash>,
+  result?: (ctx: { response; actionResult }) => unknown,
   maxVisits?: number,
   onMaxVisits?: string,
 }
@@ -121,24 +119,98 @@ The `prompt` field accepts `PromptPiece` directly (including `ActSegment`), so s
 
 Available in dynamic `prompt` functions:
 
-| Field      | Type                                                              | Description                                                                           |
-| ---------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `history`  | `readonly StepResult[]`                                           | All prior step results                                                                |
-| `getStep`  | `<T, A>(name) => { stepOutput: T; actionOutput: A } \| undefined` | Typed accessor for a prior step's result (infers output types from the builder chain) |
-| `params`   | `TParams`                                                         | Immutable skill params (typed from builder)                                           |
-| `refs`     | `ReferenceLoader`                                                 | Loader for `references/` files                                                        |
-| `attempts` | `number`                                                          | How many times this step has been visited                                             |
-| `host`     | `Handshake`                                                       | Current host info and available tools                                                 |
-| `stash`    | `Readonly<TStash>`                                                | Accumulated stash (typed from builder, frozen)                                        |
-| `act`      | `ActContext`                                                      | Primitive directive builders: `askUser`, `confirm`, `plan`, `survey`, etc.            |
-| `system`   | `SystemTag`                                                       | System segment tag/function for persona/frame                                         |
+| Field      | Type                             | Description                                                                                    |
+| ---------- | -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `store`    | `StoreView<TSteps, TGuaranteed>` | Typed accessor for prior step results (guaranteed steps non-optional, branch targets use `?.`) |
+| `params`   | `TParams`                        | Immutable skill params (typed from builder)                                                    |
+| `refs`     | `ReferenceLoader`                | Loader for `references/` files                                                                 |
+| `attempts` | `number`                         | How many times this step has been visited                                                      |
+| `host`     | `Handshake`                      | Current host info and available tools                                                          |
+| `act`      | `ActBuilder`                     | Primitive directive builders: `askUser`, `confirm`, `plan`, `survey`, etc.                     |
+| `system`   | `SystemBuilder`                  | System segment tag/function for persona/frame                                                  |
+
+### The Store
+
+The store gives every step typed access to all prior step results. The SDK analyzes your workflow graph at build time and computes which steps are guaranteed to have run by the time each step executes. This flows directly into the TypeScript types: guaranteed predecessors are non-optional, branch targets require `?.`.
+
+**Guaranteed steps** (on all paths from entry to the current step) are non-optional — direct property access:
+
+```typescript
+store.greet.name; // string -- guaranteed, non-optional
+store['ask-role'].role; // string -- guaranteed, non-optional
+```
+
+**Branch targets** (steps that only run on some paths) are optional — use `?.`:
+
+```typescript
+store['ask-stack']?.answer; // string | undefined -- branch target
+store['ask-tools']?.answer; // string | undefined -- branch target
+```
+
+This is computed automatically from your step declarations via DAG analysis. Retry loops (backward edges to already-defined steps) don't create false branches — the forward path is still guaranteed.
+
+**Store methods:**
+
+| Method            | Type                       | Description                                             |
+| ----------------- | -------------------------- | ------------------------------------------------------- |
+| `store.all(step)` | `(step: K) => TSteps[K][]` | All results from a step that ran multiple times (loops) |
+| `store.ran(step)` | `(step: K) => boolean`     | Whether a step has run at least once                    |
+| `store.history`   | `readonly StepResult[]`    | Raw step records (escape hatch)                         |
+
+### The `result` callback
+
+Steps can transform what gets stored via the `result` callback. The priority is:
+
+1. Explicit `result()` return value (if provided)
+2. Action output (if an action ran)
+3. Response (the model's validated output)
+
+```typescript
+.step('profile-card', {
+  response: type({ card: 'string', profile: ProfileSchema }),
+  action: { run: writeProfile },
+  result: ({ response, actionResult }) => ({
+    card: response.card,
+    savedPath: actionResult.path,
+  }),
+  next: { terminal: true },
+})
+```
+
+The agent contract (`response`) and the step's contribution to state (`result`) are separate. `response` is what the model gives back. `result` is what downstream steps see in the store. When an action transforms the response, the store carries the transformed result — not the raw model output.
 
 ### Transitions
 
 - **Static:** `next: 'step-name'` — always goes to the named step.
-- **Dynamic:** `next: ({ stepOutput, actionOutput, attempts, params, stash }) => 'step-name'` — choose based on output, action result, or visit count.
+- **Declarative branching:** `next: [{ to: 'a', when: ... }, { to: 'b' }]` — pattern-match style. First match wins; last entry without `when` is the default.
+- **Dynamic:** `next: ({ response, actionResult, attempts, params, store }) => 'step-name'` — choose based on output, action result, or visit count.
 - **Terminal:** `next: terminal` — ends the skill. Output becomes `finalOutput`. The `terminal` constant is exported from `@contentful/skill-kit` and is equivalent to `{ terminal: true }`.
 - **Self:** `next: 'self'` or returning the current step name — revisit the same step (requires `maxVisits`).
+
+### `NextBranch` type
+
+Declarative branching uses an array of `NextBranch` objects:
+
+```typescript
+interface NextBranch {
+  to: string;
+  when?: (ctx: { response; actionResult; params; store; attempts }) => boolean;
+}
+```
+
+The type system extracts branch targets and computes which steps are guaranteed vs optional. Branches where both `to` targets are forward (not yet defined) create optional store entries for those steps.
+
+```typescript
+.step('ask-role', {
+  response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
+  next: [
+    { to: 'ask-stack', when: ({ response }) => response.role === 'dev' },
+    { to: 'ask-tools', when: ({ response }) => response.role === 'designer' },
+    { to: 'ask-team-size', when: ({ response }) => response.role === 'manager' },
+    { to: 'ask-specialty' },  // default -- no `when`
+  ],
+})
+```
 
 ### Loop guards
 
@@ -147,47 +219,37 @@ Steps in detected cycles have an implicit visit limit (10) enforced at runtime. 
 ```typescript
 .step('ask-hobby', {
   // ...
-  maxVisits: 3,
+  maxVisits: 2,
   onMaxVisits: 'confirm-profile',  // fallback when limit hit
-  next: ({ stepOutput }) => stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile',
+  next: [
+    { to: 'ask-hobby', when: ({ response }) => response.wantsMore },
+    { to: 'confirm-profile' },
+  ],
 })
 ```
 
 The cycle guard validator detects potential cycles and reports them as lint warnings. At runtime, exceeding the limit with `onMaxVisits` set redirects; without it, the engine throws.
 
-### Stash merging
+### Prompt-less and response-less steps
 
-The `updateStash` callback receives the validated output (and optionally the action result) and returns a partial stash object. The return value is shallow-merged into the accumulated stash:
-
-```typescript
-updateStash: ({ stepOutput }) => ({ target: stepOutput.target }),
-
-// With action result:
-updateStash: ({ stepOutput, actionOutput }) => ({ target: stepOutput.target, savedPath: actionOutput?.path }),
-```
-
-All outputs and stash values are frozen with `Object.freeze()` to prevent mutation.
-
-### Prompt-less and output-less steps
-
-**Prompt-less steps** omit the `prompt` field entirely. The engine skips model invocation and immediately advances to `next`. Use these for routing or orchestration steps that branch based on stash or params without needing a model turn:
+**Prompt-less steps** omit the `prompt` field entirely. The engine skips model invocation and immediately advances to `next`. Use these for routing or orchestration steps that branch based on store or params without needing a model turn:
 
 ```typescript
 .step('route', {
-  next: ({ stash }) => stash.intent === 'help' ? 'help-flow' : 'main-flow',
+  next: ({ store }) => store.classify.intent === 'help' ? 'help-flow' : 'main-flow',
 })
 ```
 
-**Output-less steps** omit the `output` schema. The step still renders a prompt and invokes the model, but the model's response is not validated or recorded. Use these for fire-and-forget instructions where the step's value is in the model's side effects (e.g., delivering a message to the user) rather than in a structured response:
+**Response-less steps** omit the `response` schema. The step still renders a prompt and invokes the model, but the model's response is not validated or recorded. Use these for fire-and-forget instructions where the step's value is in the model's side effects (e.g., delivering a message to the user) rather than in a structured response:
 
 ```typescript
 .step('deliver', {
-  prompt: ({ stash }) => `Tell the user: ${stash.summary}`,
+  prompt: ({ store }) => `Tell the user: ${store.summary.text}`,
   next: terminal,
 })
 ```
 
-Both patterns can be combined: a step with neither `prompt` nor `output` is a pure routing node.
+Both patterns can be combined: a step with neither `prompt` nor `response` is a pure routing node.
 
 ---
 
@@ -200,7 +262,7 @@ import { reference } from '@contentful/skill-kit';
 
 reference({ name, description, version?, resolveVersion?, package? })
   .topic(name, { label, content: (ctx) => string })
-  .build()                                           // → ReferenceDefinition (frozen)
+  .build()                                           // -> ReferenceDefinition (frozen)
 ```
 
 ### `reference()` config
@@ -286,34 +348,32 @@ If a `package.json` already exists in the output directory, the build merges rat
 
 ## Modules
 
-Composable step groups with their own stash scope:
+Composable step groups that merge their step types into the parent skill's store:
 
 ```typescript
-import { module, z } from '@contentful/skill-kit';
+import { module, type } from '@contentful/skill-kit';
 
 const authModule = module({
   name: 'auth',
   entry: 'auth-login',
-  stash: z.object({ userId: z.string() }),
 })
   .step('auth-login', {
     prompt: 'Ask for credentials.',
-    output: z.object({ userId: z.string() }),
-    updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
+    response: type({ userId: 'string' }),
     next: '__parent__', // exits back to the registering skill
   })
   .build();
 ```
 
-Register into a skill — stash types merge automatically:
+Register into a skill — step types accumulate into the store:
 
 ```typescript
-skill({ name: 'app', entry: 'start', stash: z.object({ appName: z.string() }) })
+skill({ name: 'app', entry: 'start' })
   .step('start', { /* ... */ next: 'auth-login' })
   .register(authModule, { next: 'dashboard' })
   .step('dashboard', {
-    // stash is now { appName: string } & { userId: string }
-    prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}`,
+    // store now includes auth-login results
+    prompt: ({ store }) => `Welcome ${store['auth-login'].userId}`,
     // ...
   })
   .build();
@@ -321,11 +381,10 @@ skill({ name: 'app', entry: 'start', stash: z.object({ appName: z.string() }) })
 
 ### `module()` config
 
-| Field   | Type        | Required | Description                  |
-| ------- | ----------- | -------- | ---------------------------- |
-| `name`  | `string`    | yes      | Module identifier            |
-| `entry` | `string`    | yes      | Entry step within the module |
-| `stash` | `z.ZodType` | yes      | Local state schema           |
+| Field   | Type     | Required | Description                  |
+| ------- | -------- | -------- | ---------------------------- |
+| `name`  | `string` | yes      | Module identifier            |
+| `entry` | `string` | yes      | Entry step within the module |
 
 The `__parent__` sentinel in `next` is rewritten to the `{ next }` value passed to `.register()`. Module steps that don't use `__parent__` pass through unchanged.
 
@@ -342,20 +401,20 @@ Register a standalone `SkillDefinition` as a sub-skill:
 ```typescript
 import doctorSkill from './subskills/doctor.js';
 
-skill({ name: 'helper', entry: 'classify', ... })
+skill({ name: 'helper', entry: 'classify' })
   .step('classify', {
-    output: z.object({ intent: z.string() }),
-    next: ({ stepOutput }) => `subskill:${stepOutput.intent}`,
+    response: type({ intent: 'string' }),
+    next: ({ response }) => `subskill:${response.intent}`,
   })
   .subskill('doctor', doctorSkill, {
-    params: (_stepOutput, stash) => ({ spaceId: stash.spaceId }),
+    params: (_response, store) => ({ spaceId: store.spaceId }),
   })
   .build();
 ```
 
-| Option   | Type                             | Required | Description                               |
-| -------- | -------------------------------- | -------- | ----------------------------------------- |
-| `params` | `(stepOutput, stash) => unknown` | no       | Maps dispatcher state to sub-skill params |
+| Option   | Type                           | Required | Description                               |
+| -------- | ------------------------------ | -------- | ----------------------------------------- |
+| `params` | `(response, store) => unknown` | no       | Maps dispatcher state to sub-skill params |
 
 ### `.topic(name, config)`
 
@@ -390,7 +449,7 @@ interface RedirectResult {
   kind: 'redirect';
   redirect: string; // e.g. 'subskill:doctor'
   completed: StepResult; // the step that triggered the redirect
-  stash: unknown; // dispatcher's accumulated stash
+  store: StoreAccessor; // dispatcher's accumulated store
 }
 ```
 
@@ -401,7 +460,7 @@ The composite entry point handles this — the host never sees `RedirectResult` 
 Session mode (recommended):
 
 ```bash
-scripts/run --params '{...}' --session new           # dispatcher start → SessionPointer
+scripts/run --params '{...}' --session new           # dispatcher start -> SessionPointer
 scripts/run advance --session <id>                     # advance (agent wrote output to file)
 scripts/run doctor --params '{...}' --session new     # direct sub-skill start
 ```
@@ -459,7 +518,7 @@ assert.equal(result.redirectedTo?.name, 'doctor');
 | `host`           | `Handshake`       | no       | Host identity. Defaults to generic                    |
 | `directSubskill` | `string`          | no       | Skip dispatcher, start a sub-skill directly           |
 
-The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string }` alongside the standard `path`, `outputs`, `output`, and `history` fields.
+The return value adds `redirectedTo?: { kind: 'subskill' | 'topic', name: string }` alongside the standard `path`, `outputs`, `response`, and `history` fields.
 
 ---
 
@@ -486,7 +545,7 @@ import { act } from '@contentful/skill-kit';
     ],
     multiSelect: false, // optional, defaults to false
   }),
-  output: z.object({ env: z.enum(['production', 'staging']) }),
+  response: type({ env: "'production' | 'staging'" }),
   next: 'deploy',
 })
 
@@ -496,7 +555,7 @@ import { act } from '@contentful/skill-kit';
     act.askUser({ type: 'open', question: "What's your tech stack?" }),
     `Get specific — frameworks, build tools, deployment targets.`,
   ],
-  output: z.object({ answer: z.string() }),
+  response: type({ answer: 'string' }),
   next: 'done',
 })
 ```
@@ -543,7 +602,7 @@ prompt: ({ act }) => [
 ],
 ```
 
-Step output should include `{ approved: z.boolean() }`.
+Step response should include `{ approved: boolean }`.
 
 ### `act.plan` — present and approve
 
@@ -574,8 +633,8 @@ prompt: act.checklist({
 }),
 
 // Or via act in a prompt function
-prompt: ({ stash, act }) => [
-  act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+prompt: ({ store, act }) => [
+  act.checklist({ create: store.all('task').map(t => ({ title: t.name, status: 'pending' })) }),
   `Work through each task. Update the checklist as you go.`,
 ],
 ```
@@ -583,12 +642,12 @@ prompt: ({ stash, act }) => [
 ### `act.subagent` — spawn isolated sub-agent
 
 ```typescript
-import { act } from '@contentful/skill-kit';
+import { act, type } from '@contentful/skill-kit';
 
 // Direct prompt value
 prompt: act.subagent({
   prompt: 'Review the PR for security issues.',
-  output: z.object({ findings: z.array(z.string()) }),
+  output: type({ findings: 'string[]' }),
 }),
 
 // Or via act in a prompt function
@@ -597,11 +656,11 @@ prompt: ({ act }) => act.subagent({ prompt: 'Review the PR.', output: FindingsSc
 
 #### `SubagentConfig`
 
-| Field            | Type        | Required | Description                                                                                                                                                                                     |
-| ---------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prompt`         | `string`    | yes      | Task description for the sub-agent                                                                                                                                                              |
-| `output`         | `z.ZodType` | yes      | Schema the sub-agent's result must satisfy                                                                                                                                                      |
-| `allowRecursion` | `boolean`   | no       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
+| Field            | Type       | Required | Description                                                                                                                                                                                     |
+| ---------------- | ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | `string`   | yes      | Task description for the sub-agent                                                                                                                                                              |
+| `output`         | `type.Any` | yes      | Schema the sub-agent's result must satisfy                                                                                                                                                      |
+| `allowRecursion` | `boolean`  | no       | Default `false`. When false, the rendered XML includes a `no-recurse` attribute set to the skill name, preventing the subagent from re-invoking the same skill. When true, no guard is emitted. |
 
 Default (recursion blocked):
 
@@ -626,38 +685,16 @@ import { act } from '@contentful/skill-kit';
 
 // Direct prompt value
 prompt: act.survey([
-  { type: 'open', question: 'What is your project name?' },
-  { type: 'structured', question: 'What language?', options: [
+  { question: 'What is your project name?', options: [] },
+  { question: 'What language?', options: [
     { value: 'ts', label: 'TypeScript' },
     { value: 'py', label: 'Python' },
   ]},
-  { type: 'open', question: 'Describe your use case.' },
+  { question: 'Describe your use case.', options: [] },
 ]),
-
-// Or via act in a prompt function
-prompt: ({ act }) => [
-  act.survey([
-    { type: 'open', question: 'What is your project name?' },
-    { type: 'open', question: 'Describe your use case.' },
-  ]),
-  `Ask each question one at a time. Be conversational.`,
-],
 ```
 
-The SDK emits:
-
-```xml
-<survey>
-  <question type="open" question="What is your project name?" />
-  <question type="structured" question="What language?">
-    <option value="ts" label="TypeScript" />
-    <option value="py" label="Python" />
-  </question>
-  <question type="open" question="Describe your use case." />
-</survey>
-```
-
-Each `question` in the array follows the same config shape as `askUser` (type, question, options for structured). The preamble maps `<survey>` to sequential question presentation via the host's tool.
+Each `question` in the array follows the survey question config shape. The preamble maps `<survey>` to sequential question presentation via the host's tool.
 
 ### Composable prompt vocabulary
 
@@ -665,12 +702,15 @@ Prompt functions can return `string | PromptPiece | PromptPiece[]`. When returni
 
 ```typescript
 .step('build', {
-  prompt: ({ stash, act, system }) => [
+  prompt: ({ store, act, system }) => [
     system`You are a game dev mentor. Be methodical.`,
-    act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+    act.checklist({ create: [
+      { title: 'Board data structure', status: 'pending' },
+      { title: `${store['choose-renderer'].renderer} renderer`, status: 'pending' },
+    ]}),
     prompt`Build the game. Update the checklist as you go.`,
   ],
-  output: z.object({ filesCreated: z.array(z.string()) }),
+  response: type({ filesCreated: 'string[]' }),
   next: 'done',
 })
 ```
@@ -696,9 +736,7 @@ The SDK renders all prompt segments as XML tags. The preamble (sent once at sess
 | `<subagent>`  | Sub-agent delegation (`no-recurse` guard)                        | `Agent`                    |
 | `<rendered>`  | Pre-rendered verbatim output (optional `name` attr for labeling) | —                          |
 
-No tool names appear in the XML itself. The preamble table maps tags to tools. On hosts without a matching tool, the instruction column provides generic fallback behavior (e.g., present a numbered list for `<ask-user>`). The `<subagent>` tag may include a `no-recurse` attribute naming the skill that the subagent must not invoke (see [`allowRecursion`](#subagentconfig) above).
-
-The preamble is generated by `preambleRows()` in the registry, which calls each primitive's `preambleRow(tool)` method with the resolved tool name (or `undefined`). Tool resolution uses a three-way strategy via `resolveTools(handshake)`: if no explicit tools are reported, the host registry provides the list; if explicit tools are reported with `--subagent`, they are authoritative (subagents genuinely have fewer tools); if explicit tools are reported without `--subagent`, they are unioned with the host registry (handles agents that under-report).
+No tool names appear in the XML itself. The preamble table maps tags to tools. On hosts without a matching tool, the instruction column provides generic fallback behavior (e.g., present a numbered list for `<ask-user>`).
 
 Same skill, same XML, every host. The preamble table handles the translation.
 
@@ -709,15 +747,15 @@ Same skill, same XML, every host. The preamble table handles the translation.
 For shared, reusable steps defined outside a skill:
 
 ```typescript
-import { step, z } from '@contentful/skill-kit';
+import { step, type } from '@contentful/skill-kit';
 
 const openQuestion = step({
-  output: z.object({ answer: z.string() }),
+  response: type({ answer: 'string' }),
   next: '__parent__',
 });
 ```
 
-Both `output` and `next` are required. Use via `.extend()` on the builder to get typed overrides that respect the parent skill's params/stash types.
+Both `response` and `next` are required. Use via `.extend()` on the builder to get typed overrides that respect the parent skill's params/store types.
 
 ---
 
@@ -762,15 +800,15 @@ This means you can indent `prompt` blocks naturally in your code without the ind
 
 ## Actions
 
-Side effects that run after a step's output is validated:
+Side effects that run after a step's response is validated:
 
 ```typescript
-import { action, z } from '@contentful/skill-kit';
+import { action, type } from '@contentful/skill-kit';
 
 const writeProfile = action({
   name: 'write-profile',
-  input: z.object({ profile: ProfileSchema }),
-  output: z.object({ path: z.string() }),
+  input: type({ profile: ProfileSchema }),
+  output: type({ path: 'string' }),
   run: async ({ input, signal }) => {
     const path = `/tmp/profile-${Date.now()}.json`;
     await writeFile(path, JSON.stringify(input.profile));
@@ -784,57 +822,58 @@ Attach to a step via the `action` field:
 ```typescript
 .step('save', {
   prompt: 'Generate the profile.',
-  output: z.object({ profile: ProfileSchema }),
+  response: type({ profile: ProfileSchema }),
   action: { run: writeProfile },
-  next: terminal,
+  next: { terminal: true },
 })
 ```
 
-**Decoupling action input from step output** — when the model's output doesn't match action input exactly:
+**Decoupling action input from step response** — when the model's response doesn't match action input exactly:
 
 ```typescript
 .step('save', {
-  output: z.object({ reasoning: z.string(), profile: ProfileSchema }),
+  response: type({ reasoning: 'string', profile: ProfileSchema }),
   action: {
     run: writeProfile,
-    input: ({ stepOutput }) => ({ profile: stepOutput.profile }),
-    updateStash: ({ actionOutput }) => ({ savedPath: actionOutput.path }),
+    input: ({ response }) => ({ profile: response.profile }),
   },
-  next: ({ actionOutput }) => actionOutput.path ? 'confirm' : 'retry',
+  result: ({ response, actionResult }) => ({
+    profile: response.profile,
+    savedPath: actionResult.path,
+  }),
+  next: 'confirm',
 })
 ```
 
-- `action.input` transforms step output into action input (runs before action)
-- `action.updateStash` stashes action results (runs after action, receives `{ actionOutput }`)
-- The top-level `updateStash` callback receives `{ stepOutput, actionOutput? }` — the action result is available alongside the step output
-- `next` receives action output for conditional routing
+- `action.input` transforms step response into action input (runs before action)
+- The `result` callback transforms what gets stored (runs after action, receives `{ response, actionResult }`)
+- `next` receives action result for conditional routing
 
-Step lifecycle with action: `prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next`
+Step lifecycle with action: `prompt -> model -> validate(response) -> action.input -> action.run -> result -> store -> next`
 
 ### `action()` config (ActionDefinition)
 
 | Field    | Type                                                       | Required | Description                         |
 | -------- | ---------------------------------------------------------- | -------- | ----------------------------------- |
 | `name`   | `string`                                                   | yes      | Action identifier                   |
-| `input`  | `z.ZodType`                                                | yes      | Schema for what the action receives |
-| `output` | `z.ZodType`                                                | yes      | Schema for what the action returns  |
+| `input`  | `type.Any`                                                 | yes      | Schema for what the action receives |
+| `output` | `type.Any`                                                 | yes      | Schema for what the action returns  |
 | `run`    | `(ctx: { input, signal: AbortSignal }) => Promise<output>` | yes      | Async function with typed I/O       |
 
 ### Step `action` field config
 
-| Field         | Type                                                        | Required | Description                                                    |
-| ------------- | ----------------------------------------------------------- | -------- | -------------------------------------------------------------- |
-| `run`         | `ActionDefinition`                                          | yes      | The action to execute                                          |
-| `input`       | `(ctx: { stepOutput; stash; params }) => unknown`           | no       | Transform step output into action input (default: pass output) |
-| `updateStash` | `(ctx: { actionOutput; stash; params }) => Partial<TStash>` | no       | Stash action results after execution                           |
+| Field   | Type                                            | Required | Description                                                        |
+| ------- | ----------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `run`   | `ActionDefinition`                              | yes      | The action to execute                                              |
+| `input` | `(ctx: { response; store; params }) => unknown` | no       | Transform step response into action input (default: pass response) |
 
-The `run` function on the `ActionDefinition` receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated output is parsed as action input; use `action.input` to customize. Action results are recorded in history alongside step outputs and available via `getStep()` or the `next` transition function.
+The `run` function on the `ActionDefinition` receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated response is parsed as action input; use `action.input` to customize.
 
 ---
 
 ## View Helper
 
-The `view()` helper wraps content in a `ViewSegment` that renders as a `<rendered>` XML tag. It replaces the old `render` step callback — views are now composed inline within prompt functions.
+The `view()` helper wraps pre-rendered content in a `ViewSegment` that renders as a `<rendered>` XML tag. Views are composed inline within prompt functions — use them to inject deterministic output (tables, reports, cards) that the model presents verbatim.
 
 ```typescript
 import { view } from '@contentful/skill-kit';
@@ -844,28 +883,28 @@ import { view } from '@contentful/skill-kit';
 
 ```typescript
 view(render.table(checks, { columns: ['name', 'status'] }));
-// → <rendered>\n...\n</rendered>
+// -> <rendered>\n...\n</rendered>
 ```
 
 ### `view(label, content)` — named
 
 ```typescript
 view('report', render.table(checks, { columns: ['name', 'status'] }));
-// → <rendered name="report">\n...\n</rendered>
+// -> <rendered name="report">\n...\n</rendered>
 ```
 
 Named views help the model reference specific rendered blocks when a prompt contains multiple views. Use inside prompt callbacks:
 
 ```typescript
 .step('report', {
-  prompt: ({ history }) => {
-    const checks = history.find(s => s.step === 'diagnose')!.stepOutput.checks;
+  prompt: ({ store }) => {
+    const checks = store.diagnose.checks;
     return [
       view('report', render.table(checks, { columns: ['name', 'status', 'detail'] })),
       `Output the report above to the user exactly as shown.`,
     ];
   },
-  output: z.object({ delivered: z.boolean() }),
+  response: type({ delivered: 'boolean' }),
   next: terminal,
 })
 ```
@@ -963,19 +1002,19 @@ skill({
   // ...
   observers: {
     onStepStart: ({ step, params }) => {
-      console.error(`→ entering "${step}"`);
+      console.error(`-> entering "${step}"`);
     },
-    onStepComplete: ({ step, output, durationMs }) => {
-      console.error(`✓ "${step}" completed in ${durationMs}ms`);
+    onStepComplete: ({ step, response, durationMs }) => {
+      console.error(`done "${step}" completed in ${durationMs}ms`);
     },
     onStepValidationFailed: ({ step, raw, error, attempt }) => {
-      console.error(`✗ "${step}" attempt ${attempt}: ${error}\n  raw: ${JSON.stringify(raw)}`);
+      console.error(`fail "${step}" attempt ${attempt}: ${error}\n  raw: ${JSON.stringify(raw)}`);
     },
     onTransition: ({ from, to, reason }) => {
-      console.error(`  ${from} → ${to} (${reason})`);
+      console.error(`  ${from} -> ${to} (${reason})`);
     },
     onSkillComplete: ({ path, finalOutput, durationMs }) => {
-      console.error(`done in ${durationMs}ms, path: ${path.join(' → ')}`);
+      console.error(`done in ${durationMs}ms, path: ${path.join(' -> ')}`);
     },
   },
 });
@@ -997,17 +1036,18 @@ Drives a skill to completion with a model adapter:
 
 ```typescript
 const result = await runSkill(mySkill, {
-  params: { repoPath: '.' }, // optional — parsed against skill's params schema
+  params: { repoPath: '.' }, // optional -- parsed against skill's params schema
   model: mockModel({
     /* ... */
   }),
-  host: { host: 'claude-code' }, // optional — defaults to generic
+  host: { host: 'claude-code' }, // optional -- defaults to generic
 });
 
-result.path; // string[] — sequence of step names visited
-result.outputs; // Record<string, unknown> — raw model responses by step
-result.output; // unknown — final output
-result.history; // readonly StepResult[] — validated outputs + action results
+result.path; // string[] -- sequence of step names visited
+result.outputs; // Record<string, unknown> -- raw model responses by step
+result.response; // unknown -- final output
+result.history; // readonly StepResult[] -- validated outputs + action results
+result.store; // StoreAccessor -- typed store accessor
 ```
 
 ### `mockModel(map)`
@@ -1018,7 +1058,7 @@ Maps step names to canned responses:
 mockModel({
   diagnose: { checks: [{ name: 'ci', status: 'fail' }] }, // static value
   remediate: [
-    // array — cycles through on repeated visits
+    // array -- cycles through on repeated visits
     { action: 'add CI' },
     { action: 'fix lint' },
   ],
@@ -1061,7 +1101,7 @@ skill-kit build <entry.ts> -o <dir> --single                # current platform o
 | `--params`      | On `start`; also on `advance` without `--session` | JSON string validated against the skill's params schema. Session mode stores params in the header automatically                                                                                                                        |
 | `--step`        | On `advance`                                      | Name of the step being submitted. Not needed with `--session` in file mode                                                                                                                                                             |
 | `--output`      | On `advance`                                      | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                                                                                           |
-| `--history`     | On `advance`                                      | JSON array of `{ step, stepOutput, actionOutput? }`. Not needed with `--session`                                                                                                                                                       |
+| `--history`     | On `advance`                                      | JSON array of `{ step, response, actionResult? }`. Not needed with `--session`                                                                                                                                                         |
 | `--host`        | Optional                                          | Host identifier for tool resolution: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. Defaults to `generic`                                                                        |
 | `--tools`       | Optional                                          | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`. Only needed on `start` — session mode stores tools in the header |
 | `--subagent`    | Optional                                          | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge)                                                                                                                    |
@@ -1073,22 +1113,22 @@ Output (bun mode):
 
 ```
 <dir>/
-  SKILL.md               ← Generated agent-facing docs
-  package.json           ← Name, version, and package config fields
-  scripts/run            ← Shell wrapper (platform dispatcher)
-  bin/<name>-<platform>  ← Compiled Bun executables
-  references/            ← Copied from source
+  SKILL.md               <- Generated agent-facing docs
+  package.json           <- Name, version, and package config fields
+  scripts/run            <- Shell wrapper (platform dispatcher)
+  bin/<name>-<platform>  <- Compiled Bun executables
+  references/            <- Copied from source
 ```
 
 Output (node mode):
 
 ```
 <dir>/
-  SKILL.md               ← Generated agent-facing docs
-  package.json           ← Name, version, and package config fields
-  scripts/run            ← Shell wrapper (Node version check)
-  bin/<name>.mjs         ← Single ESM bundle
-  references/            ← Copied from source
+  SKILL.md               <- Generated agent-facing docs
+  package.json           <- Name, version, and package config fields
+  scripts/run            <- Shell wrapper (Node version check)
+  bin/<name>.mjs         <- Single ESM bundle
+  references/            <- Copied from source
 ```
 
 ### MCP server mode
@@ -1195,16 +1235,15 @@ for (const d of diagnostics) {
 
 ## Worked Example: deploy-check
 
-A complete skill showing params, stash, `askUser`, branching, and terminal steps:
+A complete skill showing params, `store`, `askUser`, declarative branching, and terminal steps:
 
 ```typescript
-import { skill, z, act, terminal } from '@contentful/skill-kit';
+import { skill, type, act, terminal } from '@contentful/skill-kit';
 
 export default skill({
   name: 'deploy-check',
   entry: 'choose',
-  params: z.object({ env: z.string().default('staging') }),
-  stash: z.object({ target: z.string() }),
+  params: type({ 'env?': "'staging'" }),
 })
   .step('choose', {
     prompt: act.askUser({
@@ -1215,23 +1254,22 @@ export default skill({
         { value: 'staging', label: 'Staging' },
       ],
     }),
-    output: z.object({ target: z.enum(['production', 'staging']) }),
-    updateStash: ({ stepOutput }) => ({ target: stepOutput.target }),
+    response: type({ target: "'production' | 'staging'" }),
     next: 'verify',
   })
   .step('verify', {
-    prompt: ({ stash }) => `Run pre-deploy checks for ${stash.target}. Report any blockers.`,
-    output: z.object({ blockers: z.array(z.string()), safe: z.boolean() }),
-    next: ({ stepOutput }) => (stepOutput.safe ? 'deploy' : 'abort'),
+    prompt: ({ store }) => `Run pre-deploy checks for ${store.choose.target}. Report any blockers.`,
+    response: type({ blockers: 'string[]', safe: 'boolean' }),
+    next: [{ to: 'deploy', when: ({ response }) => response.safe }, { to: 'abort' }],
   })
   .step('deploy', {
     prompt: 'Execute the deployment.',
-    output: z.object({ url: z.string() }),
+    response: type({ url: 'string' }),
     next: terminal,
   })
   .step('abort', {
     prompt: 'Report the blockers and explain why deployment was aborted.',
-    output: z.object({ summary: z.string() }),
+    response: type({ summary: 'string' }),
     next: terminal,
   })
   .build();
@@ -1239,9 +1277,9 @@ export default skill({
 
 **What's happening:**
 
-1. **`choose`** — Uses `prompt: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere). The selected value is stashed for later steps.
+1. **`choose`** — Uses `prompt: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere).
 
-2. **`verify`** — Dynamic prompt reads `stash.target` to customize the instruction. Output schema enforces a `safe` boolean that drives the branch.
+2. **`verify`** — Dynamic prompt reads `store.choose.target` to customize the instruction. Response schema enforces a `safe` boolean. Declarative branching routes to `deploy` or `abort`.
 
 3. **`deploy` / `abort`** — Two terminal paths. The skill ends cleanly regardless of which path is taken.
 
@@ -1259,8 +1297,8 @@ const result = await runSkill(deploy, {
   }),
 });
 
-// result.path → ['choose', 'verify', 'deploy']
-// result.output → { url: 'https://staging.example.com' }
+// result.path -> ['choose', 'verify', 'deploy']
+// result.response -> { url: 'https://staging.example.com' }
 ```
 
-Params and stash types flow end-to-end — `stash.target` in the `verify` prompt is typed as `string`, and the `choose` step's stash callback is checked against the declared stash schema. No type annotations needed anywhere.
+Params and store types flow end-to-end — `store.choose.target` in the `verify` prompt is typed as `string`, and the `choose` step's response schema is checked against the ArkType definition. No type annotations needed anywhere.

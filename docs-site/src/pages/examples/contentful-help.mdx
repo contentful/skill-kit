@@ -13,7 +13,7 @@ A composite skill that dispatches to doctor and setup sub-skills, or resolves FA
 
 ```
 examples/contentful-help/src/
-  skill.ts                   # Dispatcher — routes to sub-skills or topics
+  skill.ts                   # Dispatcher -- routes to sub-skills or topics
   skill.test.ts              # Tests with runComposite
   subskills/
     doctor.ts                # Diagnose and fix issues (standalone skill)
@@ -40,11 +40,11 @@ The entry step uses `act.askUser` to let the user pick their intent:
       { value: 'faq', label: 'Quick question', description: 'Look up reference information' },
     ],
   }),
-  output: z.object({ choice: z.enum(['doctor', 'setup', 'faq']) }),
-  next: ({ stepOutput }) => {
-    if (stepOutput.choice === 'faq') return 'ask-topic';
-    if (stepOutput.choice === 'doctor') return 'get-space';
-    return `subskill:${stepOutput.choice}`;
+  response: type({ choice: "'doctor' | 'setup' | 'faq'" }),
+  next: ({ response }) => {
+    if (response.choice === 'faq') return 'ask-topic';
+    if (response.choice === 'doctor') return 'get-space';
+    return `subskill:${response.choice}`;
   },
 })
 ```
@@ -60,12 +60,12 @@ import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
 .subskill('doctor', doctorSkill, {
-  params: (_output, stash) => ({ spaceId: stash.spaceId }),
+  params: (_response, store) => ({ spaceId: store['get-space']?.spaceId ?? '' }),
 })
 .subskill('setup', setupSkill)
 ```
 
-The params function receives the dispatching step's output and the dispatcher's accumulated stash. Its return value becomes the sub-skill's params.
+The params function receives the dispatching step's response and the dispatcher's store. Its return value becomes the sub-skill's params.
 
 ## Topic registration
 
@@ -82,7 +82,7 @@ When `next` returns `'topic:rate-limits'`, the skill loads the topic content and
 
 ## The doctor sub-skill
 
-A multi-step workflow: diagnose → suggest fixes → confirm → apply → report. Shows conditional branching (healthy spaces skip remediation) and `askUser` for fix confirmation.
+A multi-step workflow: diagnose -> suggest fixes -> confirm -> apply -> report. Shows conditional branching (healthy spaces skip remediation) and `askUser` for fix confirmation.
 
 ## The setup sub-skill
 
@@ -91,8 +91,8 @@ Uses an `action` for deterministic environment variable detection — no LLM gue
 ```typescript
 const checkEnv = action({
   name: 'check-env',
-  input: z.object({}),
-  output: z.object({ hasSpaceId: z.boolean(), hasToken: z.boolean() }),
+  input: type({}),
+  output: type({ hasSpaceId: 'boolean', hasToken: 'boolean' }),
   run: async () => ({
     hasSpaceId: !!process.env['CONTENTFUL_SPACE_ID'],
     hasToken: !!process.env['CONTENTFUL_ACCESS_TOKEN'],
@@ -100,11 +100,11 @@ const checkEnv = action({
 });
 ```
 
-The step's `action.updateStash` callback stashes the results, and `next` routes based on the action output — either to guided setup or directly to configuration.
+The step's `result` callback shapes what goes into the store, and `next` routes based on the action output — either to guided setup or directly to configuration.
 
 ## Testing
 
-Tests use `runComposite` which handles dispatcher→sub-skill routing automatically:
+Tests use `runComposite` which handles dispatcher->sub-skill routing automatically:
 
 ```typescript
 import { runComposite, mockModel } from '@contentful/skill-kit/test';
