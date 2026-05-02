@@ -1,3 +1,5 @@
+export {};
+
 /**
  * Generator for type-level stress test files.
  *

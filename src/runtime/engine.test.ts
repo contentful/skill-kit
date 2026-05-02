@@ -1271,3 +1271,494 @@ test('skill without stores — zero regression', async () => {
   const done = await engine.advance('a', { val: 'ok' });
   assert.equal((done as DoneResult).done, true);
 });
+
+// ============================================================
+// Edge case: save returning empty object
+// ============================================================
+
+test('save returning empty object: step result defaults to response', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'empty-save', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: () => ({}),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save returning void (undefined)
+// ============================================================
+
+test('save returning void: step result defaults to response', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'void-save', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: () => {
+        // implicit void return
+      },
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  // When save returns undefined, the destructuring `(saveReturn as Record<string, unknown>) ?? {}`
+  // converts undefined to {} via ??. Then step is undefined, storeWrites is empty.
+  // stepResult = actionResult ?? response = response.
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save returning null (via any cast — runtime hazard)
+// ============================================================
+
+test('save returning null: engine handles gracefully', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'null-save', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      save: (() => null) as any,
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  // null ?? {} = {} (nullish coalescing catches null)
+  // Then destructuring {} -> step=undefined, storeWrites={}
+  // stepResult = response
+  await engine.advance('a', { val: 'hello' });
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save returning extra keys not in stores (undeclared)
+// ============================================================
+
+test('save with undeclared store keys: writes warning to stderr', async () => {
+  const stderrChunks: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk: string | Uint8Array) => {
+    stderrChunks.push(String(chunk));
+    return true;
+  };
+
+  try {
+    const s = skill({
+      name: 'undeclared-store',
+      entry: 'a',
+      stores: { env: type({ host: 'string' }) },
+    })
+      .step('a', {
+        prompt: 'A',
+        response: type({ val: 'string' }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        save: (() => ({ nope: { x: 1 } })) as any,
+        next: { terminal: true },
+      })
+      .build();
+
+    const engine = new WorkflowEngine(s, genericHost, {});
+    engine.start();
+    const done = await engine.advance('a', { val: 'test' });
+    // Should still complete — warning only, not a crash
+    assert.equal((done as DoneResult).done, true);
+    // Should have written a warning about undeclared store
+    assert.ok(stderrChunks.some((c) => c.includes('undeclared store')));
+  } finally {
+    process.stderr.write = origWrite;
+  }
+});
+
+// ============================================================
+// Edge case: save callback throwing
+// ============================================================
+
+test('save callback throwing: engine propagates the error', async () => {
+  const s = skill({ name: 'save-throw', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      save: (() => {
+        throw new Error('save exploded');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await assert.rejects(() => engine.advance('a', { val: 'hello' }), /save exploded/);
+});
+
+// ============================================================
+// Edge case: store name 'steps' is reserved
+// ============================================================
+
+test('build() with store name "steps" throws at build time', () => {
+  assert.throws(
+    () =>
+      skill({ name: 'bad-store', entry: 'a', stores: { steps: type({ x: 'string' }) } })
+        .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+        .build(),
+    /reserved/,
+  );
+});
+
+// ============================================================
+// Edge case: store name 'step' is also reserved
+// ============================================================
+
+test('build() with store name "step" throws at build time', () => {
+  assert.throws(
+    () =>
+      skill({ name: 'bad-store-step', entry: 'a', stores: { step: type({ x: 'string' }) } })
+        .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+        .build(),
+    /reserved/,
+  );
+});
+
+// ============================================================
+// Edge case: empty stores config — no regression
+// ============================================================
+
+test('empty stores config: skill builds and runs fine', async () => {
+  const s = skill({ name: 'empty-stores', entry: 'a', stores: {} })
+    .step('a', { prompt: 'A', response: type({ val: 'string' }), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const done = await engine.advance('a', { val: 'ok' });
+  assert.equal((done as DoneResult).done, true);
+});
+
+// ============================================================
+// Edge case: replay with save — rebuilds sub-store state
+// ============================================================
+
+test('replayHistory rebuilds sub-store from multiple save steps', async () => {
+  let capturedEnv: unknown;
+  const s = skill({
+    name: 'replay-multi-save',
+    entry: 'a',
+    stores: { env: type({ apiA: { host: 'string' }, apiB: { host: 'string' } }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { apiA: { host: response.host } } }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: 'B',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { apiB: { host: response.host } } }),
+      next: 'c',
+    })
+    .step('c', {
+      prompt: (ctx) => {
+        capturedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'C';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.replayHistory([
+    { step: 'a', response: { host: 'replayed-a.com' } },
+    { step: 'b', response: { host: 'replayed-b.com' } },
+  ]);
+  engine.start();
+  // Advance past the replayed steps to reach c
+  await engine.advance('b', { host: 'replayed-b.com' });
+  assert.deepEqual(capturedEnv, {
+    apiA: { host: 'replayed-a.com' },
+    apiB: { host: 'replayed-b.com' },
+  });
+});
+
+// ============================================================
+// Edge case: save with step undefined — defaults to response/action
+// ============================================================
+
+test('save with explicit step: undefined defaults to response', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'step-undefined', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: () => ({ step: undefined }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  // step: undefined -> stepValue is undefined -> falls through to response
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save receiving correct store state from predecessors
+// ============================================================
+
+test('save callback receives current store state from predecessors', async () => {
+  let capturedStoreInSave: unknown;
+  const s = skill({
+    name: 'save-reads-store',
+    entry: 'init',
+    stores: { env: type({ host: 'string' }) },
+  })
+    .step('init', {
+      prompt: 'Init',
+      response: type({}),
+      save: () => ({ env: { host: 'initial.com' } }),
+      next: 'update',
+    })
+    .step('update', {
+      prompt: 'Update',
+      response: type({ newHost: 'string' }),
+      save: ({ response, store }) => {
+        capturedStoreInSave = (store as Record<string, unknown>).env;
+        return { env: { host: response.newHost } };
+      },
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('init', {});
+  await engine.advance('update', { newHost: 'updated.com' });
+  // save in update should have seen the store state from init
+  assert.deepEqual(capturedStoreInSave, { host: 'initial.com' });
+});
+
+// ============================================================
+// Edge case: multiple writes to same deep path — last write wins
+// ============================================================
+
+test('three steps writing to same deep path: last write wins', async () => {
+  let capturedHost: unknown;
+  const s = skill({
+    name: 'overwrite-deep',
+    entry: 'a',
+    stores: { env: type({ api: { host: 'string' } }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({}),
+      save: () => ({ env: { api: { host: 'first.com' } } }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: 'B',
+      response: type({}),
+      save: () => ({ env: { api: { host: 'second.com' } } }),
+      next: 'c',
+    })
+    .step('c', {
+      prompt: 'C',
+      response: type({}),
+      save: () => ({ env: { api: { host: 'third.com' } } }),
+      next: 'd',
+    })
+    .step('d', {
+      prompt: (ctx) => {
+        const env = (ctx.store as Record<string, unknown>).env as { api: { host: string } };
+        capturedHost = env.api.host;
+        return 'D';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', {});
+  await engine.advance('b', {});
+  await engine.advance('c', {});
+  assert.equal(capturedHost, 'third.com');
+});
+
+// ============================================================
+// Edge case: save with action output but no response
+// ============================================================
+
+test('promptless step with action and save: actionResult available in save', async () => {
+  let storedResult: unknown;
+
+  const checkAction = action({
+    name: 'check',
+    input: type({}),
+    output: type({ status: 'string' }),
+    run: async () => ({ status: 'healthy' }),
+  });
+
+  const s = skill({ name: 'gate-save', entry: 'check' })
+    .step('check', {
+      response: type({}),
+      action: { run: checkAction },
+      save: ({ actionResult }) => ({
+        step: { health: (actionResult as { status: string }).status },
+      }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.check;
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('check', {});
+  assert.deepEqual(storedResult, { health: 'healthy' });
+});
+
+// ============================================================
+// Edge case: save with only sub-store writes (no step key)
+// ============================================================
+
+test('save with only sub-store writes: step defaults to action output', async () => {
+  let storedResult: unknown;
+  let storedEnv: unknown;
+
+  const writeFile = action({
+    name: 'write',
+    input: type({ content: 'string' }),
+    output: type({ path: 'string', bytes: 'number' }),
+    run: async ({ input }) => ({ path: '/tmp/out', bytes: input.content.length }),
+  });
+
+  const s = skill({
+    name: 'substore-only-save',
+    entry: 'a',
+    stores: { env: type({ lastFile: 'string' }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ content: 'string' }),
+      action: { run: writeFile },
+      save: ({ actionResult }) => ({
+        env: { lastFile: (actionResult as { path: string }).path },
+      }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        storedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { content: 'hello' });
+  // No step key in save -> defaults to actionResult
+  assert.deepEqual(storedResult, { path: '/tmp/out', bytes: 5 });
+  assert.deepEqual(storedEnv, { lastFile: '/tmp/out' });
+});
+
+// ============================================================
+// Edge case: save with stores that matches step name
+// ============================================================
+
+test('sub-store named same as step: no collision at runtime', async () => {
+  let storeStepResult: unknown;
+  let storeSubStore: unknown;
+
+  const s = skill({
+    name: 'name-collision',
+    entry: 'gather',
+    stores: { gather: type({ extra: 'string' }) },
+  })
+    .step('gather', {
+      prompt: 'Gather',
+      response: type({ val: 'string' }),
+      save: ({ response }) => ({
+        step: { processed: response.val.toUpperCase() },
+        gather: { extra: 'meta' },
+      }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storeStepResult = ctx.store.steps.gather;
+        storeSubStore = (ctx.store as Record<string, unknown>).gather;
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('gather', { val: 'hello' });
+  // Step result under store.steps
+  assert.deepEqual(storeStepResult, { processed: 'HELLO' });
+  // Sub-store at top level
+  assert.deepEqual(storeSubStore, { extra: 'meta' });
+});

@@ -193,3 +193,128 @@ test('StateStore: accessor reflects saves made after creation', () => {
   store.applySave({ environment: { host: 'a.com' } });
   assert.deepEqual((accessor as Record<string, unknown>).environment, { host: 'a.com' });
 });
+
+// ============================================================
+// Edge case: applySave with empty object
+// ============================================================
+
+test('StateStore: applySave with empty object is a no-op', () => {
+  const store = new StateStore();
+  store.applySave({ environment: { host: 'a.com' } });
+  store.applySave({});
+  const accessor = store.buildAccessor();
+  assert.deepEqual((accessor as Record<string, unknown>).environment, { host: 'a.com' });
+});
+
+// ============================================================
+// Edge case: applySave with undefined values
+// ============================================================
+
+test('StateStore: applySave skips undefined values', () => {
+  const store = new StateStore();
+  store.applySave({ environment: { host: 'a.com' } });
+  store.applySave({ environment: undefined });
+  const accessor = store.buildAccessor();
+  // Should NOT overwrite with undefined
+  assert.deepEqual((accessor as Record<string, unknown>).environment, { host: 'a.com' });
+});
+
+// ============================================================
+// Edge case: applySave with null value
+// ============================================================
+
+test('StateStore: applySave with null replaces existing value', () => {
+  const store = new StateStore();
+  store.applySave({ environment: { host: 'a.com' } });
+  // null is not undefined, so it goes through deepMerge
+  // deepMerge with non-object source returns source -> null replaces
+  store.applySave({ environment: null as unknown as Record<string, unknown> });
+  const accessor = store.buildAccessor();
+  assert.equal((accessor as Record<string, unknown>).environment, null);
+});
+
+// ============================================================
+// Edge case: applySave with nested arrays
+// ============================================================
+
+test('StateStore: applySave replaces arrays (does not merge)', () => {
+  const store = new StateStore();
+  store.applySave({ tags: { items: ['a', 'b'] } });
+  store.applySave({ tags: { items: ['c'] } });
+  const accessor = store.buildAccessor();
+  const tags = (accessor as Record<string, unknown>).tags as Record<string, unknown>;
+  assert.deepEqual(tags.items, ['c']);
+});
+
+// ============================================================
+// Edge case: three steps writing to same deep path
+// ============================================================
+
+test('StateStore: last write wins for same deep path', () => {
+  const store = new StateStore();
+  store.applySave({ env: { api: { host: 'first.com' } } });
+  store.applySave({ env: { api: { host: 'second.com' } } });
+  store.applySave({ env: { api: { host: 'third.com' } } });
+  const accessor = store.buildAccessor();
+  const env = (accessor as Record<string, unknown>).env as { api: { host: string } };
+  assert.equal(env.api.host, 'third.com');
+});
+
+// ============================================================
+// Edge case: accessor created before applySave reflects later writes
+// ============================================================
+
+test('StateStore: accessor is lazy — reflects writes made after creation', () => {
+  const store = new StateStore();
+  const accessor = store.buildAccessor();
+
+  // Initially no sub-store data
+  assert.equal((accessor as Record<string, unknown>).env, undefined);
+
+  // Write to sub-store after accessor creation
+  store.applySave({ env: { host: 'late-write.com' } });
+
+  // Accessor should reflect the new write
+  assert.deepEqual((accessor as Record<string, unknown>).env, { host: 'late-write.com' });
+});
+
+// ============================================================
+// Edge case: step named 'steps' does not collide with .steps namespace
+// ============================================================
+
+test('StateStore: step named "steps" accessible via store.steps.steps', () => {
+  const store = new StateStore();
+  store.append('steps', { val: 'meta' });
+  const accessor = store.buildAccessor<{ steps: { val: string } }>();
+  // store.steps is the StepsView, and store.steps.steps is the step result
+  assert.deepEqual(accessor.steps.steps, { val: 'meta' });
+});
+
+// ============================================================
+// Edge case: store property 'steps' does NOT shadow the steps accessor
+// ============================================================
+
+test('StateStore: sub-store named "steps" does not shadow steps accessor', () => {
+  const store = new StateStore();
+  store.append('greet', { name: 'Alice' });
+  // Even if we write to a sub-store named "steps", the proxy
+  // should prioritize the real steps accessor
+  store.applySave({ steps: { something: true } });
+  const accessor = store.buildAccessor<{ greet: { name: string } }>();
+  // store.steps should still be the StepsView, not the sub-store
+  assert.equal(typeof accessor.steps.ran, 'function');
+  assert.deepEqual(accessor.steps.greet, { name: 'Alice' });
+});
+
+// ============================================================
+// Edge case: applySave merges deeply across multiple namespaces
+// ============================================================
+
+test('StateStore: applySave merges across multiple sub-stores independently', () => {
+  const store = new StateStore();
+  store.applySave({ env: { host: 'a.com' }, config: { mode: 'dev' } });
+  store.applySave({ env: { port: 8080 }, config: { debug: true } });
+  const accessor = store.buildAccessor();
+  assert.deepEqual((accessor as Record<string, unknown>).env, { host: 'a.com', port: 8080 });
+  assert.deepEqual((accessor as Record<string, unknown>).config, { mode: 'dev', debug: true });
+});
