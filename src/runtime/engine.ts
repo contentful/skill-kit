@@ -12,6 +12,7 @@ import type {
   PromptPiece,
   PromptReturn,
 } from '../types.js';
+import { type } from 'arktype';
 import { renderPrimitive } from '../primitives/registry.js';
 import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
@@ -59,18 +60,16 @@ export class WorkflowEngine implements SkillEngine {
     this.currentStep = skill.entry;
 
     if (skill.params) {
-      const result = skill.params.safeParse(params);
-      if (!result.success) {
-        const details = result.error.issues
-          .map((i: { path: PropertyKey[]; message: string }) =>
-            i.path.length > 0 ? `"${i.path.map(String).join('.')}": ${i.message}` : i.message,
-          )
+      const result = skill.params(params);
+      if (result instanceof type.errors) {
+        const details = result
+          .map((i) => (i.path.length > 0 ? `"${[...i.path].map(String).join('.')}": ${i.message}` : i.message))
           .join('; ');
         throw new Error(
           `Invalid params for skill "${skill.name}": ${details}. Pass --params with the required fields.`,
         );
       }
-      this.skillParams = Object.freeze(result.data);
+      this.skillParams = Object.freeze(result);
     } else {
       this.skillParams = Object.freeze(params ?? {});
     }
@@ -135,7 +134,7 @@ export class WorkflowEngine implements SkillEngine {
       const rawActionInput = inputFn
         ? inputFn({ stepOutput, stash: this.stash.all(), params: this.skillParams })
         : stepOutput;
-      const actionInput = actionDef.input.parse(rawActionInput);
+      const actionInput = actionDef.input.assert(rawActionInput);
       actionOutput = await actionDef.run({
         input: actionInput,
         signal: this.abortController.signal,
@@ -195,13 +194,13 @@ export class WorkflowEngine implements SkillEngine {
 
   replayHistory(history: HistoryEntry[]): void {
     for (const raw of history) {
-      const parsed = HistoryEntrySchema.safeParse(raw);
-      if (!parsed.success) {
-        const issues = parsed.error.issues.map((i: { message: string }) => i.message).join('; ');
+      const parsed = HistoryEntrySchema(raw);
+      if (parsed instanceof type.errors) {
+        const issues = parsed.map((i: { message: string }) => i.message).join('; ');
         process.stderr.write(`[skill-kit] skipping malformed history entry: ${issues}\n`);
         continue;
       }
-      const entry = parsed.data;
+      const entry = parsed;
       const stepDef = this.skill.steps[entry.step];
       if (!stepDef) continue;
 
@@ -305,9 +304,9 @@ export class WorkflowEngine implements SkillEngine {
     let schema: unknown = null;
     if (stepDef.config.output) {
       try {
-        schema = stepDef.config.output.toJSONSchema();
+        schema = stepDef.config.output.toJsonSchema();
       } catch {
-        // Zod schema may not support toJSONSchema in all cases
+        // Schema may not support toJsonSchema in all cases
       }
     }
 

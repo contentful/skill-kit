@@ -33,7 +33,7 @@ export function primitiveSchemaMatch(skill: SkillDefinition): LintDiagnostic[] {
 
     let schemaJson: Record<string, unknown> | null = null;
     try {
-      schemaJson = stepDef.config.output.toJSONSchema() as Record<string, unknown>;
+      schemaJson = stepDef.config.output.toJsonSchema() as Record<string, unknown>;
     } catch {
       continue;
     }

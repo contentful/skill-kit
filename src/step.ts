@@ -1,8 +1,8 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
 import type { StepConfig, StepDefinition } from './types.js';
 
 export function step<
-  TOutput extends z.ZodType = z.ZodType,
+  TOutput extends type.Any = type.Any,
   TParams = unknown,
   TStash = unknown,
   TActionOutput = unknown,

@@ -131,7 +131,7 @@ export function createMcpCompositeServer(
       'topic',
       {
         description: `Look up a reference topic. Available: ${topicNames.join(', ')}`,
-        inputSchema: z.object({ name: z.string().describe('Topic name.') }),
+        inputSchema: z.object({ name: z.string() }),
       },
       (args) => {
         const topic = skill.topics?.[args.name];

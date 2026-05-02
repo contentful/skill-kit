@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
 
 // --- Host ---
 
@@ -24,19 +24,19 @@ export interface ReferenceLoader {
 
 // --- Actions ---
 
-export interface ActionConfig<TInput extends z.ZodType = z.ZodType, TOutput extends z.ZodType = z.ZodType> {
+export interface ActionConfig<TInput extends type.Any = type.Any, TOutput extends type.Any = type.Any> {
   name: string;
   input: TInput;
   output: TOutput;
-  run: (ctx: { input: z.infer<TInput>; signal: AbortSignal }) => Promise<z.infer<TOutput>>;
+  run: (ctx: { input: TInput['infer']; signal: AbortSignal }) => Promise<TOutput['infer']>;
 }
 
-export interface ActionDefinition<TInput extends z.ZodType = z.ZodType, TOutput extends z.ZodType = z.ZodType> {
+export interface ActionDefinition<TInput extends type.Any = type.Any, TOutput extends type.Any = type.Any> {
   readonly kind: 'action';
   readonly name: string;
   readonly input: TInput;
   readonly output: TOutput;
-  readonly run: (ctx: { input: z.infer<TInput>; signal: AbortSignal }) => Promise<z.infer<TOutput>>;
+  readonly run: (ctx: { input: TInput['infer']; signal: AbortSignal }) => Promise<TOutput['infer']>;
 }
 
 // --- Primitives ---
@@ -86,7 +86,7 @@ export interface ChecklistConfig {
 export interface SubagentConfig {
   readonly kind: 'subagent';
   prompt: string;
-  output: z.ZodType;
+  output: type.Any;
   allowRecursion?: boolean;
 }
 
@@ -144,7 +144,7 @@ export interface ActBuilder {
   confirm(input: { message: string; destructive?: boolean; defaultAnswer?: 'yes' | 'no' }): ActSegment;
   plan(input: { summary: string; steps: string[] }): ActSegment;
   checklist(input: { create: Array<{ title: string; status: string }> }): ActSegment;
-  subagent(input: { prompt: string; output: z.ZodType; allowRecursion?: boolean }): ActSegment;
+  subagent(input: { prompt: string; output: type.Any; allowRecursion?: boolean }): ActSegment;
   survey(questions: SurveyQuestion[]): ActSegment;
 }
 
@@ -156,7 +156,7 @@ export type SystemBuilder = {
 // --- Type helpers ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type InferActionOutput<A> = A extends ActionDefinition<any, infer TOut> ? z.infer<TOut> : undefined;
+export type InferActionOutput<A> = A extends ActionDefinition<any, infer TOut> ? TOut['infer'] : undefined;
 
 // --- Steps ---
 
@@ -212,7 +212,7 @@ export type NextTarget<TOutput = unknown, TActionOutput = unknown, TParams = unk
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepConfig<
-  TOutput extends z.ZodType = z.ZodType,
+  TOutput extends type.Any = type.Any,
   TParams = any,
   TStash = any,
   TActionOutput = unknown,
@@ -220,14 +220,14 @@ export interface StepConfig<
 > {
   prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash, TSteps>;
   output?: TOutput;
-  next: string | TransitionFn<z.infer<TOutput>, TActionOutput, TParams, TStash> | { terminal: true };
+  next: string | TransitionFn<TOutput['infer'], TActionOutput, TParams, TStash> | { terminal: true };
   action?: {
     run: ActionDefinition;
-    input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: Readonly<TParams> }) => unknown;
+    input?: (ctx: { stepOutput: TOutput['infer']; stash: Readonly<TStash>; params: Readonly<TParams> }) => unknown;
     updateStash?: (ctx: { actionOutput: TActionOutput }) => Partial<TStash>;
   };
   updateStash?: (ctx: {
-    stepOutput: z.infer<TOutput>;
+    stepOutput: TOutput['infer'];
     actionOutput: TActionOutput;
     stash: Readonly<TStash>;
     params: Readonly<TParams>;
@@ -238,7 +238,7 @@ export interface StepConfig<
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepDefinition<
-  TOutput extends z.ZodType = z.ZodType,
+  TOutput extends type.Any = type.Any,
   TParams = any,
   TStash = any,
   TActionOutput = unknown,
@@ -280,7 +280,7 @@ export type VersionStrategy = { version?: string; resolveVersion?: never } | { v
 
 // --- Skill Builder Config (input to skill()) ---
 
-export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> = {
+export type SkillBuilderConfig<TParams extends type.Any = type.Any, TStash extends type.Any = type.Any> = {
   name: string;
   description?: string;
   triggers?: string[];
@@ -289,7 +289,7 @@ export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash ext
   params?: TParams;
   stash?: TStash;
   observers?: ObserverMap;
-  finalOutput?: z.ZodType;
+  finalOutput?: type.Any;
   skillMd?: string | ((skill: SkillDefinition) => string);
   package?: PackageConfig;
   argumentHint?: string;
@@ -308,7 +308,7 @@ export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash ext
 
 // --- Skill Definition (output of .build()) ---
 
-export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
+export interface SkillDefinition<TParams extends type.Any = type.Any, TStash extends type.Any = type.Any> {
   readonly kind: 'skill';
   readonly name: string;
   readonly version: string;
@@ -320,7 +320,7 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
   readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;
   readonly observers: ObserverMap | undefined;
-  readonly finalOutput: z.ZodType | undefined;
+  readonly finalOutput: type.Any | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
   readonly package: PackageConfig | undefined;
   readonly argumentHint: string | undefined;
@@ -341,7 +341,7 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
 
 // --- Module Definition (output of module().build()) ---
 
-export interface ModuleDefinition<TModuleStash extends z.ZodType = z.ZodType> {
+export interface ModuleDefinition<TModuleStash extends type.Any = type.Any> {
   readonly kind: 'module';
   readonly name: string;
   readonly entry: string;

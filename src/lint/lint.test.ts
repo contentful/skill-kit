@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { act } from '../act.js';
 import { checkSkill } from './index.js';
@@ -9,7 +9,7 @@ test('no-host-tool-names flags direct tool reference', () => {
   const s = skill({ name: 'bad', entry: 'a' })
     .step('a', {
       prompt: 'Use the AskUserQuestion tool to ask the user.',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -29,7 +29,7 @@ test('no-host-tool-names does not flag guarded reference', () => {
         }
         return 'Ask the user';
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -53,7 +53,7 @@ test('primitive-schema-mismatch flags mismatched askUser options', () => {
           ],
         }),
       ],
-      output: z.object({ choice: z.enum(['a', 'b']) }),
+      output: type({ choice: "'a' | 'b'" }),
       next: { terminal: true },
     })
     .build();
@@ -65,8 +65,8 @@ test('primitive-schema-mismatch flags mismatched askUser options', () => {
 
 test('cycle-guard warns on unguarded cycle', () => {
   const s = skill({ name: 'cycle', entry: 'a' })
-    .step('a', { prompt: 'A', output: z.object({}), next: 'b' })
-    .step('b', { prompt: 'B', output: z.object({}), next: 'a' })
+    .step('a', { prompt: 'A', output: type({}), next: 'b' })
+    .step('b', { prompt: 'B', output: type({}), next: 'a' })
     .build();
 
   const diags = checkSkill(s, '.');
@@ -80,7 +80,7 @@ test('clean skill produces no errors', () => {
   const s = skill({ name: 'clean', entry: 'a' })
     .step('a', {
       prompt: 'Do something useful.',
-      output: z.object({ done: z.boolean() }),
+      output: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();

@@ -1,30 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { runSkill } from './run-skill.js';
 import { mockModel } from './mock-model.js';
 
-const CheckResult = z.object({
-  name: z.string(),
-  status: z.enum(['pass', 'fail']),
-  detail: z.string(),
+const CheckResult = type({
+  name: 'string',
+  status: "'pass' | 'fail'",
+  detail: 'string',
 });
 
 const doctor = skill({ name: 'repo-doctor', entry: 'diagnose' })
   .step('diagnose', {
     prompt: 'Inspect the repository and report failed health checks.',
-    output: z.object({ checks: z.array(CheckResult) }),
+    output: type({ checks: CheckResult.array() }),
     next: ({ stepOutput }) => (stepOutput.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
   })
   .step('remediate', {
     prompt: 'Fix the failing checks.',
-    output: z.object({ remediations: z.array(z.object({ check: z.string(), action: z.string() })) }),
+    output: type({ remediations: type({ check: 'string', action: 'string' }).array() }),
     next: 'report',
   })
   .step('report', {
     prompt: 'Generate a report.',
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -64,10 +64,10 @@ test('runSkill provides final stepOutput', async () => {
 });
 
 test('runSkill with params overrides', async () => {
-  const s = skill({ name: 'ctx-skill', entry: 'a', params: z.object({ path: z.string().default('.') }) })
+  const s = skill({ name: 'ctx-skill', entry: 'a', params: type({ path: 'string = "."' }) })
     .step('a', {
       prompt: (ctx) => `Analyze ${ctx.params.path}`,
-      output: z.object({ done: z.boolean() }),
+      output: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();
@@ -82,7 +82,7 @@ test('runSkill with params overrides', async () => {
 
 test('runSkill throws on schema mismatch', async () => {
   const s = skill({ name: 'strict', entry: 'a' })
-    .step('a', { prompt: 'Go', output: z.object({ count: z.number() }), next: { terminal: true } })
+    .step('a', { prompt: 'Go', output: type({ count: 'number' }), next: { terminal: true } })
     .build();
 
   await assert.rejects(() => runSkill(s, { model: mockModel({ a: { count: 'not-a-number' } }) }), /Validation error/);
@@ -92,7 +92,7 @@ test('mockModel with function adapter', async () => {
   const s = skill({ name: 'fn-mock', entry: 'a' })
     .step('a', {
       prompt: 'Do it',
-      output: z.object({ answer: z.string() }),
+      output: type({ answer: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -108,12 +108,12 @@ test('mockModel with array for repeated visits', async () => {
   const s = skill({ name: 'loop-skill', entry: 'retry' })
     .step('retry', {
       prompt: 'Try',
-      output: z.object({ confidence: z.number() }),
+      output: type({ confidence: 'number' }),
       next: ({ stepOutput }) => (stepOutput.confidence >= 0.8 ? 'done' : 'retry'),
       maxVisits: 3,
       onMaxVisits: 'done',
     })
-    .step('done', { prompt: 'Done', output: z.object({}), next: { terminal: true } })
+    .step('done', { prompt: 'Done', output: type({}), next: { terminal: true } })
     .build();
 
   const result = await runSkill(s, {
@@ -127,12 +127,12 @@ test('mockModel with array for repeated visits', async () => {
 });
 
 test('runSkill auto-advances prompt-less steps', async () => {
-  const s = skill({ name: 'auto-advance', entry: 'gate', params: z.object({ skip: z.boolean() }) })
+  const s = skill({ name: 'auto-advance', entry: 'gate', params: type({ skip: 'boolean' }) })
     .step('gate', {
       next: ({ params }) => (params.skip ? 'fast' : 'slow'),
     })
-    .step('fast', { prompt: 'Fast path', output: z.object({}), next: { terminal: true } })
-    .step('slow', { prompt: 'Slow path', output: z.object({}), next: { terminal: true } })
+    .step('fast', { prompt: 'Fast path', output: type({}), next: { terminal: true } })
+    .step('slow', { prompt: 'Slow path', output: type({}), next: { terminal: true } })
     .build();
 
   const result = await runSkill(s, {
@@ -145,7 +145,7 @@ test('runSkill auto-advances prompt-less steps', async () => {
 
 test('runSkill handles output-less terminal step', async () => {
   const s = skill({ name: 'outputless', entry: 'work' })
-    .step('work', { prompt: 'Do work', output: z.object({ done: z.boolean() }), next: 'farewell' })
+    .step('work', { prompt: 'Do work', output: type({ done: 'boolean' }), next: 'farewell' })
     .step('farewell', { prompt: 'Goodbye', next: { terminal: true } })
     .build();
 

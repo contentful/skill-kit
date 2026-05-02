@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { action } from './action.js';
 
 test('action() creates a frozen ActionDefinition', () => {
   const a = action({
     name: 'write-file',
-    input: z.object({ path: z.string(), content: z.string() }),
-    output: z.object({ bytesWritten: z.number() }),
+    input: type({ path: 'string', content: 'string' }),
+    output: type({ bytesWritten: 'number' }),
     run: async ({ input }) => ({ bytesWritten: input.content.length }),
   });
 
@@ -21,8 +21,8 @@ test('action() throws on missing name', () => {
     () =>
       action({
         name: '',
-        input: z.object({}),
-        output: z.object({}),
+        input: type({}),
+        output: type({}),
         run: async () => ({}),
       }),
     /name is required/,
@@ -34,8 +34,8 @@ test('action() throws on missing run', () => {
     () =>
       action({
         name: 'x',
-        input: z.object({}),
-        output: z.object({}),
+        input: type({}),
+        output: type({}),
         run: undefined as never,
       }),
     /run function is required/,

@@ -1,11 +1,11 @@
-import { skill, z, action, prompt, render, act, view, terminal } from '@contentful/skill-kit';
+import { skill, type, action, prompt, render, act, view, terminal } from '@contentful/skill-kit';
 
 // --- Action: save report to disk ---
 
 const saveReport = action({
   name: 'save-report',
-  input: z.object({ title: z.string(), body: z.string() }),
-  output: z.object({ path: z.string(), bytes: z.number() }),
+  input: type({ title: 'string', body: 'string' }),
+  output: type({ path: 'string', bytes: 'number' }),
   run: async ({ input }) => {
     const path = `/tmp/report-${Date.now()}.md`;
     const bytes = Buffer.byteLength(`# ${input.title}\n\n${input.body}`);
@@ -23,12 +23,12 @@ export default skill({
   argumentHint: '[theme]',
   entry: 'gather-preferences',
 
-  stash: z.object({
-    theme: z.string(),
-    framework: z.string(),
-    approved: z.boolean(),
-    researchSummary: z.string(),
-    savedPath: z.string(),
+  stash: type({
+    theme: 'string',
+    framework: 'string',
+    approved: 'boolean',
+    researchSummary: 'string',
+    savedPath: 'string',
   }),
 })
   // --- survey: batched multi-question ---
@@ -53,7 +53,7 @@ export default skill({
         ],
       },
     ]),
-    output: z.object({ theme: z.string(), framework: z.string() }),
+    output: type({ theme: 'string', framework: 'string' }),
     updateStash: ({ stepOutput }) => ({ theme: stepOutput.theme, framework: stepOutput.framework }),
     next: 'research',
   })
@@ -64,10 +64,10 @@ export default skill({
       prompt`Research ${stash.theme} best practices for ${stash.framework} projects.`,
       act.subagent({
         prompt: `Find 3 key recommendations for ${stash.theme} in ${stash.framework}. Return a concise summary.`,
-        output: z.object({ summary: z.string() }),
+        output: type({ summary: 'string' }),
       }),
     ],
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
     next: 'plan-report',
   })
@@ -81,7 +81,7 @@ export default skill({
         steps: ['Executive summary', 'Key findings', 'Recommendations', 'Action items'],
       }),
     ],
-    output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
+    output: type({ approved: 'boolean', 'modifications?': 'string' }),
     next: ({ stepOutput }) => (stepOutput.approved ? 'write-report' : 'ask-changes'),
   })
 
@@ -91,7 +91,7 @@ export default skill({
       'The plan was not approved. Ask what changes are needed.',
       act.askUser({ type: 'open', question: 'What would you like to change about the report plan?' }),
     ],
-    output: z.object({ feedback: z.string() }),
+    output: type({ feedback: 'string' }),
     next: 'plan-report',
     maxVisits: 3,
     onMaxVisits: 'write-report',
@@ -115,7 +115,7 @@ export default skill({
         Complete each checklist item as you write.
       `,
     ],
-    output: z.object({ title: z.string(), body: z.string() }),
+    output: type({ title: 'string', body: 'string' }),
     action: {
       run: saveReport,
       updateStash: ({ actionOutput }) => ({ savedPath: actionOutput.path }),
@@ -129,7 +129,7 @@ export default skill({
       'The report has been saved. Ask if the user wants to publish it.',
       act.confirm({ message: 'Publish the report?', destructive: false, defaultAnswer: 'yes' }),
     ],
-    output: z.object({ publish: z.boolean() }),
+    output: type({ publish: 'boolean' }),
     updateStash: ({ stepOutput }) => ({ approved: stepOutput.publish }),
     next: ({ stepOutput }) => (stepOutput.publish ? 'summary' : 'ask-changes'),
   })
@@ -155,7 +155,7 @@ export default skill({
       ]),
       'Present the summary card verbatim.',
     ],
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     next: terminal,
   })
 

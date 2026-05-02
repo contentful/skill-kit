@@ -1,9 +1,9 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
 import type { SkillBuilderConfig } from './types.js';
 import { SkillBuilder } from './skill-builder.js';
 
-export function skill<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType>(
+export function skill<TParams extends type.Any = type.Any, TStash extends type.Any = type.Any>(
   config: SkillBuilderConfig<TParams, TStash>,
-): SkillBuilder<z.infer<TParams>, z.infer<TStash>> {
-  return new SkillBuilder<z.infer<TParams>, z.infer<TStash>>(config);
+): SkillBuilder<TParams['infer'], TStash['infer']> {
+  return new SkillBuilder<TParams['infer'], TStash['infer']>(config);
 }

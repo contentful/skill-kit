@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { step } from '../step.js';
 import { skill } from '../skill.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { validateCycleGuards, CycleGuardError } from './cycle-guard.js';
 import type { Handshake } from '../types.js';
 
-const output = z.object({});
+const output = type({});
 const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
 
 test('validateCycleGuards() accepts a linear graph', () => {
@@ -80,7 +80,7 @@ test('unguarded cycle throws at runtime after implicit limit', async () => {
   const s = skill({ name: 'unguarded', entry: 'loop' })
     .step('loop', {
       prompt: 'Loop',
-      output: z.object({}),
+      output: type({}),
       next: 'loop',
     })
     .build();
@@ -101,7 +101,7 @@ test('maxVisits without onMaxVisits throws at runtime (fail-closed)', async () =
   const s = skill({ name: 'fail-closed', entry: 'loop' })
     .step('loop', {
       prompt: 'Loop',
-      output: z.object({}),
+      output: type({}),
       next: 'loop',
       maxVisits: 2,
     })
@@ -118,12 +118,12 @@ test('maxVisits with onMaxVisits redirects as before', async () => {
   const s = skill({ name: 'guarded', entry: 'loop' })
     .step('loop', {
       prompt: 'Loop',
-      output: z.object({}),
+      output: type({}),
       next: 'loop',
       maxVisits: 2,
       onMaxVisits: 'done',
     })
-    .step('done', { prompt: 'Done', output: z.object({}), next: { terminal: true } })
+    .step('done', { prompt: 'Done', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});

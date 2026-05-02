@@ -1,21 +1,21 @@
-import { skill, step, z, action, prompt, render, act, view } from '@contentful/skill-kit';
+import { skill, step, type, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
-const ProfileSchema = z.object({
-  name: z.string(),
-  role: z.string(),
-  specialty: z.string(),
-  hobbies: z.array(z.string()),
-  funFact: z.string(),
+const ProfileSchema = type({
+  name: 'string',
+  role: 'string',
+  specialty: 'string',
+  hobbies: 'string[]',
+  funFact: 'string',
 });
 
 // --- Action: write profile to disk ---
 
 const writeProfile = action({
   name: 'write-profile',
-  input: z.object({ profile: ProfileSchema }),
-  output: z.object({ path: z.string() }),
+  input: type({ profile: ProfileSchema }),
+  output: type({ path: 'string' }),
   run: async ({ input }) => {
     const path = `/tmp/profile-${Date.now()}.json`;
     process.stderr.write(`[get-to-know-you] Would write profile to ${path}\n`);
@@ -27,7 +27,7 @@ const writeProfile = action({
 // --- Reusable open-ended question step ---
 
 const openQuestionStep = step({
-  output: z.object({ answer: z.string() }),
+  output: type({ answer: 'string' }),
   next: '__parent__',
 });
 
@@ -45,18 +45,18 @@ export default skill({
   system:
     "Keep it light and fun. Use casual language. Throw in the occasional joke or pun if it fits. You're a friendly interviewer, not a form.",
 
-  params: z.object({
-    greeting: z.string().default('Hey there!'),
+  params: type({
+    greeting: 'string = "Hey there!"',
   }),
 
-  stash: z.object({
-    name: z.string(),
-    role: z.string(),
-    latestHobby: z.string(),
+  stash: type({
+    name: 'string',
+    role: 'string',
+    latestHobby: 'string',
   }),
 
-  finalOutput: z.object({
-    card: z.string(),
+  finalOutput: type({
+    card: 'string',
     profile: ProfileSchema,
   }),
 
@@ -71,7 +71,7 @@ export default skill({
       ${params.greeting} You're about to interview the user to build their developer trading card.
       Start by asking their name. Be warm and enthusiastic — first impressions matter!
     `,
-    output: z.object({ name: z.string() }),
+    output: type({ name: 'string' }),
     updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
     next: 'ask-role',
   })
@@ -87,7 +87,7 @@ export default skill({
         { value: 'other', label: 'Something else', description: 'I defy your categories' },
       ],
     }),
-    output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
+    output: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
     updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
     next: ({ stepOutput }) => {
       switch (stepOutput.role) {
@@ -146,9 +146,9 @@ export default skill({
         : 'Ask if they have another hobby they want on their card, or if they are done.',
       act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     ],
-    output: z.object({
-      hobby: z.string(),
-      wantsMore: z.boolean(),
+    output: type({
+      hobby: 'string',
+      wantsMore: 'boolean',
     }),
     updateStash: ({ stepOutput }) => ({ latestHobby: stepOutput.hobby }),
     maxVisits: 2,
@@ -161,7 +161,7 @@ export default skill({
       message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
       defaultAnswer: 'yes',
     }),
-    output: z.object({ approved: z.boolean() }),
+    output: type({ approved: 'boolean' }),
     next: ({ stepOutput }) => (stepOutput.approved ? 'profile-card' : 'ask-hobby'),
     maxVisits: 3,
     onMaxVisits: 'profile-card',
@@ -218,8 +218,8 @@ export default skill({
 
       return [view(card), 'Present the rendered trading card verbatim.'];
     },
-    output: z.object({
-      card: z.string(),
+    output: type({
+      card: 'string',
       profile: ProfileSchema,
     }),
     action: { run: writeProfile },

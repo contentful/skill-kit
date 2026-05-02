@@ -1,14 +1,14 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
 import type { ModuleDefinition, StepConfig, StepDefinition } from './types.js';
 import { step as createStep } from './step.js';
 
-export interface ModuleConfig<TModuleStash extends z.ZodType = z.ZodType> {
+export interface ModuleConfig<TModuleStash extends type.Any = type.Any> {
   name: string;
   entry: string;
   stash: TModuleStash;
 }
 
-export class ModuleBuilder<TStashSchema extends z.ZodType> {
+export class ModuleBuilder<TStashSchema extends type.Any> {
   private readonly config: ModuleConfig<TStashSchema>;
   private readonly steps: Record<string, StepDefinition> = {};
 
@@ -16,9 +16,9 @@ export class ModuleBuilder<TStashSchema extends z.ZodType> {
     this.config = config;
   }
 
-  step<TOutput extends z.ZodType>(
+  step<TOutput extends type.Any>(
     name: string,
-    configOrDef: StepConfig<TOutput, unknown, z.infer<TStashSchema>> | StepDefinition,
+    configOrDef: StepConfig<TOutput, unknown, TStashSchema['infer']> | StepDefinition,
   ): ModuleBuilder<TStashSchema> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
@@ -46,8 +46,6 @@ export class ModuleBuilder<TStashSchema extends z.ZodType> {
   }
 }
 
-export function module<TModuleStash extends z.ZodType>(
-  config: ModuleConfig<TModuleStash>,
-): ModuleBuilder<TModuleStash> {
+export function module<TModuleStash extends type.Any>(config: ModuleConfig<TModuleStash>): ModuleBuilder<TModuleStash> {
   return new ModuleBuilder<TModuleStash>(config);
 }

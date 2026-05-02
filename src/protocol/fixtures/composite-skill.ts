@@ -1,17 +1,17 @@
-import { skill, z, action } from '../../index.js';
+import { skill, type, action } from '../../index.js';
 import { compositeMain } from '../../cli.js';
 
 const scanAction = action({
   name: 'scan',
-  input: z.object({ path: z.string() }),
-  output: z.object({ found: z.string() }),
+  input: type({ path: 'string' }),
+  output: type({ found: 'string' }),
   run: async ({ input }) => ({ found: `scanned:${input.path}` }),
 });
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({ scanResult: z.string() }) })
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ scanResult: 'string' }) })
   .step('diagnose', {
     prompt: 'Diagnose the issue.',
-    output: z.object({ issue: z.string() }),
+    output: type({ issue: 'string' }),
     action: {
       run: scanAction,
       input: ({ stepOutput }) => ({ path: stepOutput.issue }),
@@ -21,12 +21,12 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({
   })
   .step('triage', {
     prompt: 'Triage the findings.',
-    output: z.object({ priority: z.string() }),
+    output: type({ priority: 'string' }),
     next: 'report',
   })
   .step('report', {
     prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -34,7 +34,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({
 const setupSkill = skill({ name: 'setup', entry: 'configure' })
   .step('configure', {
     prompt: 'Configure the space.',
-    output: z.object({ done: z.boolean() }),
+    output: type({ done: 'boolean' }),
     next: { terminal: true },
   })
   .build();
@@ -42,12 +42,12 @@ const setupSkill = skill({ name: 'setup', entry: 'configure' })
 const composite = skill({
   name: 'helper',
   entry: 'classify',
-  params: z.object({ query: z.string().default('') }),
-  stash: z.object({ intent: z.string() }),
+  params: type({ query: 'string = ""' }),
+  stash: type({ intent: 'string' }),
 })
   .step('classify', {
     prompt: 'Classify intent.',
-    output: z.object({ intent: z.string() }),
+    output: type({ intent: 'string' }),
     updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
     next: ({ stepOutput }) => {
       if (stepOutput.intent === 'faq') return 'topic:basics';

@@ -1,4 +1,4 @@
-export { z } from 'zod';
+export { type } from 'arktype';
 export { skill } from './skill.js';
 export { step } from './step.js';
 export { fragment, prompt, resolveTemplate } from './fragment.js';

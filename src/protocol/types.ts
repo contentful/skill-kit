@@ -1,21 +1,28 @@
-import { z } from 'zod';
+import { type } from 'arktype';
 
-export const HistoryEntrySchema = z.object({
-  step: z.string(),
-  stepOutput: z.unknown(),
-  actionOutput: z.unknown().optional(),
+export const HistoryEntrySchema = type({
+  step: 'string',
+  stepOutput: 'unknown',
+  'actionOutput?': 'unknown',
 });
 
-export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
+export type HistoryEntry = typeof HistoryEntrySchema.infer;
 
-export const StartArgsSchema = z.object({
-  params: z.string().transform((s) => JSON.parse(s) as unknown),
-  host: z.string().optional(),
+export const StartArgsSchema = type({
+  params: type('string').pipe((s) => JSON.parse(s) as unknown),
+  'host?': 'string',
 });
 
-export const AdvanceArgsSchema = z.object({
-  step: z.string(),
-  output: z.string().transform((s) => JSON.parse(s) as unknown),
-  history: z.string().transform((s) => z.array(HistoryEntrySchema).parse(JSON.parse(s))),
-  host: z.string().optional(),
+export const AdvanceArgsSchema = type({
+  step: 'string',
+  output: type('string').pipe((s) => JSON.parse(s) as unknown),
+  history: type('string').pipe((s) => {
+    const arr = JSON.parse(s) as unknown[];
+    return arr.map((entry) => {
+      const result = HistoryEntrySchema(entry);
+      if (result instanceof type.errors) throw result;
+      return result;
+    });
+  }),
+  'host?': 'string',
 });

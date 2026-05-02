@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from './skill.js';
 import { module } from './module.js';
 import { runSkill, mockModel } from './test.js';
@@ -9,11 +9,11 @@ test('module() creates a ModuleDefinition with steps', () => {
   const mod = module({
     name: 'auth',
     entry: 'login',
-    stash: z.object({ userId: z.string() }),
+    stash: type({ userId: 'string' }),
   })
     .step('login', {
       prompt: 'Ask for credentials.',
-      output: z.object({ userId: z.string() }),
+      output: type({ userId: 'string' }),
       updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
       next: '__parent__',
     })
@@ -29,7 +29,7 @@ test('module stash type flows into step prompt callbacks', () => {
   const mod = module({
     name: 'auth',
     entry: 'login',
-    stash: z.object({ userId: z.string() }),
+    stash: type({ userId: 'string' }),
   })
     .step('login', {
       prompt: ({ stash }) => {
@@ -37,13 +37,13 @@ test('module stash type flows into step prompt callbacks', () => {
         void _check;
         return 'Login';
       },
-      output: z.object({ userId: z.string() }),
+      output: type({ userId: 'string' }),
       updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
       next: 'verify',
     })
     .step('verify', {
       prompt: ({ stash }) => `Verify ${stash.userId}`,
-      output: z.object({ ok: z.boolean() }),
+      output: type({ ok: 'boolean' }),
       next: '__parent__',
     })
     .build();
@@ -56,11 +56,11 @@ test('skill.register() merges module steps and wires __parent__', async () => {
   const authModule = module({
     name: 'auth',
     entry: 'auth-login',
-    stash: z.object({ userId: z.string() }),
+    stash: type({ userId: 'string' }),
   })
     .step('auth-login', {
       prompt: 'Log in.',
-      output: z.object({ userId: z.string() }),
+      output: type({ userId: 'string' }),
       updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
       next: '__parent__',
     })
@@ -69,18 +69,18 @@ test('skill.register() merges module steps and wires __parent__', async () => {
   const s = skill({
     name: 'app',
     entry: 'start',
-    stash: z.object({ appName: z.string() }),
+    stash: type({ appName: 'string' }),
   })
     .step('start', {
       prompt: 'Welcome.',
-      output: z.object({ appName: z.string() }),
+      output: type({ appName: 'string' }),
       updateStash: ({ stepOutput }) => ({ appName: stepOutput.appName }),
       next: 'auth-login',
     })
     .register(authModule, { next: 'dashboard' })
     .step('dashboard', {
       prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}`,
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -103,7 +103,7 @@ test('module params is unknown (module steps cannot access parent params)', () =
   const mod = module({
     name: 'isolated',
     entry: 'step1',
-    stash: z.object({ val: z.string() }),
+    stash: type({ val: 'string' }),
   })
     .step('step1', {
       prompt: ({ params }) => {
@@ -111,7 +111,7 @@ test('module params is unknown (module steps cannot access parent params)', () =
         void params;
         return 'Do something';
       },
-      output: z.object({ val: z.string() }),
+      output: type({ val: 'string' }),
       updateStash: ({ stepOutput }) => ({ val: stepOutput.val }),
       next: '__parent__',
     })
@@ -123,8 +123,8 @@ test('module params is unknown (module steps cannot access parent params)', () =
 test('module().build() throws on missing entry step', () => {
   assert.throws(
     () =>
-      module({ name: 'bad', entry: 'missing', stash: z.object({}) })
-        .step('other', { prompt: 'x', output: z.object({}), next: '__parent__' })
+      module({ name: 'bad', entry: 'missing', stash: type({}) })
+        .step('other', { prompt: 'x', output: type({}), next: '__parent__' })
         .build(),
     /entry step "missing" not found/,
   );

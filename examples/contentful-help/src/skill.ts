@@ -1,4 +1,4 @@
-import { skill, z, act } from '@contentful/skill-kit';
+import { skill, type, act } from '@contentful/skill-kit';
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
@@ -10,7 +10,7 @@ export default skill({
   argumentHint: '[doctor|setup]',
   disableModelInvocation: true,
   entry: 'choose',
-  stash: z.object({ intent: z.string(), spaceId: z.string() }),
+  stash: type({ intent: 'string', spaceId: 'string' }),
 })
   .step('choose', {
     prompt: act.askUser({
@@ -22,7 +22,7 @@ export default skill({
         { value: 'faq', label: 'Quick question', description: 'Look up reference information' },
       ],
     }),
-    output: z.object({ choice: z.enum(['doctor', 'setup', 'faq']) }),
+    output: type({ choice: "'doctor' | 'setup' | 'faq'" }),
     updateStash: ({ stepOutput }) => ({ intent: stepOutput.choice, spaceId: '' }),
     next: ({ stepOutput }) => {
       if (stepOutput.choice === 'faq') return 'ask-topic';
@@ -33,14 +33,14 @@ export default skill({
 
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environment.',
-    output: z.object({ spaceId: z.string() }),
+    output: type({ spaceId: 'string' }),
     updateStash: ({ stepOutput }) => ({ intent: 'doctor', spaceId: stepOutput.spaceId }),
     next: 'subskill:doctor',
   })
 
   .step('ask-topic', {
     prompt: act.askUser({ type: 'open', question: 'What would you like to know about?' }),
-    output: z.object({ topicName: z.string() }),
+    output: type({ topicName: 'string' }),
     next: ({ stepOutput }) => `topic:${stepOutput.topicName}`,
   })
 

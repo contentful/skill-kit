@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
 import { view } from '../view.js';
@@ -11,9 +11,9 @@ const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent
 
 test('engine runs a 3-step linear skill to completion', async () => {
   const s = skill({ name: 'linear', entry: 'a' })
-    .step('a', { prompt: 'Step A', output: z.object({ val: z.string() }), next: 'b' })
-    .step('b', { prompt: 'Step B', output: z.object({ val: z.string() }), next: 'c' })
-    .step('c', { prompt: 'Step C', output: z.object({ val: z.string() }), next: { terminal: true } })
+    .step('a', { prompt: 'Step A', output: type({ val: 'string' }), next: 'b' })
+    .step('b', { prompt: 'Step B', output: type({ val: 'string' }), next: 'c' })
+    .step('c', { prompt: 'Step C', output: type({ val: 'string' }), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -35,11 +35,11 @@ test('engine routes conditionally based on output', async () => {
   const s = skill({ name: 'conditional', entry: 'check' })
     .step('check', {
       prompt: 'Check status',
-      output: z.object({ ok: z.boolean() }),
+      output: type({ ok: 'boolean' }),
       next: ({ stepOutput }) => (stepOutput.ok ? 'done' : 'fix'),
     })
-    .step('fix', { prompt: 'Fix it', output: z.object({ fixed: z.boolean() }), next: { terminal: true } })
-    .step('done', { prompt: 'All good', output: z.object({}), next: { terminal: true } })
+    .step('fix', { prompt: 'Fix it', output: type({ fixed: 'boolean' }), next: { terminal: true } })
+    .step('done', { prompt: 'All good', output: type({}), next: { terminal: true } })
     .build();
 
   const engine1 = new WorkflowEngine(s, genericHost, {});
@@ -55,7 +55,7 @@ test('engine routes conditionally based on output', async () => {
 
 test('engine returns validation error for bad output', async () => {
   const s = skill({ name: 'validated', entry: 'a' })
-    .step('a', { prompt: 'Go', output: z.object({ count: z.number() }), next: { terminal: true } })
+    .step('a', { prompt: 'Go', output: type({ count: 'number' }), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -67,8 +67,8 @@ test('engine returns validation error for bad output', async () => {
 });
 
 test('engine validates context schema on construction', () => {
-  const s = skill({ name: 'ctx', entry: 'a', params: z.object({ path: z.string() }) })
-    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+  const s = skill({ name: 'ctx', entry: 'a', params: type({ path: 'string' }) })
+    .step('a', { prompt: 'Go', output: type({}), next: { terminal: true } })
     .build();
 
   assert.throws(() => new WorkflowEngine(s, genericHost, { path: 123 }), /Invalid params/);
@@ -76,8 +76,8 @@ test('engine validates context schema on construction', () => {
 });
 
 test('engine params error includes skill name and field path', () => {
-  const s = skill({ name: 'my-skill', entry: 'a', params: z.object({ target: z.string() }) })
-    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+  const s = skill({ name: 'my-skill', entry: 'a', params: type({ target: 'string' }) })
+    .step('a', { prompt: 'Go', output: type({}), next: { terminal: true } })
     .build();
 
   assert.throws(
@@ -95,12 +95,12 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
   const s = skill({ name: 'bounded', entry: 'loop' })
     .step('loop', {
       prompt: 'Retry',
-      output: z.object({ confidence: z.number() }),
+      output: type({ confidence: 'number' }),
       next: ({ stepOutput }) => (stepOutput.confidence < 0.7 ? 'loop' : 'report'),
       maxVisits: 2,
       onMaxVisits: 'report',
     })
-    .step('report', { prompt: 'Report', output: z.object({}), next: { terminal: true } })
+    .step('report', { prompt: 'Report', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -116,14 +116,14 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
 test('engine provides dynamic prompt context', async () => {
   let capturedCtx: unknown = null;
 
-  const s = skill({ name: 'dynamic', entry: 'a', params: z.object({ name: z.string() }) })
-    .step('a', { prompt: 'First', output: z.object({ val: z.number() }), next: 'b' })
+  const s = skill({ name: 'dynamic', entry: 'a', params: type({ name: 'string' }) })
+    .step('a', { prompt: 'First', output: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
         capturedCtx = ctx;
         return `Previous: ${JSON.stringify(ctx.history.at(-1)?.stepOutput)}`;
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -137,16 +137,16 @@ test('engine provides dynamic prompt context', async () => {
 });
 
 test('engine replays history for single-invocation mode', () => {
-  const s = skill({ name: 'replay', entry: 'a', stash: z.object({ memo: z.string() }) })
+  const s = skill({ name: 'replay', entry: 'a', stash: type({ memo: 'string' }) })
     .step('a', {
       prompt: 'A',
-      output: z.object({ val: z.string() }),
+      output: type({ val: 'string' }),
       updateStash: ({ stepOutput }) => ({ memo: stepOutput.val }),
       next: 'b',
     })
     .step('b', {
       prompt: (ctx) => `Stash: ${JSON.stringify(ctx.stash)}`,
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -162,8 +162,8 @@ test('engine runs action after validation, before transition', async () => {
 
   const writeAction = action({
     name: 'test-action',
-    input: z.object({ content: z.string() }),
-    output: z.object({ written: z.boolean() }),
+    input: type({ content: 'string' }),
+    output: type({ written: 'boolean' }),
     run: async ({ input }) => {
       actionRan = true;
       return { written: input.content.length > 0 };
@@ -173,7 +173,7 @@ test('engine runs action after validation, before transition', async () => {
   const s = skill({ name: 'with-action', entry: 'a' })
     .step('a', {
       prompt: 'Write something',
-      output: z.object({ content: z.string() }),
+      output: type({ content: 'string' }),
       action: { run: writeAction },
       next: { terminal: true },
     })
@@ -209,7 +209,7 @@ test('engine fires observers at lifecycle points', async () => {
       },
     },
   })
-    .step('a', { prompt: 'A', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -234,7 +234,7 @@ test('throwing observer does not crash the skill', async () => {
       },
     },
   })
-    .step('a', { prompt: 'A', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -249,8 +249,8 @@ test('actionInput mapping decouples step output from action input', async () => 
 
   const writeAction = action({
     name: 'write',
-    input: z.object({ path: z.string(), content: z.string() }),
-    output: z.object({ ok: z.boolean() }),
+    input: type({ path: 'string', content: 'string' }),
+    output: type({ ok: 'boolean' }),
     run: async ({ input }) => {
       receivedInput = input;
       return { ok: true };
@@ -260,7 +260,7 @@ test('actionInput mapping decouples step output from action input', async () => 
   const s = skill({ name: 'mapped', entry: 'a' })
     .step('a', {
       prompt: 'Decide',
-      output: z.object({ fileName: z.string(), body: z.string() }),
+      output: type({ fileName: 'string', body: 'string' }),
       action: {
         run: writeAction,
         input: ({ stepOutput }) => ({ path: `/out/${stepOutput.fileName}`, content: stepOutput.body }),
@@ -280,24 +280,24 @@ test('actionInput receives current stash', async () => {
 
   const myAction = action({
     name: 'a',
-    input: z.object({ prefix: z.string(), val: z.string() }),
-    output: z.object({}),
+    input: type({ prefix: 'string', val: 'string' }),
+    output: type({}),
     run: async ({ input }) => {
       receivedInput = input;
       return {};
     },
   });
 
-  const s = skill({ name: 'stash-map', entry: 'setup', stash: z.object({ prefix: z.string() }) })
+  const s = skill({ name: 'stash-map', entry: 'setup', stash: type({ prefix: 'string' }) })
     .step('setup', {
       prompt: 'Setup',
-      output: z.object({}),
+      output: type({}),
       updateStash: () => ({ prefix: 'pre' }),
       next: 'a',
     })
     .step('a', {
       prompt: 'Go',
-      output: z.object({ val: z.string() }),
+      output: type({ val: 'string' }),
       action: {
         run: myAction,
         input: ({ stepOutput, stash }) => ({ prefix: stash.prefix, val: stepOutput.val }),
@@ -316,20 +316,20 @@ test('actionInput receives current stash', async () => {
 test('action output is passed to transition function', async () => {
   const apiAction = action({
     name: 'api-call',
-    input: z.object({ url: z.string() }),
-    output: z.object({ status: z.number() }),
+    input: type({ url: 'string' }),
+    output: type({ status: 'number' }),
     run: async () => ({ status: 200 }),
   });
 
   const s = skill({ name: 'action-in-next', entry: 'call' })
     .step('call', {
       prompt: 'Call the API',
-      output: z.object({ url: z.string() }),
+      output: type({ url: 'string' }),
       action: { run: apiAction },
       next: ({ actionOutput }) => ((actionOutput as { status: number }).status === 200 ? 'success' : 'failure'),
     })
-    .step('success', { prompt: 'OK', output: z.object({}), next: { terminal: true } })
-    .step('failure', { prompt: 'Fail', output: z.object({}), next: { terminal: true } })
+    .step('success', { prompt: 'OK', output: type({}), next: { terminal: true } })
+    .step('failure', { prompt: 'Fail', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -344,13 +344,13 @@ test('action is undefined in next when no action configured', async () => {
   const s = skill({ name: 'no-action-next', entry: 'a' })
     .step('a', {
       prompt: 'Go',
-      output: z.object({ ok: z.boolean() }),
+      output: type({ ok: 'boolean' }),
       next: ({ actionOutput }) => {
         capturedAction = actionOutput;
         return 'b';
       },
     })
-    .step('b', { prompt: 'B', output: z.object({}), next: { terminal: true } })
+    .step('b', { prompt: 'B', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -364,15 +364,15 @@ test('afterAction stashes action result', async () => {
 
   const apiAction = action({
     name: 'api',
-    input: z.object({ url: z.string() }),
-    output: z.object({ responseCode: z.number() }),
+    input: type({ url: 'string' }),
+    output: type({ responseCode: 'number' }),
     run: async () => ({ responseCode: 201 }),
   });
 
-  const s = skill({ name: 'post-stash', entry: 'call', stash: z.object({ lastCode: z.number() }) })
+  const s = skill({ name: 'post-stash', entry: 'call', stash: type({ lastCode: 'number' }) })
     .step('call', {
       prompt: 'Call API',
-      output: z.object({ url: z.string() }),
+      output: type({ url: 'string' }),
       action: {
         run: apiAction,
         updateStash: ({ actionOutput }) => ({ lastCode: actionOutput.responseCode }),
@@ -384,7 +384,7 @@ test('afterAction stashes action result', async () => {
         capturedStash = ctx.stash;
         return 'Report';
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -400,18 +400,18 @@ test('afterAction is replayed correctly from history', () => {
 
   const apiAction = action({
     name: 'api',
-    input: z.object({ url: z.string() }),
-    output: z.object({ code: z.number() }),
+    input: type({ url: 'string' }),
+    output: type({ code: 'number' }),
     run: async () => ({ code: 200 }),
   });
 
-  const s = skill({ name: 'replay-after', entry: 'call', stash: z.object({ code: z.number() }) })
+  const s = skill({ name: 'replay-after', entry: 'call', stash: type({ code: 'number' }) })
     .step('call', {
       prompt: (ctx) => {
         capturedStash = ctx.stash;
         return 'Call';
       },
-      output: z.object({ url: z.string() }),
+      output: type({ url: 'string' }),
       action: {
         run: apiAction,
         updateStash: ({ actionOutput }) => ({ code: actionOutput.code }),
@@ -420,7 +420,7 @@ test('afterAction is replayed correctly from history', () => {
     })
     .step('report', {
       prompt: 'Report',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -438,19 +438,19 @@ test('action stash vs step stash: both survive replay into next prompt', async (
 
   const fetchAction = action({
     name: 'fetch',
-    input: z.object({ url: z.string() }),
-    output: z.object({ spaceId: z.string() }),
+    input: type({ url: 'string' }),
+    output: type({ spaceId: 'string' }),
     run: async () => ({ spaceId: 'never-called' }),
   });
 
   const s = skill({
     name: 'stash-compare',
     entry: 'explore',
-    stash: z.object({ fromStep: z.string(), fromAction: z.string() }),
+    stash: type({ fromStep: 'string', fromAction: 'string' }),
   })
     .step('explore', {
       prompt: 'Explore',
-      output: z.object({ url: z.string() }),
+      output: type({ url: 'string' }),
       updateStash: ({ stepOutput }) => ({ fromStep: stepOutput.url }),
       action: {
         run: fetchAction,
@@ -460,7 +460,7 @@ test('action stash vs step stash: both survive replay into next prompt', async (
     })
     .step('triage', {
       prompt: 'Triage',
-      output: z.object({ decision: z.string() }),
+      output: type({ decision: 'string' }),
       next: 'report',
     })
     .step('report', {
@@ -468,7 +468,7 @@ test('action stash vs step stash: both survive replay into next prompt', async (
         capturedStash = ctx.stash;
         return 'Report';
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -489,15 +489,15 @@ test('action stash survives cross-process replay into next step prompt', async (
 
   const fetchAction = action({
     name: 'fetch',
-    input: z.object({ url: z.string() }),
-    output: z.object({ spaceId: z.string() }),
+    input: type({ url: 'string' }),
+    output: type({ spaceId: 'string' }),
     run: async () => ({ spaceId: 'never-called' }),
   });
 
-  const s = skill({ name: 'cross-process', entry: 'explore', stash: z.object({ spaceId: z.string() }) })
+  const s = skill({ name: 'cross-process', entry: 'explore', stash: type({ spaceId: 'string' }) })
     .step('explore', {
       prompt: 'Explore',
-      output: z.object({ url: z.string() }),
+      output: type({ url: 'string' }),
       action: {
         run: fetchAction,
         updateStash: ({ actionOutput }) => ({ spaceId: actionOutput.spaceId }),
@@ -506,7 +506,7 @@ test('action stash survives cross-process replay into next step prompt', async (
     })
     .step('triage', {
       prompt: 'Triage',
-      output: z.object({ decision: z.string() }),
+      output: type({ decision: 'string' }),
       next: 'report',
     })
     .step('report', {
@@ -514,7 +514,7 @@ test('action stash survives cross-process replay into next step prompt', async (
         capturedStash = ctx.stash;
         return 'Report';
       },
-      output: z.object({ summary: z.string() }),
+      output: type({ summary: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -536,13 +536,13 @@ test('getStep provides typed history access', async () => {
   let stepAResult: unknown;
 
   const s = skill({ name: 'get-step', entry: 'a' })
-    .step('a', { prompt: 'A', output: z.object({ val: z.number() }), next: 'b' })
+    .step('a', { prompt: 'A', output: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
         stepAResult = ctx.getStep('a');
         return 'B';
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -562,7 +562,7 @@ test('getStep returns undefined for missing step', async () => {
         result = ctx.getStep('nonexistent');
         return 'A';
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -573,10 +573,10 @@ test('getStep returns undefined for missing step', async () => {
 });
 
 test('engine returns RedirectResult when next target is not a local step', async () => {
-  const s = skill({ name: 'redirect-test', entry: 'classify', stash: z.object({ intent: z.string() }) })
+  const s = skill({ name: 'redirect-test', entry: 'classify', stash: type({ intent: 'string' }) })
     .step('classify', {
       prompt: 'Classify',
-      output: z.object({ intent: z.string() }),
+      output: type({ intent: 'string' }),
       updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
       next: ({ stepOutput }) => `subskill:${stepOutput.intent}`,
     })
@@ -600,7 +600,7 @@ test('engine returns RedirectResult for topic targets', async () => {
   const s = skill({ name: 'topic-redirect', entry: 'ask' })
     .step('ask', {
       prompt: 'What topic?',
-      output: z.object({ topic: z.string() }),
+      output: type({ topic: 'string' }),
       next: ({ stepOutput }) => `topic:${stepOutput.topic}`,
     })
     .build();
@@ -615,8 +615,8 @@ test('engine returns RedirectResult for topic targets', async () => {
 
 test('engine still routes normally when next target is a local step', async () => {
   const s = skill({ name: 'normal-routing', entry: 'a' })
-    .step('a', { prompt: 'A', output: z.object({}), next: 'b' })
-    .step('b', { prompt: 'B', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', output: type({}), next: 'b' })
+    .step('b', { prompt: 'B', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -643,7 +643,7 @@ test('engine assembles array prompt in author order with XML tags', () => {
         }),
         'Do the work.',
       ],
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -668,7 +668,7 @@ test('engine preserves author order — system between acts', () => {
         system`Now be thorough.`,
         'Build everything.',
       ],
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -696,7 +696,7 @@ test('engine renders act segment in prompt array', () => {
         }),
         'Additional context.',
       ],
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -715,9 +715,9 @@ test('engine renders subagent with no-recurse attribute', () => {
     .step('a', {
       prompt: act.subagent({
         prompt: 'Do research.',
-        output: z.object({ result: z.string() }),
+        output: type({ result: 'string' }),
       }),
-      output: z.object({ result: z.string() }),
+      output: type({ result: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -734,10 +734,10 @@ test('engine renders subagent without no-recurse when allowRecursion is true', (
     .step('a', {
       prompt: act.subagent({
         prompt: 'Run the sub-skill.',
-        output: z.object({ result: z.string() }),
+        output: type({ result: 'string' }),
         allowRecursion: true,
       }),
-      output: z.object({ result: z.string() }),
+      output: type({ result: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -753,7 +753,7 @@ test('engine renders view segment as <rendered> tag', () => {
   const s = skill({ name: 'view-test', entry: 'a' })
     .step('a', {
       prompt: [view('# Hello World'), 'Show the card.'],
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -769,7 +769,7 @@ test('engine renders named view segment with name attribute', () => {
   const s = skill({ name: 'named-view-test', entry: 'a' })
     .step('a', {
       prompt: [view('stats', '# Stats'), 'Show the stats.'],
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -784,7 +784,7 @@ test('engine injects skill-level system into preamble', () => {
   const s = skill({ name: 'system-test', entry: 'a', system: 'You are helpful.' })
     .step('a', {
       prompt: 'Do something.',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -800,7 +800,7 @@ test('engine injects skill-level system into preamble', () => {
 
 test('isPromptless returns true for steps without prompt', () => {
   const s = skill({ name: 'promptless', entry: 'gate' })
-    .step('gate', { output: z.object({}), next: { terminal: true } })
+    .step('gate', { output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -809,7 +809,7 @@ test('isPromptless returns true for steps without prompt', () => {
 
 test('isPromptless returns false for steps with prompt', () => {
   const s = skill({ name: 'prompted', entry: 'a' })
-    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -817,15 +817,15 @@ test('isPromptless returns false for steps with prompt', () => {
 });
 
 test('prompt-less step can be advanced with empty output', async () => {
-  const s = skill({ name: 'gate-advance', entry: 'gate', stash: z.object({ routed: z.boolean() }) })
+  const s = skill({ name: 'gate-advance', entry: 'gate', stash: type({ routed: 'boolean' }) })
     .step('gate', {
-      output: z.object({}),
+      output: type({}),
       updateStash: () => ({ routed: true }),
       next: 'main',
     })
     .step('main', {
       prompt: (ctx) => `Routed: ${ctx.stash.routed}`,
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -860,12 +860,12 @@ test('output-less step advance succeeds without validation', async () => {
 });
 
 test('prompt-less + output-less step is a pure routing gate', async () => {
-  const s = skill({ name: 'pure-gate', entry: 'gate', params: z.object({ fast: z.boolean() }) })
+  const s = skill({ name: 'pure-gate', entry: 'gate', params: type({ fast: 'boolean' }) })
     .step('gate', {
       next: ({ params }) => (params.fast ? 'quick' : 'full'),
     })
-    .step('quick', { prompt: 'Quick mode', output: z.object({}), next: { terminal: true } })
-    .step('full', { prompt: 'Full mode', output: z.object({}), next: { terminal: true } })
+    .step('quick', { prompt: 'Quick mode', output: type({}), next: { terminal: true } })
+    .step('full', { prompt: 'Full mode', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, { fast: true });
@@ -879,8 +879,8 @@ test('prompt-less step with action runs action before transitioning', async () =
 
   const checkAction = action({
     name: 'check',
-    input: z.object({}),
-    output: z.object({ ok: z.boolean() }),
+    input: type({}),
+    output: type({ ok: 'boolean' }),
     run: async () => {
       actionRan = true;
       return { ok: true };
@@ -889,11 +889,11 @@ test('prompt-less step with action runs action before transitioning', async () =
 
   const s = skill({ name: 'gate-action', entry: 'check' })
     .step('check', {
-      output: z.object({}),
+      output: type({}),
       action: { run: checkAction },
       next: 'main',
     })
-    .step('main', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .step('main', { prompt: 'Go', output: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -904,13 +904,13 @@ test('prompt-less step with action runs action before transitioning', async () =
 });
 
 test('engine with required params can be reconstructed for advance', async () => {
-  const s = skill({ name: 'param-advance', entry: 'a', params: z.object({ target: z.string() }) })
+  const s = skill({ name: 'param-advance', entry: 'a', params: type({ target: 'string' }) })
     .step('a', {
       prompt: (ctx) => `Target: ${(ctx.params as { target: string }).target}`,
-      output: z.object({ ok: z.boolean() }),
+      output: type({ ok: 'boolean' }),
       next: 'b',
     })
-    .step('b', { prompt: 'Done', output: z.object({}), next: { terminal: true } })
+    .step('b', { prompt: 'Done', output: type({}), next: { terminal: true } })
     .build();
 
   const params = { target: 'https://example.com' };

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { autoAdvance } from './auto-advance.js';
@@ -9,14 +9,14 @@ import type { Handshake, PromptResult, DoneResult } from '../types.js';
 const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
 
 test('autoAdvance skips prompt-less steps and returns autoAdvanced entries', async () => {
-  const s = skill({ name: 'gate-test', entry: 'gate', stash: z.object({ routed: z.boolean() }) })
+  const s = skill({ name: 'gate-test', entry: 'gate', stash: type({ routed: 'boolean' }) })
     .step('gate', {
       updateStash: () => ({ routed: true }),
       next: 'main',
     })
     .step('main', {
       prompt: 'Do work',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -38,7 +38,7 @@ test('autoAdvance chains multiple prompt-less steps', async () => {
     .step('b', { next: 'c' })
     .step('c', {
       prompt: 'Final',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -59,7 +59,7 @@ test('autoAdvance collects intermediates via callback', async () => {
     .step('gate', { next: 'main' })
     .step('main', {
       prompt: 'Go',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();
@@ -77,7 +77,7 @@ test('autoAdvance returns result unchanged when step has a prompt', async () => 
   const s = skill({ name: 'no-gate', entry: 'main' })
     .step('main', {
       prompt: 'Go',
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();

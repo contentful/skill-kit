@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
 import { SubskillEngine } from './subskill-engine.js';
@@ -10,15 +10,15 @@ const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent
 
 const scanAction = action({
   name: 'scan',
-  input: z.object({ path: z.string() }),
-  output: z.object({ found: z.string() }),
+  input: type({ path: 'string' }),
+  output: type({ found: 'string' }),
   run: async ({ input }) => ({ found: `scanned:${input.path}` }),
 });
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({ scanResult: z.string() }) })
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ scanResult: 'string' }) })
   .step('diagnose', {
     prompt: 'Diagnose.',
-    output: z.object({ issue: z.string() }),
+    output: type({ issue: 'string' }),
     action: {
       run: scanAction,
       input: ({ stepOutput }) => ({ path: stepOutput.issue }),
@@ -28,7 +28,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({
   })
   .step('report', {
     prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -81,16 +81,16 @@ test('SubskillEngine.advance qualifies done result completed step', async () => 
 test('SubskillEngine.replayHistory filters and unqualifies entries', async () => {
   let capturedStash: unknown;
 
-  const stashSkill = skill({ name: 'doc', entry: 'a', stash: z.object({ val: z.string() }) })
+  const stashSkill = skill({ name: 'doc', entry: 'a', stash: type({ val: 'string' }) })
     .step('a', {
       prompt: 'A',
-      output: z.object({ v: z.string() }),
+      output: type({ v: 'string' }),
       updateStash: ({ stepOutput }) => ({ val: stepOutput.v }),
       next: 'b',
     })
     .step('b', {
       prompt: 'B',
-      output: z.object({ x: z.string() }),
+      output: type({ x: 'string' }),
       next: 'c',
     })
     .step('c', {
@@ -98,7 +98,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
         capturedStash = ctx.stash;
         return 'C';
       },
-      output: z.object({}),
+      output: type({}),
       next: { terminal: true },
     })
     .build();

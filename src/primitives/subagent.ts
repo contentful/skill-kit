@@ -1,10 +1,10 @@
-import type { z } from 'zod';
+import type { Type } from 'arktype';
 import type { SubagentConfig } from '../types.js';
 import { definePrimitive } from './primitive.js';
 
 export interface SubagentInput {
   prompt: string;
-  output: z.ZodType;
+  output: Type;
   allowRecursion?: boolean;
 }
 

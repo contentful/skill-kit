@@ -1,19 +1,19 @@
-import { skill, step, z, action, prompt, render, act, view } from '@contentful/skill-kit';
+import { skill, step, type, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
-const GameConfigSchema = z.object({
-  name: z.string(),
-  variant: z.enum(['classic', 'modern', 'puzzle']),
-  renderer: z.enum(['canvas', 'dom', 'webgl']),
+const GameConfigSchema = type({
+  name: 'string',
+  variant: "'classic' | 'modern' | 'puzzle'",
+  renderer: "'canvas' | 'dom' | 'webgl'",
 });
 
 // --- Action: save game config ---
 
 const saveGameConfig = action({
   name: 'save-game-config',
-  input: z.object({ config: GameConfigSchema }),
-  output: z.object({ path: z.string() }),
+  input: type({ config: GameConfigSchema }),
+  output: type({ path: 'string' }),
   run: async ({ input }) => {
     const path = `/tmp/game-config-${Date.now()}.json`;
     process.stderr.write(`[game-jam] Would save config to ${path}\n`);
@@ -25,7 +25,7 @@ const saveGameConfig = action({
 // --- Reusable open question step ---
 
 const openQuestionStep = step({
-  output: z.object({ answer: z.string() }),
+  output: type({ answer: 'string' }),
   next: '__parent__',
 });
 
@@ -44,16 +44,16 @@ export default skill({
   system:
     "You're a friendly game development mentor guiding someone through building their first Tetris game. Be encouraging and practical.",
 
-  params: z.object({
-    difficulty: z.enum(['beginner', 'intermediate', 'advanced']).default('intermediate'),
+  params: type({
+    difficulty: "'beginner' | 'intermediate' | 'advanced' = 'intermediate'",
   }),
 
-  stash: z.object({
-    name: z.string(),
-    variant: z.string(),
-    renderer: z.string(),
-    researchSummary: z.string(),
-    readme: z.string(),
+  stash: type({
+    name: 'string',
+    variant: 'string',
+    renderer: 'string',
+    researchSummary: 'string',
+    readme: 'string',
   }),
 })
   // --- Choose variant (askUser structured) ---
@@ -67,7 +67,7 @@ export default skill({
         { value: 'puzzle', label: 'Puzzle', description: 'Pre-set board puzzles to clear in fewest moves' },
       ],
     }),
-    output: z.object({ variant: z.enum(['classic', 'modern', 'puzzle']) }),
+    output: type({ variant: "'classic' | 'modern' | 'puzzle'" }),
     updateStash: ({ stepOutput }) => ({ variant: stepOutput.variant }),
     next: 'name-game',
   })
@@ -75,7 +75,7 @@ export default skill({
   // --- Name the game (askUser open) ---
   .step('name-game', {
     prompt: act.askUser({ type: 'open', question: 'What should we call your game?' }),
-    output: z.object({ name: z.string() }),
+    output: type({ name: 'string' }),
     updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
     next: 'choose-renderer',
   })
@@ -91,7 +91,7 @@ export default skill({
         { value: 'webgl', label: 'WebGL', description: 'Enables 3D effects and shaders, most complex' },
       ],
     }),
-    output: z.object({ renderer: z.enum(['canvas', 'dom', 'webgl']) }),
+    output: type({ renderer: "'canvas' | 'dom' | 'webgl'" }),
     updateStash: ({ stepOutput }) => ({ renderer: stepOutput.renderer }),
     next: 'design-review',
   })
@@ -105,7 +105,7 @@ export default skill({
       }),
       prompt`Summarize the design so far: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering.`,
     ],
-    output: z.object({ approved: z.boolean() }),
+    output: type({ approved: 'boolean' }),
     next: ({ stepOutput }) => (stepOutput.approved ? 'research-renderer' : 'choose-variant'),
   })
 
@@ -115,7 +115,7 @@ export default skill({
       act.subagent({
         prompt:
           'Research best practices for the chosen rendering approach. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
-        output: z.object({ summary: z.string() }),
+        output: type({ summary: 'string' }),
       }),
       prompt`
         We're building a Tetris game with ${stash.renderer} rendering.
@@ -123,7 +123,7 @@ export default skill({
         ${refs.load('tetris-patterns.md')}
       `,
     ],
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
     next: 'implementation-plan',
   })
@@ -144,7 +144,7 @@ export default skill({
       }),
       prompt`Research notes: ${stash.researchSummary}`,
     ],
-    output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
+    output: type({ approved: 'boolean', 'modifications?': 'string' }),
     next: ({ stepOutput }) => (stepOutput.approved ? 'build' : 'revise-plan'),
   })
 
@@ -176,7 +176,7 @@ export default skill({
         Research notes: ${stash.researchSummary}
       `,
     ],
-    output: z.object({ filesCreated: z.array(z.string()), summary: z.string() }),
+    output: type({ filesCreated: 'string[]', summary: 'string' }),
     next: 'generate-readme',
   })
 
@@ -186,13 +186,13 @@ export default skill({
       act.subagent({
         prompt:
           'Write a README.md for the game. Include: project title, description, controls, how to run, and credits. Return the markdown as a string.',
-        output: z.object({ readme: z.string() }),
+        output: type({ readme: 'string' }),
       }),
       prompt`
         The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
       `,
     ],
-    output: z.object({ readme: z.string() }),
+    output: type({ readme: 'string' }),
     updateStash: ({ stepOutput }) => ({ readme: stepOutput.readme }),
     next: 'final-review',
   })
@@ -203,7 +203,7 @@ export default skill({
       message: 'The game is built! Want to add any finishing touches?',
       defaultAnswer: 'no',
     }),
-    output: z.object({ approved: z.boolean() }),
+    output: type({ approved: 'boolean' }),
     next: ({ stepOutput }) => (stepOutput.approved ? 'polish' : 'summary'),
   })
 
@@ -241,7 +241,7 @@ export default skill({
       ),
       'Present the rendered summary card verbatim.',
     ],
-    output: z.object({ summary: z.string() }),
+    output: type({ summary: 'string' }),
     action: {
       run: saveGameConfig,
       input: ({ stash }) => ({
