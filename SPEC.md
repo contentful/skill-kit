@@ -799,6 +799,23 @@ The guarantee tracking uses `NextBranch[]` declarations. When a step's `next` is
 
 Sub-store narrowing follows a similar principle. When a guaranteed predecessor writes to a sub-store via `save`, those paths become non-optional downstream — the type system knows the data is present. Branch target writes remain optional, since the writing step may not have run.
 
+### Type system scaling
+
+The builder's type narrowing is computed at compile time via generic accumulators. Each `.step()` call adds an intersection layer to `TSteps` and updates `BranchState`/`GuaranteeState`. The practical limits:
+
+| Dimension | Tested up to | Notes |
+|-----------|-------------|-------|
+| Linear chain (sequential steps) | 300 steps in ~24s, 500 in ~108s | The only bottleneck. Each step adds an intersection layer to `TSteps`. |
+| Branch width | 100-way branch in <6s | Union extraction and reconvergence checking scale linearly. |
+| Independent branches | 20+ branch points in <4s | `BranchState.groups` record accumulates cheaply. |
+| Reconvergence cycles | 30 branch-reconverge pairs in <4s | Template literal edge tracking handles large edge sets. |
+| Sub-store nesting depth | 10 levels in <4s | `DeepPartial`/`DeepReadonly` traverse schema shape, not the accumulator. |
+| Combined (branches + stores + saves) | 15 steps, 3 branches, 2 reconvergences, 2 stores in <5s | Representative real-world skill. |
+
+The only practical limit is the linear step chain depth, because TypeScript must resolve the accumulated intersection type `{} & { s01: T1 } & { s02: T2 } & ...` at each step. Real-world skills rarely exceed 20 steps, so the ~300-step wall is a non-issue. Branches, reconvergence, and sub-stores add negligible overhead.
+
+A stress test generator is available at `scripts/stress-test-gen.ts` for reproducing these measurements.
+
 ### No globals, no mutation
 
 Steps receive inputs, return outputs. The store is append-only. Load-bearing for determinism and replay.
