@@ -7,14 +7,14 @@ import { WorkflowEngine } from '../runtime/engine.js';
 import { validateCycleGuards, CycleGuardError } from './cycle-guard.js';
 import type { Handshake } from '../types.js';
 
-const output = type({});
+const response = type({});
 const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
 
 test('validateCycleGuards() accepts a linear graph', () => {
   const steps = {
-    a: step({ prompt: 'a', output, next: 'b' }),
-    b: step({ prompt: 'b', output, next: 'c' }),
-    c: step({ prompt: 'c', output, next: { terminal: true } }),
+    a: step({ prompt: 'a', response, next: 'b' }),
+    b: step({ prompt: 'b', response, next: 'c' }),
+    c: step({ prompt: 'c', response, next: { terminal: true } }),
   };
 
   const result = validateCycleGuards(steps);
@@ -23,8 +23,8 @@ test('validateCycleGuards() accepts a linear graph', () => {
 
 test('validateCycleGuards() detects unguarded cycle without throwing', () => {
   const steps = {
-    a: step({ prompt: 'a', output, next: 'b' }),
-    b: step({ prompt: 'b', output, next: 'a' }),
+    a: step({ prompt: 'a', response, next: 'b' }),
+    b: step({ prompt: 'b', response, next: 'a' }),
   };
 
   const result = validateCycleGuards(steps);
@@ -35,9 +35,9 @@ test('validateCycleGuards() detects unguarded cycle without throwing', () => {
 
 test('validateCycleGuards() accepts a guarded cycle', () => {
   const steps = {
-    a: step({ prompt: 'a', output, next: 'b', maxVisits: 3, onMaxVisits: 'c' }),
-    b: step({ prompt: 'b', output, next: 'a', maxVisits: 3, onMaxVisits: 'c' }),
-    c: step({ prompt: 'c', output, next: { terminal: true } }),
+    a: step({ prompt: 'a', response, next: 'b', maxVisits: 3, onMaxVisits: 'c' }),
+    b: step({ prompt: 'b', response, next: 'a', maxVisits: 3, onMaxVisits: 'c' }),
+    c: step({ prompt: 'c', response, next: { terminal: true } }),
   };
 
   const result = validateCycleGuards(steps);
@@ -47,9 +47,9 @@ test('validateCycleGuards() accepts a guarded cycle', () => {
 
 test('validateCycleGuards() accepts partially guarded cycle', () => {
   const steps = {
-    a: step({ prompt: 'a', output, next: 'b' }),
-    b: step({ prompt: 'b', output, next: 'a', maxVisits: 3, onMaxVisits: 'c' }),
-    c: step({ prompt: 'c', output, next: { terminal: true } }),
+    a: step({ prompt: 'a', response, next: 'b' }),
+    b: step({ prompt: 'b', response, next: 'a', maxVisits: 3, onMaxVisits: 'c' }),
+    c: step({ prompt: 'c', response, next: { terminal: true } }),
   };
 
   const result = validateCycleGuards(steps);
@@ -59,8 +59,8 @@ test('validateCycleGuards() accepts partially guarded cycle', () => {
 
 test('validateCycleGuards() rejects onMaxVisits pointing to nonexistent step', () => {
   const steps = {
-    a: step({ prompt: 'a', output, next: 'b', maxVisits: 3, onMaxVisits: 'missing' }),
-    b: step({ prompt: 'b', output, next: 'a', maxVisits: 3, onMaxVisits: 'missing' }),
+    a: step({ prompt: 'a', response, next: 'b', maxVisits: 3, onMaxVisits: 'missing' }),
+    b: step({ prompt: 'b', response, next: 'a', maxVisits: 3, onMaxVisits: 'missing' }),
   };
 
   assert.throws(() => validateCycleGuards(steps), CycleGuardError);
@@ -68,8 +68,8 @@ test('validateCycleGuards() rejects onMaxVisits pointing to nonexistent step', (
 
 test('validateCycleGuards() accepts a self-loop with guard', () => {
   const steps = {
-    a: step({ prompt: 'a', output, next: 'a', maxVisits: 3, onMaxVisits: 'b' }),
-    b: step({ prompt: 'b', output, next: { terminal: true } }),
+    a: step({ prompt: 'a', response, next: 'a', maxVisits: 3, onMaxVisits: 'b' }),
+    b: step({ prompt: 'b', response, next: { terminal: true } }),
   };
 
   const result = validateCycleGuards(steps);
@@ -80,7 +80,7 @@ test('unguarded cycle throws at runtime after implicit limit', async () => {
   const s = skill({ name: 'unguarded', entry: 'loop' })
     .step('loop', {
       prompt: 'Loop',
-      output: type({}),
+      response: type({}),
       next: 'loop',
     })
     .build();
@@ -101,7 +101,7 @@ test('maxVisits without onMaxVisits throws at runtime (fail-closed)', async () =
   const s = skill({ name: 'fail-closed', entry: 'loop' })
     .step('loop', {
       prompt: 'Loop',
-      output: type({}),
+      response: type({}),
       next: 'loop',
       maxVisits: 2,
     })
@@ -118,12 +118,12 @@ test('maxVisits with onMaxVisits redirects as before', async () => {
   const s = skill({ name: 'guarded', entry: 'loop' })
     .step('loop', {
       prompt: 'Loop',
-      output: type({}),
+      response: type({}),
       next: 'loop',
       maxVisits: 2,
       onMaxVisits: 'done',
     })
-    .step('done', { prompt: 'Done', output: type({}), next: { terminal: true } })
+    .step('done', { prompt: 'Done', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});

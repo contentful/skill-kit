@@ -13,7 +13,7 @@ function simpleSkill() {
   return skill({ name: 'test', entry: 'greet' })
     .step('greet', {
       prompt: 'Say hello.',
-      output: type({ message: 'string' }),
+      response: type({ message: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -23,12 +23,12 @@ function multiStepSkill() {
   return skill({ name: 'multi', entry: 'greet' })
     .step('greet', {
       prompt: 'Say hello.',
-      output: type({ message: 'string' }),
+      response: type({ message: 'string' }),
       next: 'ask',
     })
     .step('ask', {
       prompt: 'Ask a question.',
-      output: type({ answer: 'string' }),
+      response: type({ answer: 'string' }),
       next: { terminal: true },
     })
     .build();

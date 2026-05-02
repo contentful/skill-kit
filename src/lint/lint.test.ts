@@ -9,7 +9,7 @@ test('no-host-tool-names flags direct tool reference', () => {
   const s = skill({ name: 'bad', entry: 'a' })
     .step('a', {
       prompt: 'Use the AskUserQuestion tool to ask the user.',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -29,7 +29,7 @@ test('no-host-tool-names does not flag guarded reference', () => {
         }
         return 'Ask the user';
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -53,7 +53,7 @@ test('primitive-schema-mismatch flags mismatched askUser options', () => {
           ],
         }),
       ],
-      output: type({ choice: "'a' | 'b'" }),
+      response: type({ choice: "'a' | 'b'" }),
       next: { terminal: true },
     })
     .build();
@@ -65,8 +65,8 @@ test('primitive-schema-mismatch flags mismatched askUser options', () => {
 
 test('cycle-guard warns on unguarded cycle', () => {
   const s = skill({ name: 'cycle', entry: 'a' })
-    .step('a', { prompt: 'A', output: type({}), next: 'b' })
-    .step('b', { prompt: 'B', output: type({}), next: 'a' })
+    .step('a', { prompt: 'A', response: type({}), next: 'b' })
+    .step('b', { prompt: 'B', response: type({}), next: 'a' })
     .build();
 
   const diags = checkSkill(s, '.');
@@ -80,7 +80,7 @@ test('clean skill produces no errors', () => {
   const s = skill({ name: 'clean', entry: 'a' })
     .step('a', {
       prompt: 'Do something useful.',
-      output: type({ done: 'boolean' }),
+      response: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();

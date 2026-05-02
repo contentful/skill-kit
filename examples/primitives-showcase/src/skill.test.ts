@@ -71,5 +71,5 @@ test('stash accumulates across steps', async () => {
     }),
   });
 
-  assert.deepEqual(result.stepOutput, { summary: 'All done.' });
+  assert.deepEqual(result.response, { summary: 'All done.' });
 });

@@ -24,15 +24,15 @@ export default skill({
 })
   .step('check-env', {
     prompt: 'Acknowledge the environment check results and proceed.',
-    output: type({ acknowledged: 'boolean' }),
+    response: type({ acknowledged: 'boolean' }),
     action: {
       run: checkEnv,
-      updateStash: ({ actionOutput }) => ({
-        hasSpaceId: actionOutput.hasSpaceId,
-        hasToken: actionOutput.hasToken,
+      updateStash: ({ actionResult }) => ({
+        hasSpaceId: actionResult.hasSpaceId,
+        hasToken: actionResult.hasToken,
       }),
     },
-    next: ({ actionOutput }) => (actionOutput.hasSpaceId && actionOutput.hasToken ? 'configure' : 'guide-env'),
+    next: ({ actionResult }) => (actionResult.hasSpaceId && actionResult.hasToken ? 'configure' : 'guide-env'),
   })
 
   .step('guide-env', {
@@ -46,7 +46,7 @@ export default skill({
         '(Settings > API keys).'
       );
     },
-    output: type({ guided: 'boolean' }),
+    response: type({ guided: 'boolean' }),
     next: 'configure',
   })
 
@@ -60,16 +60,16 @@ export default skill({
         { value: 'done', label: 'Done', description: 'Finish setup' },
       ],
     }),
-    output: type({ choice: "'locales' | 'webhooks' | 'done'" }),
-    next: ({ stepOutput }) => {
-      if (stepOutput.choice === 'done') return 'summary';
-      return `setup-${stepOutput.choice}`;
+    response: type({ choice: "'locales' | 'webhooks' | 'done'" }),
+    next: ({ response }) => {
+      if (response.choice === 'done') return 'summary';
+      return `setup-${response.choice}`;
     },
   })
 
   .step('setup-locales', {
     prompt: 'Help the user configure locales for their space. Ask which languages they need.',
-    output: type({ localesAdded: 'number' }),
+    response: type({ localesAdded: 'number' }),
     next: 'configure',
     maxVisits: 3,
     onMaxVisits: 'summary',
@@ -77,7 +77,7 @@ export default skill({
 
   .step('setup-webhooks', {
     prompt: 'Help the user set up webhooks. Ask for the endpoint URL and which events to subscribe to.',
-    output: type({ webhooksConfigured: 'number' }),
+    response: type({ webhooksConfigured: 'number' }),
     next: 'configure',
     maxVisits: 3,
     onMaxVisits: 'summary',
@@ -85,7 +85,7 @@ export default skill({
 
   .step('summary', {
     prompt: 'Summarize everything that was configured. List next steps.',
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();

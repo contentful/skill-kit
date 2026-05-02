@@ -25,7 +25,7 @@ const saveGameConfig = action({
 // --- Reusable open question step ---
 
 const openQuestionStep = step({
-  output: type({ answer: 'string' }),
+  response: type({ answer: 'string' }),
   next: '__parent__',
 });
 
@@ -67,16 +67,16 @@ export default skill({
         { value: 'puzzle', label: 'Puzzle', description: 'Pre-set board puzzles to clear in fewest moves' },
       ],
     }),
-    output: type({ variant: "'classic' | 'modern' | 'puzzle'" }),
-    updateStash: ({ stepOutput }) => ({ variant: stepOutput.variant }),
+    response: type({ variant: "'classic' | 'modern' | 'puzzle'" }),
+    updateStash: ({ response }) => ({ variant: response.variant }),
     next: 'name-game',
   })
 
   // --- Name the game (askUser open) ---
   .step('name-game', {
     prompt: act.askUser({ type: 'open', question: 'What should we call your game?' }),
-    output: type({ name: 'string' }),
-    updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
+    response: type({ name: 'string' }),
+    updateStash: ({ response }) => ({ name: response.name }),
     next: 'choose-renderer',
   })
 
@@ -91,8 +91,8 @@ export default skill({
         { value: 'webgl', label: 'WebGL', description: 'Enables 3D effects and shaders, most complex' },
       ],
     }),
-    output: type({ renderer: "'canvas' | 'dom' | 'webgl'" }),
-    updateStash: ({ stepOutput }) => ({ renderer: stepOutput.renderer }),
+    response: type({ renderer: "'canvas' | 'dom' | 'webgl'" }),
+    updateStash: ({ response }) => ({ renderer: response.renderer }),
     next: 'design-review',
   })
 
@@ -105,8 +105,8 @@ export default skill({
       }),
       prompt`Summarize the design so far: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering.`,
     ],
-    output: type({ approved: 'boolean' }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'research-renderer' : 'choose-variant'),
+    response: type({ approved: 'boolean' }),
+    next: ({ response }) => (response.approved ? 'research-renderer' : 'choose-variant'),
   })
 
   // --- Research renderer (subagent) ---
@@ -123,8 +123,8 @@ export default skill({
         ${refs.load('tetris-patterns.md')}
       `,
     ],
-    output: type({ summary: 'string' }),
-    updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
+    response: type({ summary: 'string' }),
+    updateStash: ({ response }) => ({ researchSummary: response.summary }),
     next: 'implementation-plan',
   })
 
@@ -144,8 +144,8 @@ export default skill({
       }),
       prompt`Research notes: ${stash.researchSummary}`,
     ],
-    output: type({ approved: 'boolean', 'modifications?': 'string' }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'build' : 'revise-plan'),
+    response: type({ approved: 'boolean', 'modifications?': 'string' }),
+    next: ({ response }) => (response.approved ? 'build' : 'revise-plan'),
   })
 
   // --- Revise plan (askUser open, loops back) ---
@@ -176,7 +176,7 @@ export default skill({
         Research notes: ${stash.researchSummary}
       `,
     ],
-    output: type({ filesCreated: 'string[]', summary: 'string' }),
+    response: type({ filesCreated: 'string[]', summary: 'string' }),
     next: 'generate-readme',
   })
 
@@ -192,8 +192,8 @@ export default skill({
         The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
       `,
     ],
-    output: type({ readme: 'string' }),
-    updateStash: ({ stepOutput }) => ({ readme: stepOutput.readme }),
+    response: type({ readme: 'string' }),
+    updateStash: ({ response }) => ({ readme: response.readme }),
     next: 'final-review',
   })
 
@@ -203,8 +203,8 @@ export default skill({
       message: 'The game is built! Want to add any finishing touches?',
       defaultAnswer: 'no',
     }),
-    output: type({ approved: 'boolean' }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'polish' : 'summary'),
+    response: type({ approved: 'boolean' }),
+    next: ({ response }) => (response.approved ? 'polish' : 'summary'),
   })
 
   // --- Polish loop (askUser open, maxVisits) ---
@@ -241,7 +241,7 @@ export default skill({
       ),
       'Present the rendered summary card verbatim.',
     ],
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     action: {
       run: saveGameConfig,
       input: ({ stash }) => ({

@@ -53,8 +53,8 @@ export default skill({
         ],
       },
     ]),
-    output: type({ theme: 'string', framework: 'string' }),
-    updateStash: ({ stepOutput }) => ({ theme: stepOutput.theme, framework: stepOutput.framework }),
+    response: type({ theme: 'string', framework: 'string' }),
+    updateStash: ({ response }) => ({ theme: response.theme, framework: response.framework }),
     next: 'research',
   })
 
@@ -67,8 +67,8 @@ export default skill({
         output: type({ summary: 'string' }),
       }),
     ],
-    output: type({ summary: 'string' }),
-    updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
+    response: type({ summary: 'string' }),
+    updateStash: ({ response }) => ({ researchSummary: response.summary }),
     next: 'plan-report',
   })
 
@@ -81,8 +81,8 @@ export default skill({
         steps: ['Executive summary', 'Key findings', 'Recommendations', 'Action items'],
       }),
     ],
-    output: type({ approved: 'boolean', 'modifications?': 'string' }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'write-report' : 'ask-changes'),
+    response: type({ approved: 'boolean', 'modifications?': 'string' }),
+    next: ({ response }) => (response.approved ? 'write-report' : 'ask-changes'),
   })
 
   // --- askUser (open): free-form feedback ---
@@ -91,7 +91,7 @@ export default skill({
       'The plan was not approved. Ask what changes are needed.',
       act.askUser({ type: 'open', question: 'What would you like to change about the report plan?' }),
     ],
-    output: type({ feedback: 'string' }),
+    response: type({ feedback: 'string' }),
     next: 'plan-report',
     maxVisits: 3,
     onMaxVisits: 'write-report',
@@ -115,10 +115,10 @@ export default skill({
         Complete each checklist item as you write.
       `,
     ],
-    output: type({ title: 'string', body: 'string' }),
+    response: type({ title: 'string', body: 'string' }),
     action: {
       run: saveReport,
-      updateStash: ({ actionOutput }) => ({ savedPath: actionOutput.path }),
+      updateStash: ({ actionResult }) => ({ savedPath: actionResult.path }),
     },
     next: 'confirm-publish',
   })
@@ -129,9 +129,9 @@ export default skill({
       'The report has been saved. Ask if the user wants to publish it.',
       act.confirm({ message: 'Publish the report?', destructive: false, defaultAnswer: 'yes' }),
     ],
-    output: type({ publish: 'boolean' }),
-    updateStash: ({ stepOutput }) => ({ approved: stepOutput.publish }),
-    next: ({ stepOutput }) => (stepOutput.publish ? 'summary' : 'ask-changes'),
+    response: type({ publish: 'boolean' }),
+    updateStash: ({ response }) => ({ approved: response.publish }),
+    next: ({ response }) => (response.publish ? 'summary' : 'ask-changes'),
   })
 
   // --- view + terminal: pre-rendered card ---
@@ -155,7 +155,7 @@ export default skill({
       ]),
       'Present the summary card verbatim.',
     ],
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: terminal,
   })
 

@@ -13,8 +13,8 @@ test('module() creates a ModuleDefinition with steps', () => {
   })
     .step('login', {
       prompt: 'Ask for credentials.',
-      output: type({ userId: 'string' }),
-      updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
+      response: type({ userId: 'string' }),
+      updateStash: ({ response }) => ({ userId: response.userId }),
       next: '__parent__',
     })
     .build();
@@ -37,13 +37,13 @@ test('module stash type flows into step prompt callbacks', () => {
         void _check;
         return 'Login';
       },
-      output: type({ userId: 'string' }),
-      updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
+      response: type({ userId: 'string' }),
+      updateStash: ({ response }) => ({ userId: response.userId }),
       next: 'verify',
     })
     .step('verify', {
       prompt: ({ stash }) => `Verify ${stash.userId}`,
-      output: type({ ok: 'boolean' }),
+      response: type({ ok: 'boolean' }),
       next: '__parent__',
     })
     .build();
@@ -60,8 +60,8 @@ test('skill.register() merges module steps and wires __parent__', async () => {
   })
     .step('auth-login', {
       prompt: 'Log in.',
-      output: type({ userId: 'string' }),
-      updateStash: ({ stepOutput }) => ({ userId: stepOutput.userId }),
+      response: type({ userId: 'string' }),
+      updateStash: ({ response }) => ({ userId: response.userId }),
       next: '__parent__',
     })
     .build();
@@ -73,14 +73,14 @@ test('skill.register() merges module steps and wires __parent__', async () => {
   })
     .step('start', {
       prompt: 'Welcome.',
-      output: type({ appName: 'string' }),
-      updateStash: ({ stepOutput }) => ({ appName: stepOutput.appName }),
+      response: type({ appName: 'string' }),
+      updateStash: ({ response }) => ({ appName: response.appName }),
       next: 'auth-login',
     })
     .register(authModule, { next: 'dashboard' })
     .step('dashboard', {
       prompt: ({ stash }) => `Welcome ${stash.userId} to ${stash.appName}`,
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -111,8 +111,8 @@ test('module params is unknown (module steps cannot access parent params)', () =
         void params;
         return 'Do something';
       },
-      output: type({ val: 'string' }),
-      updateStash: ({ stepOutput }) => ({ val: stepOutput.val }),
+      response: type({ val: 'string' }),
+      updateStash: ({ response }) => ({ val: response.val }),
       next: '__parent__',
     })
     .build();
@@ -124,7 +124,7 @@ test('module().build() throws on missing entry step', () => {
   assert.throws(
     () =>
       module({ name: 'bad', entry: 'missing', stash: type({}) })
-        .step('other', { prompt: 'x', output: type({}), next: '__parent__' })
+        .step('other', { prompt: 'x', response: type({}), next: '__parent__' })
         .build(),
     /entry step "missing" not found/,
   );

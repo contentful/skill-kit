@@ -16,7 +16,7 @@ test('autoAdvance skips prompt-less steps and returns autoAdvanced entries', asy
     })
     .step('main', {
       prompt: 'Do work',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -38,7 +38,7 @@ test('autoAdvance chains multiple prompt-less steps', async () => {
     .step('b', { next: 'c' })
     .step('c', {
       prompt: 'Final',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -59,7 +59,7 @@ test('autoAdvance collects intermediates via callback', async () => {
     .step('gate', { next: 'main' })
     .step('main', {
       prompt: 'Go',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -77,7 +77,7 @@ test('autoAdvance returns result unchanged when step has a prompt', async () => 
   const s = skill({ name: 'no-gate', entry: 'main' })
     .step('main', {
       prompt: 'Go',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();

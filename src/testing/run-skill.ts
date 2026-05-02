@@ -39,7 +39,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
 
   let initial = await drainPromptless(engine, startResult, path);
   if (initial.kind === 'done') {
-    return { path, outputs, stepOutput: initial.finalOutput, history: engine['history'].all() };
+    return { path, outputs, response: initial.finalOutput, history: engine['history'].all() };
   }
   if (initial.kind !== 'prompt') {
     throw new Error(`Unexpected result kind "${initial.kind}" at start`);
@@ -64,7 +64,7 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
       return {
         path,
         outputs,
-        stepOutput: drained.finalOutput,
+        response: drained.finalOutput,
         history: engine['history'].all(),
       };
     }

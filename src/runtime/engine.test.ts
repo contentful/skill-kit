@@ -11,9 +11,9 @@ const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent
 
 test('engine runs a 3-step linear skill to completion', async () => {
   const s = skill({ name: 'linear', entry: 'a' })
-    .step('a', { prompt: 'Step A', output: type({ val: 'string' }), next: 'b' })
-    .step('b', { prompt: 'Step B', output: type({ val: 'string' }), next: 'c' })
-    .step('c', { prompt: 'Step C', output: type({ val: 'string' }), next: { terminal: true } })
+    .step('a', { prompt: 'Step A', response: type({ val: 'string' }), next: 'b' })
+    .step('b', { prompt: 'Step B', response: type({ val: 'string' }), next: 'c' })
+    .step('c', { prompt: 'Step C', response: type({ val: 'string' }), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -35,11 +35,11 @@ test('engine routes conditionally based on output', async () => {
   const s = skill({ name: 'conditional', entry: 'check' })
     .step('check', {
       prompt: 'Check status',
-      output: type({ ok: 'boolean' }),
-      next: ({ stepOutput }) => (stepOutput.ok ? 'done' : 'fix'),
+      response: type({ ok: 'boolean' }),
+      next: ({ response }) => (response.ok ? 'done' : 'fix'),
     })
-    .step('fix', { prompt: 'Fix it', output: type({ fixed: 'boolean' }), next: { terminal: true } })
-    .step('done', { prompt: 'All good', output: type({}), next: { terminal: true } })
+    .step('fix', { prompt: 'Fix it', response: type({ fixed: 'boolean' }), next: { terminal: true } })
+    .step('done', { prompt: 'All good', response: type({}), next: { terminal: true } })
     .build();
 
   const engine1 = new WorkflowEngine(s, genericHost, {});
@@ -55,7 +55,7 @@ test('engine routes conditionally based on output', async () => {
 
 test('engine returns validation error for bad output', async () => {
   const s = skill({ name: 'validated', entry: 'a' })
-    .step('a', { prompt: 'Go', output: type({ count: 'number' }), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({ count: 'number' }), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -68,7 +68,7 @@ test('engine returns validation error for bad output', async () => {
 
 test('engine validates context schema on construction', () => {
   const s = skill({ name: 'ctx', entry: 'a', params: type({ path: 'string' }) })
-    .step('a', { prompt: 'Go', output: type({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   assert.throws(() => new WorkflowEngine(s, genericHost, { path: 123 }), /Invalid params/);
@@ -77,7 +77,7 @@ test('engine validates context schema on construction', () => {
 
 test('engine params error includes skill name and field path', () => {
   const s = skill({ name: 'my-skill', entry: 'a', params: type({ target: 'string' }) })
-    .step('a', { prompt: 'Go', output: type({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   assert.throws(
@@ -95,12 +95,12 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
   const s = skill({ name: 'bounded', entry: 'loop' })
     .step('loop', {
       prompt: 'Retry',
-      output: type({ confidence: 'number' }),
-      next: ({ stepOutput }) => (stepOutput.confidence < 0.7 ? 'loop' : 'report'),
+      response: type({ confidence: 'number' }),
+      next: ({ response }) => (response.confidence < 0.7 ? 'loop' : 'report'),
       maxVisits: 2,
       onMaxVisits: 'report',
     })
-    .step('report', { prompt: 'Report', output: type({}), next: { terminal: true } })
+    .step('report', { prompt: 'Report', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -117,13 +117,13 @@ test('engine provides dynamic prompt context', async () => {
   let capturedCtx: unknown = null;
 
   const s = skill({ name: 'dynamic', entry: 'a', params: type({ name: 'string' }) })
-    .step('a', { prompt: 'First', output: type({ val: 'number' }), next: 'b' })
+    .step('a', { prompt: 'First', response: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
         capturedCtx = ctx;
-        return `Previous: ${JSON.stringify(ctx.history.at(-1)?.stepOutput)}`;
+        return `Previous: ${JSON.stringify(ctx.history.at(-1)?.response)}`;
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -140,19 +140,19 @@ test('engine replays history for single-invocation mode', () => {
   const s = skill({ name: 'replay', entry: 'a', stash: type({ memo: 'string' }) })
     .step('a', {
       prompt: 'A',
-      output: type({ val: 'string' }),
-      updateStash: ({ stepOutput }) => ({ memo: stepOutput.val }),
+      response: type({ val: 'string' }),
+      updateStash: ({ response }) => ({ memo: response.val }),
       next: 'b',
     })
     .step('b', {
       prompt: (ctx) => `Stash: ${JSON.stringify(ctx.stash)}`,
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'a', stepOutput: { val: 'hello' } }]);
+  engine.replayHistory([{ step: 'a', response: { val: 'hello' } }]);
   const prompt = engine.start();
   assert.ok(prompt);
 });
@@ -173,7 +173,7 @@ test('engine runs action after validation, before transition', async () => {
   const s = skill({ name: 'with-action', entry: 'a' })
     .step('a', {
       prompt: 'Write something',
-      output: type({ content: 'string' }),
+      response: type({ content: 'string' }),
       action: { run: writeAction },
       next: { terminal: true },
     })
@@ -185,7 +185,7 @@ test('engine runs action after validation, before transition', async () => {
   const result = await engine.advance('a', { content: 'hello' });
   assert.ok(actionRan);
   assert.equal((result as DoneResult).done, true);
-  assert.deepEqual((result as DoneResult).completed?.actionOutput, { written: true });
+  assert.deepEqual((result as DoneResult).completed?.actionResult, { written: true });
 });
 
 test('engine fires observers at lifecycle points', async () => {
@@ -209,7 +209,7 @@ test('engine fires observers at lifecycle points', async () => {
       },
     },
   })
-    .step('a', { prompt: 'A', output: type({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -234,7 +234,7 @@ test('throwing observer does not crash the skill', async () => {
       },
     },
   })
-    .step('a', { prompt: 'A', output: type({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -260,10 +260,10 @@ test('actionInput mapping decouples step output from action input', async () => 
   const s = skill({ name: 'mapped', entry: 'a' })
     .step('a', {
       prompt: 'Decide',
-      output: type({ fileName: 'string', body: 'string' }),
+      response: type({ fileName: 'string', body: 'string' }),
       action: {
         run: writeAction,
-        input: ({ stepOutput }) => ({ path: `/out/${stepOutput.fileName}`, content: stepOutput.body }),
+        input: ({ response }) => ({ path: `/out/${response.fileName}`, content: response.body }),
       },
       next: { terminal: true },
     })
@@ -291,16 +291,16 @@ test('actionInput receives current stash', async () => {
   const s = skill({ name: 'stash-map', entry: 'setup', stash: type({ prefix: 'string' }) })
     .step('setup', {
       prompt: 'Setup',
-      output: type({}),
+      response: type({}),
       updateStash: () => ({ prefix: 'pre' }),
       next: 'a',
     })
     .step('a', {
       prompt: 'Go',
-      output: type({ val: 'string' }),
+      response: type({ val: 'string' }),
       action: {
         run: myAction,
-        input: ({ stepOutput, stash }) => ({ prefix: stash.prefix, val: stepOutput.val }),
+        input: ({ response, stash }) => ({ prefix: stash.prefix, val: response.val }),
       },
       next: { terminal: true },
     })
@@ -324,12 +324,12 @@ test('action output is passed to transition function', async () => {
   const s = skill({ name: 'action-in-next', entry: 'call' })
     .step('call', {
       prompt: 'Call the API',
-      output: type({ url: 'string' }),
+      response: type({ url: 'string' }),
       action: { run: apiAction },
-      next: ({ actionOutput }) => ((actionOutput as { status: number }).status === 200 ? 'success' : 'failure'),
+      next: ({ actionResult }) => ((actionResult as { status: number }).status === 200 ? 'success' : 'failure'),
     })
-    .step('success', { prompt: 'OK', output: type({}), next: { terminal: true } })
-    .step('failure', { prompt: 'Fail', output: type({}), next: { terminal: true } })
+    .step('success', { prompt: 'OK', response: type({}), next: { terminal: true } })
+    .step('failure', { prompt: 'Fail', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -344,13 +344,13 @@ test('action is undefined in next when no action configured', async () => {
   const s = skill({ name: 'no-action-next', entry: 'a' })
     .step('a', {
       prompt: 'Go',
-      output: type({ ok: 'boolean' }),
-      next: ({ actionOutput }) => {
-        capturedAction = actionOutput;
+      response: type({ ok: 'boolean' }),
+      next: ({ actionResult }) => {
+        capturedAction = actionResult;
         return 'b';
       },
     })
-    .step('b', { prompt: 'B', output: type({}), next: { terminal: true } })
+    .step('b', { prompt: 'B', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -372,10 +372,10 @@ test('afterAction stashes action result', async () => {
   const s = skill({ name: 'post-stash', entry: 'call', stash: type({ lastCode: 'number' }) })
     .step('call', {
       prompt: 'Call API',
-      output: type({ url: 'string' }),
+      response: type({ url: 'string' }),
       action: {
         run: apiAction,
-        updateStash: ({ actionOutput }) => ({ lastCode: actionOutput.responseCode }),
+        updateStash: ({ actionResult }) => ({ lastCode: actionResult.responseCode }),
       },
       next: 'report',
     })
@@ -384,7 +384,7 @@ test('afterAction stashes action result', async () => {
         capturedStash = ctx.stash;
         return 'Report';
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -411,23 +411,23 @@ test('afterAction is replayed correctly from history', () => {
         capturedStash = ctx.stash;
         return 'Call';
       },
-      output: type({ url: 'string' }),
+      response: type({ url: 'string' }),
       action: {
         run: apiAction,
-        updateStash: ({ actionOutput }) => ({ code: actionOutput.code }),
+        updateStash: ({ actionResult }) => ({ code: actionResult.code }),
       },
       next: 'report',
     })
     .step('report', {
       prompt: 'Report',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
   // Replay history with action output → afterAction should populate stash
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'call', stepOutput: { url: 'https://x.com' }, actionOutput: { code: 404 } }]);
+  engine.replayHistory([{ step: 'call', response: { url: 'https://x.com' }, actionResult: { code: 404 } }]);
   // start() builds prompt for entry step 'call', which captures stash
   engine.start();
   assert.deepEqual(capturedStash, { code: 404 });
@@ -450,17 +450,17 @@ test('action stash vs step stash: both survive replay into next prompt', async (
   })
     .step('explore', {
       prompt: 'Explore',
-      output: type({ url: 'string' }),
-      updateStash: ({ stepOutput }) => ({ fromStep: stepOutput.url }),
+      response: type({ url: 'string' }),
+      updateStash: ({ response }) => ({ fromStep: response.url }),
       action: {
         run: fetchAction,
-        updateStash: ({ actionOutput }) => ({ fromAction: actionOutput.spaceId }),
+        updateStash: ({ actionResult }) => ({ fromAction: actionResult.spaceId }),
       },
       next: 'triage',
     })
     .step('triage', {
       prompt: 'Triage',
-      output: type({ decision: 'string' }),
+      response: type({ decision: 'string' }),
       next: 'report',
     })
     .step('report', {
@@ -468,16 +468,14 @@ test('action stash vs step stash: both survive replay into next prompt', async (
         capturedStash = ctx.stash;
         return 'Report';
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
   // Simulate: explore completed (with action), triage being advanced → report prompt built
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([
-    { step: 'explore', stepOutput: { url: 'https://x.com' }, actionOutput: { spaceId: 'abc123' } },
-  ]);
+  engine.replayHistory([{ step: 'explore', response: { url: 'https://x.com' }, actionResult: { spaceId: 'abc123' } }]);
   engine.start();
   await engine.advance('triage', { decision: 'go' });
 
@@ -497,16 +495,16 @@ test('action stash survives cross-process replay into next step prompt', async (
   const s = skill({ name: 'cross-process', entry: 'explore', stash: type({ spaceId: 'string' }) })
     .step('explore', {
       prompt: 'Explore',
-      output: type({ url: 'string' }),
+      response: type({ url: 'string' }),
       action: {
         run: fetchAction,
-        updateStash: ({ actionOutput }) => ({ spaceId: actionOutput.spaceId }),
+        updateStash: ({ actionResult }) => ({ spaceId: actionResult.spaceId }),
       },
       next: 'triage',
     })
     .step('triage', {
       prompt: 'Triage',
-      output: type({ decision: 'string' }),
+      response: type({ decision: 'string' }),
       next: 'report',
     })
     .step('report', {
@@ -514,7 +512,7 @@ test('action stash survives cross-process replay into next step prompt', async (
         capturedStash = ctx.stash;
         return 'Report';
       },
-      output: type({ summary: 'string' }),
+      response: type({ summary: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -522,8 +520,8 @@ test('action stash survives cross-process replay into next step prompt', async (
   // Simulate process 3: explore and triage completed, advancing triage builds report prompt
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([
-    { step: 'explore', stepOutput: { url: 'https://x.com' }, actionOutput: { spaceId: '58j6jt5cfhic' } },
-    { step: 'triage', stepOutput: { decision: 'fix' } },
+    { step: 'explore', response: { url: 'https://x.com' }, actionResult: { spaceId: '58j6jt5cfhic' } },
+    { step: 'triage', response: { decision: 'fix' } },
   ]);
   engine.start();
   const result = await engine.advance('triage', { decision: 'fix' });
@@ -536,13 +534,13 @@ test('getStep provides typed history access', async () => {
   let stepAResult: unknown;
 
   const s = skill({ name: 'get-step', entry: 'a' })
-    .step('a', { prompt: 'A', output: type({ val: 'number' }), next: 'b' })
+    .step('a', { prompt: 'A', response: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
         stepAResult = ctx.getStep('a');
         return 'B';
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -550,7 +548,7 @@ test('getStep provides typed history access', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('a', { val: 42 });
-  assert.deepEqual(stepAResult, { stepOutput: { val: 42 }, actionOutput: undefined });
+  assert.deepEqual(stepAResult, { response: { val: 42 }, actionResult: undefined });
 });
 
 test('getStep returns undefined for missing step', async () => {
@@ -562,7 +560,7 @@ test('getStep returns undefined for missing step', async () => {
         result = ctx.getStep('nonexistent');
         return 'A';
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -576,9 +574,9 @@ test('engine returns RedirectResult when next target is not a local step', async
   const s = skill({ name: 'redirect-test', entry: 'classify', stash: type({ intent: 'string' }) })
     .step('classify', {
       prompt: 'Classify',
-      output: type({ intent: 'string' }),
-      updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
-      next: ({ stepOutput }) => `subskill:${stepOutput.intent}`,
+      response: type({ intent: 'string' }),
+      updateStash: ({ response }) => ({ intent: response.intent }),
+      next: ({ response }) => `subskill:${response.intent}`,
     })
     .build();
 
@@ -590,8 +588,8 @@ test('engine returns RedirectResult when next target is not a local step', async
   assert.equal(redirect.redirect, 'subskill:doctor');
   assert.deepEqual(redirect.completed, {
     step: 'classify',
-    stepOutput: { intent: 'doctor' },
-    actionOutput: undefined,
+    response: { intent: 'doctor' },
+    actionResult: undefined,
   });
   assert.deepEqual(redirect.stash, { intent: 'doctor' });
 });
@@ -600,8 +598,8 @@ test('engine returns RedirectResult for topic targets', async () => {
   const s = skill({ name: 'topic-redirect', entry: 'ask' })
     .step('ask', {
       prompt: 'What topic?',
-      output: type({ topic: 'string' }),
-      next: ({ stepOutput }) => `topic:${stepOutput.topic}`,
+      response: type({ topic: 'string' }),
+      next: ({ response }) => `topic:${response.topic}`,
     })
     .build();
 
@@ -615,8 +613,8 @@ test('engine returns RedirectResult for topic targets', async () => {
 
 test('engine still routes normally when next target is a local step', async () => {
   const s = skill({ name: 'normal-routing', entry: 'a' })
-    .step('a', { prompt: 'A', output: type({}), next: 'b' })
-    .step('b', { prompt: 'B', output: type({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', response: type({}), next: 'b' })
+    .step('b', { prompt: 'B', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -643,7 +641,7 @@ test('engine assembles array prompt in author order with XML tags', () => {
         }),
         'Do the work.',
       ],
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -668,7 +666,7 @@ test('engine preserves author order — system between acts', () => {
         system`Now be thorough.`,
         'Build everything.',
       ],
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -696,7 +694,7 @@ test('engine renders act segment in prompt array', () => {
         }),
         'Additional context.',
       ],
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -717,7 +715,7 @@ test('engine renders subagent with no-recurse attribute', () => {
         prompt: 'Do research.',
         output: type({ result: 'string' }),
       }),
-      output: type({ result: 'string' }),
+      response: type({ result: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -737,7 +735,7 @@ test('engine renders subagent without no-recurse when allowRecursion is true', (
         output: type({ result: 'string' }),
         allowRecursion: true,
       }),
-      output: type({ result: 'string' }),
+      response: type({ result: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -753,7 +751,7 @@ test('engine renders view segment as <rendered> tag', () => {
   const s = skill({ name: 'view-test', entry: 'a' })
     .step('a', {
       prompt: [view('# Hello World'), 'Show the card.'],
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -769,7 +767,7 @@ test('engine renders named view segment with name attribute', () => {
   const s = skill({ name: 'named-view-test', entry: 'a' })
     .step('a', {
       prompt: [view('stats', '# Stats'), 'Show the stats.'],
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -784,7 +782,7 @@ test('engine injects skill-level system into preamble', () => {
   const s = skill({ name: 'system-test', entry: 'a', system: 'You are helpful.' })
     .step('a', {
       prompt: 'Do something.',
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -800,7 +798,7 @@ test('engine injects skill-level system into preamble', () => {
 
 test('isPromptless returns true for steps without prompt', () => {
   const s = skill({ name: 'promptless', entry: 'gate' })
-    .step('gate', { output: type({}), next: { terminal: true } })
+    .step('gate', { response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -809,7 +807,7 @@ test('isPromptless returns true for steps without prompt', () => {
 
 test('isPromptless returns false for steps with prompt', () => {
   const s = skill({ name: 'prompted', entry: 'a' })
-    .step('a', { prompt: 'Go', output: type({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -819,13 +817,13 @@ test('isPromptless returns false for steps with prompt', () => {
 test('prompt-less step can be advanced with empty output', async () => {
   const s = skill({ name: 'gate-advance', entry: 'gate', stash: type({ routed: 'boolean' }) })
     .step('gate', {
-      output: type({}),
+      response: type({}),
       updateStash: () => ({ routed: true }),
       next: 'main',
     })
     .step('main', {
       prompt: (ctx) => `Routed: ${ctx.stash.routed}`,
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -864,8 +862,8 @@ test('prompt-less + output-less step is a pure routing gate', async () => {
     .step('gate', {
       next: ({ params }) => (params.fast ? 'quick' : 'full'),
     })
-    .step('quick', { prompt: 'Quick mode', output: type({}), next: { terminal: true } })
-    .step('full', { prompt: 'Full mode', output: type({}), next: { terminal: true } })
+    .step('quick', { prompt: 'Quick mode', response: type({}), next: { terminal: true } })
+    .step('full', { prompt: 'Full mode', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, { fast: true });
@@ -889,11 +887,11 @@ test('prompt-less step with action runs action before transitioning', async () =
 
   const s = skill({ name: 'gate-action', entry: 'check' })
     .step('check', {
-      output: type({}),
+      response: type({}),
       action: { run: checkAction },
       next: 'main',
     })
-    .step('main', { prompt: 'Go', output: type({}), next: { terminal: true } })
+    .step('main', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -907,10 +905,10 @@ test('engine with required params can be reconstructed for advance', async () =>
   const s = skill({ name: 'param-advance', entry: 'a', params: type({ target: 'string' }) })
     .step('a', {
       prompt: (ctx) => `Target: ${(ctx.params as { target: string }).target}`,
-      output: type({ ok: 'boolean' }),
+      response: type({ ok: 'boolean' }),
       next: 'b',
     })
-    .step('b', { prompt: 'Done', output: type({}), next: { terminal: true } })
+    .step('b', { prompt: 'Done', response: type({}), next: { terminal: true } })
     .build();
 
   const params = { target: 'https://example.com' };
@@ -920,7 +918,7 @@ test('engine with required params can be reconstructed for advance', async () =>
   assert.equal((r1 as PromptResult).step, 'b');
 
   const engine2 = new WorkflowEngine(s, genericHost, params);
-  engine2.replayHistory([{ step: 'a', stepOutput: { ok: true } }]);
+  engine2.replayHistory([{ step: 'a', response: { ok: true } }]);
   engine2.start();
   const r2 = await engine2.advance('b', {});
   assert.equal((r2 as DoneResult).done, true);

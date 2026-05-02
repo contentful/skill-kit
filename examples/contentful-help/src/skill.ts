@@ -22,26 +22,26 @@ export default skill({
         { value: 'faq', label: 'Quick question', description: 'Look up reference information' },
       ],
     }),
-    output: type({ choice: "'doctor' | 'setup' | 'faq'" }),
-    updateStash: ({ stepOutput }) => ({ intent: stepOutput.choice, spaceId: '' }),
-    next: ({ stepOutput }) => {
-      if (stepOutput.choice === 'faq') return 'ask-topic';
-      if (stepOutput.choice === 'doctor') return 'get-space';
-      return `subskill:${stepOutput.choice}`;
+    response: type({ choice: "'doctor' | 'setup' | 'faq'" }),
+    updateStash: ({ response }) => ({ intent: response.choice, spaceId: '' }),
+    next: ({ response }) => {
+      if (response.choice === 'faq') return 'ask-topic';
+      if (response.choice === 'doctor') return 'get-space';
+      return `subskill:${response.choice}`;
     },
   })
 
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environment.',
-    output: type({ spaceId: 'string' }),
-    updateStash: ({ stepOutput }) => ({ intent: 'doctor', spaceId: stepOutput.spaceId }),
+    response: type({ spaceId: 'string' }),
+    updateStash: ({ response }) => ({ intent: 'doctor', spaceId: response.spaceId }),
     next: 'subskill:doctor',
   })
 
   .step('ask-topic', {
     prompt: act.askUser({ type: 'open', question: 'What would you like to know about?' }),
-    output: type({ topicName: 'string' }),
-    next: ({ stepOutput }) => `topic:${stepOutput.topicName}`,
+    response: type({ topicName: 'string' }),
+    next: ({ response }) => `topic:${response.topicName}`,
   })
 
   .topic('rate-limits', {

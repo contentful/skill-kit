@@ -78,7 +78,7 @@ class CompositeSession implements McpSession {
         };
       }
 
-      const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+      const params = sub.paramsMap ? sub.paramsMap(redirect.completed.response, redirect.stash) : {};
       const subEngine = new SubskillEngine(sub.definition, this.handshake, params, this.refs, subName);
       this.engine = subEngine;
 

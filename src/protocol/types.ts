@@ -2,8 +2,8 @@ import { type } from 'arktype';
 
 export const HistoryEntrySchema = type({
   step: 'string',
-  stepOutput: 'unknown',
-  'actionOutput?': 'unknown',
+  response: 'unknown',
+  'actionResult?': 'unknown',
 });
 
 export type HistoryEntry = typeof HistoryEntrySchema.infer;

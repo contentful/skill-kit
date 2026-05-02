@@ -3,11 +3,11 @@ import type { StepResult } from '../types.js';
 export class History {
   private readonly results: StepResult[] = [];
 
-  append(step: string, stepOutput: unknown, actionOutput?: unknown): void {
+  append(step: string, response: unknown, actionResult?: unknown): void {
     const result: StepResult = Object.freeze({
       step,
-      stepOutput,
-      actionOutput,
+      response,
+      actionResult,
     });
     this.results.push(result);
   }
@@ -18,10 +18,10 @@ export class History {
 
   get<TOutput = unknown, TAction = unknown>(
     stepName: string,
-  ): { stepOutput: TOutput; actionOutput: TAction } | undefined {
+  ): { response: TOutput; actionResult: TAction } | undefined {
     const result = this.results.find((r) => r.step === stepName);
     if (!result) return undefined;
-    return { stepOutput: result.stepOutput as TOutput, actionOutput: result.actionOutput as TAction };
+    return { response: result.response as TOutput, actionResult: result.actionResult as TAction };
   }
 
   all(): readonly StepResult[] {

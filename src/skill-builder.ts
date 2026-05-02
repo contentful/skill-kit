@@ -6,7 +6,7 @@ import type {
   StepDefinition,
   ModuleDefinition,
   ActionDefinition,
-  InferActionOutput,
+  InferActionResult,
   SubskillRegistration,
   TopicConfig,
 } from './types.js';
@@ -52,7 +52,7 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
             TOutput,
             TParams,
             TStash,
-            A extends ActionDefinition<any, any> ? InferActionOutput<A> : undefined,
+            A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
             TSteps
           >,
           'action'
@@ -60,8 +60,8 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
           action?: A extends ActionDefinition<any, any>
             ? {
                 run: A;
-                input?: (ctx: { stepOutput: TOutput['infer']; stash: Readonly<TStash>; params: TParams }) => unknown;
-                updateStash?: (ctx: { actionOutput: InferActionOutput<A> }) => Partial<TStash>;
+                input?: (ctx: { response: TOutput['infer']; stash: Readonly<TStash>; params: TParams }) => unknown;
+                updateStash?: (ctx: { actionResult: InferActionResult<A> }) => Partial<TStash>;
               }
             : undefined;
         })
@@ -71,8 +71,8 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
       this.steps[name] = configOrDef;
     } else {
       const config = configOrDef as StepConfig;
-      if (config.action && !config.action.input && config.output) {
-        checkActionInputCompat(name, config.output, config.action.run);
+      if (config.action && !config.action.input && config.response) {
+        checkActionInputCompat(name, config.response, config.action.run);
       }
       this.steps[name] = createStep(config);
     }
@@ -111,7 +111,7 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
   subskill(
     name: string,
     definition: SkillDefinition,
-    opts?: { params?: (stepOutput: unknown, stash: unknown) => unknown },
+    opts?: { params?: (response: unknown, stash: unknown) => unknown },
   ): SkillBuilder<TParams, TStash, TSteps> {
     if (definition.subskills && Object.keys(definition.subskills).length > 0) {
       throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);

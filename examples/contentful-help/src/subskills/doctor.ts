@@ -12,19 +12,19 @@ export default skill({
     prompt: ({ params }) =>
       `Check the Contentful space "${params.spaceId}" for common issues. ` +
       'Look for: missing locales, unpublished entries, broken references, rate limit issues.',
-    output: type({
+    response: type({
       issues: 'string[]',
       healthy: 'boolean',
     }),
-    updateStash: ({ stepOutput }) => ({ issues: stepOutput.issues }),
-    next: ({ stepOutput }) => (stepOutput.healthy ? 'report-clean' : 'suggest-fix'),
+    updateStash: ({ response }) => ({ issues: response.issues }),
+    next: ({ response }) => (response.healthy ? 'report-clean' : 'suggest-fix'),
   })
 
   .step('suggest-fix', {
     prompt: ({ stash }) =>
       `Found issues: ${stash.issues.join(', ')}. Suggest fixes for each issue. ` +
       'Explain what each fix does and any risks.',
-    output: type({
+    response: type({
       fixes: type({ issue: 'string', fix: 'string' }).array(),
     }),
     next: 'confirm-fix',
@@ -39,25 +39,25 @@ export default skill({
         { value: 'skip', label: 'Skip', description: 'Show report without fixing' },
       ],
     }),
-    output: type({ choice: "'apply' | 'skip'" }),
-    next: ({ stepOutput }) => (stepOutput.choice === 'apply' ? 'apply-fix' : 'report-issues'),
+    response: type({ choice: "'apply' | 'skip'" }),
+    next: ({ response }) => (response.choice === 'apply' ? 'apply-fix' : 'report-issues'),
   })
 
   .step('apply-fix', {
     prompt: 'Apply the fixes and report results.',
-    output: type({ applied: 'number', failed: 'number' }),
+    response: type({ applied: 'number', failed: 'number' }),
     next: 'report-issues',
   })
 
   .step('report-issues', {
     prompt: ({ stash }) => `Summarize: found ${stash.issues.length} issue(s). Report the status of each.`,
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
 
   .step('report-clean', {
     prompt: 'The space is healthy! Report a clean bill of health.',
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();

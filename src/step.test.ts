@@ -6,7 +6,7 @@ import { step } from './step.js';
 test('step() creates a frozen StepDefinition', () => {
   const s = step({
     prompt: 'Do something.',
-    output: type({ done: 'boolean' }),
+    response: type({ done: 'boolean' }),
     next: 'other-step',
   });
 
@@ -19,7 +19,7 @@ test('step() creates a frozen StepDefinition', () => {
 test('step() supports terminal next', () => {
   const s = step({
     prompt: 'Final.',
-    output: type({}),
+    response: type({}),
     next: { terminal: true },
   });
 
@@ -27,10 +27,10 @@ test('step() supports terminal next', () => {
 });
 
 test('step() supports function next', () => {
-  const fn = ({ stepOutput }: { stepOutput: { ok: boolean } }) => (stepOutput.ok ? 'done' : 'retry');
+  const fn = ({ response }: { response: { ok: boolean } }) => (response.ok ? 'done' : 'retry');
   const s = step({
     prompt: 'Check.',
-    output: type({ ok: 'boolean' }),
+    response: type({ ok: 'boolean' }),
     next: fn,
   });
 
@@ -40,7 +40,7 @@ test('step() supports function next', () => {
 test('step.extend() overrides next while preserving other config', () => {
   const original = step({
     prompt: 'Do work.',
-    output: type({ result: 'string' }),
+    response: type({ result: 'string' }),
     next: '__parent__',
   });
 
@@ -54,7 +54,7 @@ test('step.extend() overrides next while preserving other config', () => {
 test('step.extend() overrides prompt', () => {
   const original = step({
     prompt: 'Original.',
-    output: type({}),
+    response: type({}),
     next: 'done',
   });
 
@@ -67,9 +67,9 @@ test('step.extend() overrides prompt', () => {
 test('step() allows omitting output for output-less steps', () => {
   const s = step({ prompt: 'Display only', next: { terminal: true } });
   assert.equal(s.kind, 'step');
-  assert.equal(s.config.output, undefined);
+  assert.equal(s.config.response, undefined);
 });
 
 test('step() throws on missing next', () => {
-  assert.throws(() => step({ prompt: 'x', output: type({}), next: undefined as never }), /next is required/);
+  assert.throws(() => step({ prompt: 'x', response: type({}), next: undefined as never }), /next is required/);
 });

@@ -14,17 +14,17 @@ const CheckResult = type({
 const doctor = skill({ name: 'repo-doctor', entry: 'diagnose' })
   .step('diagnose', {
     prompt: 'Inspect the repository and report failed health checks.',
-    output: type({ checks: CheckResult.array() }),
-    next: ({ stepOutput }) => (stepOutput.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+    response: type({ checks: CheckResult.array() }),
+    next: ({ response }) => (response.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
   })
   .step('remediate', {
     prompt: 'Fix the failing checks.',
-    output: type({ remediations: type({ check: 'string', action: 'string' }).array() }),
+    response: type({ remediations: type({ check: 'string', action: 'string' }).array() }),
     next: 'report',
   })
   .step('report', {
     prompt: 'Generate a report.',
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -60,14 +60,14 @@ test('runSkill provides final stepOutput', async () => {
     }),
   });
 
-  assert.deepEqual(result.stepOutput, { summary: 'Nothing to do' });
+  assert.deepEqual(result.response, { summary: 'Nothing to do' });
 });
 
 test('runSkill with params overrides', async () => {
   const s = skill({ name: 'ctx-skill', entry: 'a', params: type({ path: 'string = "."' }) })
     .step('a', {
       prompt: (ctx) => `Analyze ${ctx.params.path}`,
-      output: type({ done: 'boolean' }),
+      response: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();
@@ -77,12 +77,12 @@ test('runSkill with params overrides', async () => {
     model: mockModel({ a: { done: true } }),
   });
 
-  assert.deepEqual(result.stepOutput, { done: true });
+  assert.deepEqual(result.response, { done: true });
 });
 
 test('runSkill throws on schema mismatch', async () => {
   const s = skill({ name: 'strict', entry: 'a' })
-    .step('a', { prompt: 'Go', output: type({ count: 'number' }), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({ count: 'number' }), next: { terminal: true } })
     .build();
 
   await assert.rejects(() => runSkill(s, { model: mockModel({ a: { count: 'not-a-number' } }) }), /Validation error/);
@@ -92,7 +92,7 @@ test('mockModel with function adapter', async () => {
   const s = skill({ name: 'fn-mock', entry: 'a' })
     .step('a', {
       prompt: 'Do it',
-      output: type({ answer: 'string' }),
+      response: type({ answer: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -101,19 +101,19 @@ test('mockModel with function adapter', async () => {
     model: mockModel({ a: (prompt: string) => ({ answer: `Got: ${prompt}` }) }),
   });
 
-  assert.ok((result.stepOutput as { answer: string }).answer.includes('Do it'));
+  assert.ok((result.response as { answer: string }).answer.includes('Do it'));
 });
 
 test('mockModel with array for repeated visits', async () => {
   const s = skill({ name: 'loop-skill', entry: 'retry' })
     .step('retry', {
       prompt: 'Try',
-      output: type({ confidence: 'number' }),
-      next: ({ stepOutput }) => (stepOutput.confidence >= 0.8 ? 'done' : 'retry'),
+      response: type({ confidence: 'number' }),
+      next: ({ response }) => (response.confidence >= 0.8 ? 'done' : 'retry'),
       maxVisits: 3,
       onMaxVisits: 'done',
     })
-    .step('done', { prompt: 'Done', output: type({}), next: { terminal: true } })
+    .step('done', { prompt: 'Done', response: type({}), next: { terminal: true } })
     .build();
 
   const result = await runSkill(s, {
@@ -131,8 +131,8 @@ test('runSkill auto-advances prompt-less steps', async () => {
     .step('gate', {
       next: ({ params }) => (params.skip ? 'fast' : 'slow'),
     })
-    .step('fast', { prompt: 'Fast path', output: type({}), next: { terminal: true } })
-    .step('slow', { prompt: 'Slow path', output: type({}), next: { terminal: true } })
+    .step('fast', { prompt: 'Fast path', response: type({}), next: { terminal: true } })
+    .step('slow', { prompt: 'Slow path', response: type({}), next: { terminal: true } })
     .build();
 
   const result = await runSkill(s, {
@@ -145,7 +145,7 @@ test('runSkill auto-advances prompt-less steps', async () => {
 
 test('runSkill handles output-less terminal step', async () => {
   const s = skill({ name: 'outputless', entry: 'work' })
-    .step('work', { prompt: 'Do work', output: type({ done: 'boolean' }), next: 'farewell' })
+    .step('work', { prompt: 'Do work', response: type({ done: 'boolean' }), next: 'farewell' })
     .step('farewell', { prompt: 'Goodbye', next: { terminal: true } })
     .build();
 

@@ -27,7 +27,7 @@ const writeProfile = action({
 // --- Reusable open-ended question step ---
 
 const openQuestionStep = step({
-  output: type({ answer: 'string' }),
+  response: type({ answer: 'string' }),
   next: '__parent__',
 });
 
@@ -71,8 +71,8 @@ export default skill({
       ${params.greeting} You're about to interview the user to build their developer trading card.
       Start by asking their name. Be warm and enthusiastic — first impressions matter!
     `,
-    output: type({ name: 'string' }),
-    updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
+    response: type({ name: 'string' }),
+    updateStash: ({ response }) => ({ name: response.name }),
     next: 'ask-role',
   })
 
@@ -87,10 +87,10 @@ export default skill({
         { value: 'other', label: 'Something else', description: 'I defy your categories' },
       ],
     }),
-    output: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
-    updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
-    next: ({ stepOutput }) => {
-      switch (stepOutput.role) {
+    response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
+    updateStash: ({ response }) => ({ role: response.role }),
+    next: ({ response }) => {
+      switch (response.role) {
         case 'dev':
           return 'ask-stack';
         case 'designer':
@@ -146,14 +146,14 @@ export default skill({
         : 'Ask if they have another hobby they want on their card, or if they are done.',
       act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     ],
-    output: type({
+    response: type({
       hobby: 'string',
       wantsMore: 'boolean',
     }),
-    updateStash: ({ stepOutput }) => ({ latestHobby: stepOutput.hobby }),
+    updateStash: ({ response }) => ({ latestHobby: response.hobby }),
     maxVisits: 2,
     onMaxVisits: 'confirm-profile',
-    next: ({ stepOutput }) => (stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+    next: ({ response }) => (response.wantsMore ? 'ask-hobby' : 'confirm-profile'),
   })
 
   .step('confirm-profile', {
@@ -161,8 +161,8 @@ export default skill({
       message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
       defaultAnswer: 'yes',
     }),
-    output: type({ approved: 'boolean' }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'profile-card' : 'ask-hobby'),
+    response: type({ approved: 'boolean' }),
+    next: ({ response }) => (response.approved ? 'profile-card' : 'ask-hobby'),
     maxVisits: 3,
     onMaxVisits: 'profile-card',
   })
@@ -173,15 +173,13 @@ export default skill({
       const role = stash.role ?? 'Enigma';
 
       const specialty =
-        getStep('ask-stack')?.stepOutput.answer ??
-        getStep('ask-tools')?.stepOutput.answer ??
-        getStep('ask-team-size')?.stepOutput.answer ??
-        getStep('ask-specialty')?.stepOutput.answer ??
+        getStep('ask-stack')?.response.answer ??
+        getStep('ask-tools')?.response.answer ??
+        getStep('ask-team-size')?.response.answer ??
+        getStep('ask-specialty')?.response.answer ??
         'Classified';
 
-      const hobbies = history
-        .filter((s) => s.step === 'ask-hobby')
-        .map((s) => (s.stepOutput as { hobby: string }).hobby);
+      const hobbies = history.filter((s) => s.step === 'ask-hobby').map((s) => (s.response as { hobby: string }).hobby);
 
       let funFact = '';
       try {
@@ -218,7 +216,7 @@ export default skill({
 
       return [view(card), 'Present the rendered trading card verbatim.'];
     },
-    output: type({
+    response: type({
       card: 'string',
       profile: ProfileSchema,
     }),

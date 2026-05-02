@@ -18,17 +18,17 @@ const scanAction = action({
 const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ scanResult: 'string' }) })
   .step('diagnose', {
     prompt: 'Diagnose.',
-    output: type({ issue: 'string' }),
+    response: type({ issue: 'string' }),
     action: {
       run: scanAction,
-      input: ({ stepOutput }) => ({ path: stepOutput.issue }),
-      updateStash: ({ actionOutput }) => ({ scanResult: actionOutput.found }),
+      input: ({ response }) => ({ path: response.issue }),
+      updateStash: ({ actionResult }) => ({ scanResult: actionResult.found }),
     },
     next: 'report',
   })
   .step('report', {
     prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -84,13 +84,13 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
   const stashSkill = skill({ name: 'doc', entry: 'a', stash: type({ val: 'string' }) })
     .step('a', {
       prompt: 'A',
-      output: type({ v: 'string' }),
-      updateStash: ({ stepOutput }) => ({ val: stepOutput.v }),
+      response: type({ v: 'string' }),
+      updateStash: ({ response }) => ({ val: response.v }),
       next: 'b',
     })
     .step('b', {
       prompt: 'B',
-      output: type({ x: 'string' }),
+      response: type({ x: 'string' }),
       next: 'c',
     })
     .step('c', {
@@ -98,7 +98,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
         capturedStash = ctx.stash;
         return 'C';
       },
-      output: type({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -106,9 +106,9 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
   const sub = new SubskillEngine(stashSkill, genericHost, {}, { load: () => '', asset: (p) => p }, 'doc');
   // Mixed history: dispatcher entry, this subskill entry, another subskill entry
   sub.replayHistory([
-    { step: 'classify', stepOutput: { intent: 'doc' } },
-    { step: 'doc/a', stepOutput: { v: 'hello' } },
-    { step: 'other/x', stepOutput: {} },
+    { step: 'classify', response: { intent: 'doc' } },
+    { step: 'doc/a', response: { v: 'hello' } },
+    { step: 'other/x', response: {} },
   ]);
   sub.startForReplay();
   // Advance b → builds c prompt which captures stash

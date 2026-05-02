@@ -11,22 +11,22 @@ const scanAction = action({
 const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ scanResult: 'string' }) })
   .step('diagnose', {
     prompt: 'Diagnose the issue.',
-    output: type({ issue: 'string' }),
+    response: type({ issue: 'string' }),
     action: {
       run: scanAction,
-      input: ({ stepOutput }) => ({ path: stepOutput.issue }),
-      updateStash: ({ actionOutput }) => ({ scanResult: actionOutput.found }),
+      input: ({ response }) => ({ path: response.issue }),
+      updateStash: ({ actionResult }) => ({ scanResult: actionResult.found }),
     },
     next: 'triage',
   })
   .step('triage', {
     prompt: 'Triage the findings.',
-    output: type({ priority: 'string' }),
+    response: type({ priority: 'string' }),
     next: 'report',
   })
   .step('report', {
     prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
-    output: type({ summary: 'string' }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -34,7 +34,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ sca
 const setupSkill = skill({ name: 'setup', entry: 'configure' })
   .step('configure', {
     prompt: 'Configure the space.',
-    output: type({ done: 'boolean' }),
+    response: type({ done: 'boolean' }),
     next: { terminal: true },
   })
   .build();
@@ -47,11 +47,11 @@ const composite = skill({
 })
   .step('classify', {
     prompt: 'Classify intent.',
-    output: type({ intent: 'string' }),
-    updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
-    next: ({ stepOutput }) => {
-      if (stepOutput.intent === 'faq') return 'topic:basics';
-      return `subskill:${stepOutput.intent}`;
+    response: type({ intent: 'string' }),
+    updateStash: ({ response }) => ({ intent: response.intent }),
+    next: ({ response }) => {
+      if (response.intent === 'faq') return 'topic:basics';
+      return `subskill:${response.intent}`;
     },
   })
   .topic('basics', { label: 'Basic FAQ', content: () => 'This is the basics FAQ content.' })
