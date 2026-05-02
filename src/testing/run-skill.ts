@@ -1,5 +1,6 @@
 import type { SkillDefinition, Handshake, ModelAdapter, SkillRunResult, CliResult } from '../types.js';
 import { WorkflowEngine } from '../runtime/engine.js';
+import { StateStore } from '../runtime/state-store.js';
 
 export interface RunSkillOptions {
   params?: Record<string, unknown>;
@@ -34,12 +35,15 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
   const engine = new WorkflowEngine(skill, handshake, opts.params ?? {});
   const startResult = engine.start();
 
+  // Access the internal state store for the result
+  const state: StateStore = engine['state'];
+
   const path: string[] = [];
   const outputs: Record<string, unknown> = {};
 
   let initial = await drainPromptless(engine, startResult, path);
   if (initial.kind === 'done') {
-    return { path, outputs, response: initial.finalOutput, history: engine['history'].all() };
+    return { path, outputs, response: initial.finalOutput, history: state.all(), store: state.buildAccessor() };
   }
   if (initial.kind !== 'prompt') {
     throw new Error(`Unexpected result kind "${initial.kind}" at start`);
@@ -65,7 +69,8 @@ export async function runSkill(skill: SkillDefinition, opts: RunSkillOptions): P
         path,
         outputs,
         response: drained.finalOutput,
-        history: engine['history'].all(),
+        history: state.all(),
+        store: state.buildAccessor(),
       };
     }
 

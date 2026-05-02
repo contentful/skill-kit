@@ -47,14 +47,6 @@ export default skill({
   params: type({
     difficulty: "'beginner' | 'intermediate' | 'advanced' = 'intermediate'",
   }),
-
-  stash: type({
-    name: 'string',
-    variant: 'string',
-    renderer: 'string',
-    researchSummary: 'string',
-    readme: 'string',
-  }),
 })
   // --- Choose variant (askUser structured) ---
   .step('choose-variant', {
@@ -68,7 +60,6 @@ export default skill({
       ],
     }),
     response: type({ variant: "'classic' | 'modern' | 'puzzle'" }),
-    updateStash: ({ response }) => ({ variant: response.variant }),
     next: 'name-game',
   })
 
@@ -76,7 +67,6 @@ export default skill({
   .step('name-game', {
     prompt: act.askUser({ type: 'open', question: 'What should we call your game?' }),
     response: type({ name: 'string' }),
-    updateStash: ({ response }) => ({ name: response.name }),
     next: 'choose-renderer',
   })
 
@@ -92,58 +82,70 @@ export default skill({
       ],
     }),
     response: type({ renderer: "'canvas' | 'dom' | 'webgl'" }),
-    updateStash: ({ response }) => ({ renderer: response.renderer }),
     next: 'design-review',
   })
 
   // --- Design review (confirm) ---
   .step('design-review', {
-    prompt: ({ stash }) => [
-      act.confirm({
-        message: 'Design choices are locked in. Ready to start planning the build?',
-        defaultAnswer: 'yes',
-      }),
-      prompt`Summarize the design so far: a ${stash.variant} Tetris game called "${stash.name}" using ${stash.renderer} rendering.`,
-    ],
+    prompt: ({ store }) => {
+      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
+      const name = store.maybe('name-game')?.name ?? 'unnamed';
+      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      return [
+        act.confirm({
+          message: 'Design choices are locked in. Ready to start planning the build?',
+          defaultAnswer: 'yes',
+        }),
+        prompt`Summarize the design so far: a ${variant} Tetris game called "${name}" using ${renderer} rendering.`,
+      ];
+    },
     response: type({ approved: 'boolean' }),
     next: ({ response }) => (response.approved ? 'research-renderer' : 'choose-variant'),
   })
 
   // --- Research renderer (subagent) ---
   .step('research-renderer', {
-    prompt: ({ stash, refs }) => [
-      act.subagent({
-        prompt:
-          'Research best practices for the chosen rendering approach. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
-        output: type({ summary: 'string' }),
-      }),
-      prompt`
-        We're building a Tetris game with ${stash.renderer} rendering.
-        Reference material:
-        ${refs.load('tetris-patterns.md')}
-      `,
-    ],
+    prompt: ({ store, refs }) => {
+      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      return [
+        act.subagent({
+          prompt:
+            'Research best practices for the chosen rendering approach. Cover performance tips, animation patterns, and common pitfalls. Return a concise summary.',
+          output: type({ summary: 'string' }),
+        }),
+        prompt`
+          We're building a Tetris game with ${renderer} rendering.
+          Reference material:
+          ${refs.load('tetris-patterns.md')}
+        `,
+      ];
+    },
     response: type({ summary: 'string' }),
-    updateStash: ({ response }) => ({ researchSummary: response.summary }),
     next: 'implementation-plan',
   })
 
-  // --- Implementation plan (act.plan — dynamic from stash) ---
+  // --- Implementation plan (act.plan — dynamic from store) ---
   .step('implementation-plan', {
-    prompt: ({ stash, act }) => [
-      act.plan({
-        summary: `Build "${stash.name}" — a ${stash.variant} Tetris game with ${stash.renderer} rendering`,
-        steps: [
-          'Set up the game board data structure (10×20 grid)',
-          'Implement the piece system with all 7 tetrominoes',
-          'Add keyboard controls (move, rotate, drop)',
-          'Build the scoring and level system',
-          `Create the ${stash.renderer} renderer and game loop`,
-          'Add theme and visual polish',
-        ],
-      }),
-      prompt`Research notes: ${stash.researchSummary}`,
-    ],
+    prompt: ({ store, act }) => {
+      const name = store.maybe('name-game')?.name ?? 'unnamed';
+      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
+      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      const researchSummary = store.maybe('research-renderer')?.summary ?? '';
+      return [
+        act.plan({
+          summary: `Build "${name}" — a ${variant} Tetris game with ${renderer} rendering`,
+          steps: [
+            'Set up the game board data structure (10×20 grid)',
+            'Implement the piece system with all 7 tetrominoes',
+            'Add keyboard controls (move, rotate, drop)',
+            'Build the scoring and level system',
+            `Create the ${renderer} renderer and game loop`,
+            'Add theme and visual polish',
+          ],
+        }),
+        prompt`Research notes: ${researchSummary}`,
+      ];
+    },
     response: type({ approved: 'boolean', 'modifications?': 'string' }),
     next: ({ response }) => (response.approved ? 'build' : 'revise-plan'),
   })
@@ -156,44 +158,54 @@ export default skill({
 
   // --- Build (checklist + work in one step via array composition) ---
   .step('build', {
-    prompt: ({ stash, act, system }) => [
-      system`Be methodical — complete each checklist item before moving to the next.`,
+    prompt: ({ store, act, system }) => {
+      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
+      const name = store.maybe('name-game')?.name ?? 'unnamed';
+      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      const researchSummary = store.maybe('research-renderer')?.summary ?? '';
+      return [
+        system`Be methodical — complete each checklist item before moving to the next.`,
 
-      act.checklist({
-        create: [
-          { title: 'Board data structure', status: 'pending' },
-          { title: 'Piece system (7 tetrominoes)', status: 'pending' },
-          { title: 'Keyboard controls', status: 'pending' },
-          { title: 'Scoring and levels', status: 'pending' },
-          { title: `${stash.renderer} renderer and game loop`, status: 'pending' },
-          { title: 'Visual polish', status: 'pending' },
-        ],
-      }),
+        act.checklist({
+          create: [
+            { title: 'Board data structure', status: 'pending' },
+            { title: 'Piece system (7 tetrominoes)', status: 'pending' },
+            { title: 'Keyboard controls', status: 'pending' },
+            { title: 'Scoring and levels', status: 'pending' },
+            { title: `${renderer} renderer and game loop`, status: 'pending' },
+            { title: 'Visual polish', status: 'pending' },
+          ],
+        }),
 
-      prompt`
-        Build the ${stash.variant} Tetris game "${stash.name}" using ${stash.renderer} rendering.
-        Create the game files. Update each checklist item as you complete it.
-        Research notes: ${stash.researchSummary}
-      `,
-    ],
+        prompt`
+          Build the ${variant} Tetris game "${name}" using ${renderer} rendering.
+          Create the game files. Update each checklist item as you complete it.
+          Research notes: ${researchSummary}
+        `,
+      ];
+    },
     response: type({ filesCreated: 'string[]', summary: 'string' }),
     next: 'generate-readme',
   })
 
   // --- Generate README (subagent) ---
   .step('generate-readme', {
-    prompt: ({ stash }) => [
-      act.subagent({
-        prompt:
-          'Write a README.md for the game. Include: project title, description, controls, how to run, and credits. Return the markdown as a string.',
-        output: type({ readme: 'string' }),
-      }),
-      prompt`
-        The game "${stash.name}" is a ${stash.variant}-style Tetris using ${stash.renderer} rendering.
-      `,
-    ],
+    prompt: ({ store }) => {
+      const name = store.maybe('name-game')?.name ?? 'unnamed';
+      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
+      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      return [
+        act.subagent({
+          prompt:
+            'Write a README.md for the game. Include: project title, description, controls, how to run, and credits. Return the markdown as a string.',
+          output: type({ readme: 'string' }),
+        }),
+        prompt`
+          The game "${name}" is a ${variant}-style Tetris using ${renderer} rendering.
+        `,
+      ];
+    },
     response: type({ readme: 'string' }),
-    updateStash: ({ response }) => ({ readme: response.readme }),
     next: 'final-review',
   })
 
@@ -217,38 +229,43 @@ export default skill({
 
   // --- Summary card (terminal) ---
   .step('summary', {
-    prompt: ({ stash }) => [
-      view(
-        render.section(
-          'Game Jam Complete!',
-          [
-            render.kv({
-              Game: stash.name,
-              Variant: stash.variant,
-              Renderer: stash.renderer,
-            }),
-            '',
-            render.checklist([
-              { text: 'Board data structure', done: true },
-              { text: 'Piece system', done: true },
-              { text: 'Keyboard controls', done: true },
-              { text: 'Scoring and levels', done: true },
-              { text: 'Renderer and game loop', done: true },
-              { text: 'README', done: true },
-            ]),
-          ].join('\n'),
+    prompt: ({ store }) => {
+      const name = store.maybe('name-game')?.name ?? 'unnamed';
+      const variant = store.maybe('choose-variant')?.variant ?? 'unknown';
+      const renderer = store.maybe('choose-renderer')?.renderer ?? 'unknown';
+      return [
+        view(
+          render.section(
+            'Game Jam Complete!',
+            [
+              render.kv({
+                Game: name,
+                Variant: variant,
+                Renderer: renderer,
+              }),
+              '',
+              render.checklist([
+                { text: 'Board data structure', done: true },
+                { text: 'Piece system', done: true },
+                { text: 'Keyboard controls', done: true },
+                { text: 'Scoring and levels', done: true },
+                { text: 'Renderer and game loop', done: true },
+                { text: 'README', done: true },
+              ]),
+            ].join('\n'),
+          ),
         ),
-      ),
-      'Present the rendered summary card verbatim.',
-    ],
+        'Present the rendered summary card verbatim.',
+      ];
+    },
     response: type({ summary: 'string' }),
     action: {
       run: saveGameConfig,
-      input: ({ stash }) => ({
+      input: ({ store }) => ({
         config: {
-          name: stash.name,
-          variant: stash.variant,
-          renderer: stash.renderer,
+          name: store.maybe('name-game')?.name ?? '',
+          variant: store.maybe('choose-variant')?.variant ?? 'classic',
+          renderer: store.maybe('choose-renderer')?.renderer ?? 'canvas',
         },
       }),
     },

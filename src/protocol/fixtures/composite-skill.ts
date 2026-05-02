@@ -8,14 +8,13 @@ const scanAction = action({
   run: async ({ input }) => ({ found: `scanned:${input.path}` }),
 });
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ scanResult: 'string' }) })
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
   .step('diagnose', {
     prompt: 'Diagnose the issue.',
     response: type({ issue: 'string' }),
     action: {
       run: scanAction,
       input: ({ response }) => ({ path: response.issue }),
-      updateStash: ({ actionResult }) => ({ scanResult: actionResult.found }),
     },
     next: 'triage',
   })
@@ -25,7 +24,10 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ sca
     next: 'report',
   })
   .step('report', {
-    prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
+    prompt: (ctx) => {
+      const record = ctx.store.history.find((r) => r.step === 'diagnose');
+      return `Report: scanResult=${JSON.stringify((record?.actionResult as { found: string })?.found)}`;
+    },
     response: type({ summary: 'string' }),
     next: { terminal: true },
   })
@@ -43,12 +45,10 @@ const composite = skill({
   name: 'helper',
   entry: 'classify',
   params: type({ query: 'string = ""' }),
-  stash: type({ intent: 'string' }),
 })
   .step('classify', {
     prompt: 'Classify intent.',
     response: type({ intent: 'string' }),
-    updateStash: ({ response }) => ({ intent: response.intent }),
     next: ({ response }) => {
       if (response.intent === 'faq') return 'topic:basics';
       return `subskill:${response.intent}`;
@@ -56,7 +56,9 @@ const composite = skill({
   })
   .topic('basics', { label: 'Basic FAQ', content: () => 'This is the basics FAQ content.' })
   .subskill('doctor', doctorSkill, {
-    params: (_output: unknown, stash: unknown) => ({ from: (stash as Record<string, unknown>).intent }),
+    params: (_output: unknown, store) => ({
+      from: (store.maybe('classify') as { intent: string } | undefined)?.intent ?? '',
+    }),
   })
   .subskill('setup', setupSkill)
   .build();

@@ -20,26 +20,21 @@ export default skill({
   version: '1.0.0',
   description: 'Guided Contentful space setup and configuration.',
   entry: 'check-env',
-  stash: type({ hasSpaceId: 'boolean', hasToken: 'boolean' }),
 })
   .step('check-env', {
     prompt: 'Acknowledge the environment check results and proceed.',
     response: type({ acknowledged: 'boolean' }),
-    action: {
-      run: checkEnv,
-      updateStash: ({ actionResult }) => ({
-        hasSpaceId: actionResult.hasSpaceId,
-        hasToken: actionResult.hasToken,
-      }),
-    },
+    action: { run: checkEnv },
     next: ({ actionResult }) => (actionResult.hasSpaceId && actionResult.hasToken ? 'configure' : 'guide-env'),
   })
 
   .step('guide-env', {
-    prompt: ({ stash }) => {
+    prompt: ({ store }) => {
+      const checkRecord = store.history.find((r) => r.step === 'check-env');
+      const actionResult = checkRecord?.actionResult as { hasSpaceId: boolean; hasToken: boolean } | undefined;
       const missing: string[] = [];
-      if (!stash.hasSpaceId) missing.push('CONTENTFUL_SPACE_ID');
-      if (!stash.hasToken) missing.push('CONTENTFUL_ACCESS_TOKEN');
+      if (!actionResult?.hasSpaceId) missing.push('CONTENTFUL_SPACE_ID');
+      if (!actionResult?.hasToken) missing.push('CONTENTFUL_ACCESS_TOKEN');
       return (
         `The following environment variables are missing: ${missing.join(', ')}.\n\n` +
         'Guide the user to set them up. Explain where to find these values in the Contentful web app ' +

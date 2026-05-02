@@ -156,7 +156,7 @@ async function handleRedirect(
     const sub = skill.subskills?.[subName];
     if (!sub) throw new Error(`Redirect to unknown sub-skill "${subName}"`);
 
-    const params = sub.paramsMap ? sub.paramsMap(redirect.completed.response, redirect.stash) : {};
+    const params = sub.paramsMap ? sub.paramsMap(redirect.completed.response, redirect.store) : {};
     const subResult = await runSubskillEngine(sub.definition, subName, handshake, params, opts, refs);
 
     return {

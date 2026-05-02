@@ -49,12 +49,6 @@ export default skill({
     greeting: 'string = "Hey there!"',
   }),
 
-  stash: type({
-    name: 'string',
-    role: 'string',
-    latestHobby: 'string',
-  }),
-
   finalOutput: type({
     card: 'string',
     profile: ProfileSchema,
@@ -72,7 +66,6 @@ export default skill({
       Start by asking their name. Be warm and enthusiastic — first impressions matter!
     `,
     response: type({ name: 'string' }),
-    updateStash: ({ response }) => ({ name: response.name }),
     next: 'ask-role',
   })
 
@@ -88,7 +81,6 @@ export default skill({
       ],
     }),
     response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
-    updateStash: ({ response }) => ({ role: response.role }),
     next: ({ response }) => {
       switch (response.role) {
         case 'dev':
@@ -104,14 +96,17 @@ export default skill({
   })
 
   .extend('ask-stack', openQuestionStep, {
-    prompt: ({ stash }) => [
-      prompt`
-        ${stash.name} is a developer — nice!
-        Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
-        "TypeScript + Bun + Zod" is a personality.
-      `,
-      act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-    ],
+    prompt: ({ store }) => {
+      const name = store.maybe('greet')?.name ?? 'Friend';
+      return [
+        prompt`
+          ${name} is a developer — nice!
+          Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
+          "TypeScript + Bun + Zod" is a personality.
+        `,
+        act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+      ];
+    },
     next: 'ask-hobby',
   })
 
@@ -150,7 +145,6 @@ export default skill({
       hobby: 'string',
       wantsMore: 'boolean',
     }),
-    updateStash: ({ response }) => ({ latestHobby: response.hobby }),
     maxVisits: 2,
     onMaxVisits: 'confirm-profile',
     next: ({ response }) => (response.wantsMore ? 'ask-hobby' : 'confirm-profile'),
@@ -168,18 +162,18 @@ export default skill({
   })
 
   .step('profile-card', {
-    prompt: ({ history, getStep, refs, stash }) => {
-      const name = stash.name ?? 'Mystery Person';
-      const role = stash.role ?? 'Enigma';
+    prompt: ({ store, refs }) => {
+      const name = store.maybe('greet')?.name ?? 'Mystery Person';
+      const role = store.maybe('ask-role')?.role ?? 'Enigma';
 
       const specialty =
-        getStep('ask-stack')?.response.answer ??
-        getStep('ask-tools')?.response.answer ??
-        getStep('ask-team-size')?.response.answer ??
-        getStep('ask-specialty')?.response.answer ??
+        store.maybe('ask-stack')?.answer ??
+        store.maybe('ask-tools')?.answer ??
+        store.maybe('ask-team-size')?.answer ??
+        store.maybe('ask-specialty')?.answer ??
         'Classified';
 
-      const hobbies = history.filter((s) => s.step === 'ask-hobby').map((s) => (s.response as { hobby: string }).hobby);
+      const hobbies = store.all('ask-hobby').map((v) => v.hobby);
 
       let funFact = '';
       try {

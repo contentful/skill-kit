@@ -163,16 +163,14 @@ test('empty triggers array does not modify description', () => {
   assert.equal(s.description, 'Just a skill');
 });
 
-test('stash type flows into step prompt callbacks', () => {
+test('store accessor is available in step prompt callbacks', () => {
   const s = skill({
-    name: 'stashed',
+    name: 'stored',
     entry: 'a',
-    stash: type({ name: 'string' }),
   })
     .step('a', {
-      prompt: ({ stash }) => {
-        const _check: string = stash.name;
-        void _check;
+      prompt: ({ store }) => {
+        void store.maybe('a');
         return 'hi';
       },
       response: type({}),

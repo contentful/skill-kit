@@ -15,19 +15,21 @@ const scanAction = action({
   run: async ({ input }) => ({ found: `scanned:${input.path}` }),
 });
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: type({ scanResult: 'string' }) })
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
   .step('diagnose', {
     prompt: 'Diagnose.',
     response: type({ issue: 'string' }),
     action: {
       run: scanAction,
       input: ({ response }) => ({ path: response.issue }),
-      updateStash: ({ actionResult }) => ({ scanResult: actionResult.found }),
     },
     next: 'report',
   })
   .step('report', {
-    prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
+    prompt: (ctx) => {
+      const record = ctx.store.history.find((r) => r.step === 'diagnose');
+      return `Report: scanResult=${JSON.stringify((record?.actionResult as { found: string })?.found)}`;
+    },
     response: type({ summary: 'string' }),
     next: { terminal: true },
   })
@@ -79,13 +81,12 @@ test('SubskillEngine.advance qualifies done result completed step', async () => 
 });
 
 test('SubskillEngine.replayHistory filters and unqualifies entries', async () => {
-  let capturedStash: unknown;
+  let capturedStoreValue: unknown;
 
-  const stashSkill = skill({ name: 'doc', entry: 'a', stash: type({ val: 'string' }) })
+  const storeSkill = skill({ name: 'doc', entry: 'a' })
     .step('a', {
       prompt: 'A',
       response: type({ v: 'string' }),
-      updateStash: ({ response }) => ({ val: response.v }),
       next: 'b',
     })
     .step('b', {
@@ -95,7 +96,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
     })
     .step('c', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        capturedStoreValue = ctx.store.maybe('a');
         return 'C';
       },
       response: type({}),
@@ -103,7 +104,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
     })
     .build();
 
-  const sub = new SubskillEngine(stashSkill, genericHost, {}, { load: () => '', asset: (p) => p }, 'doc');
+  const sub = new SubskillEngine(storeSkill, genericHost, {}, { load: () => '', asset: (p) => p }, 'doc');
   // Mixed history: dispatcher entry, this subskill entry, another subskill entry
   sub.replayHistory([
     { step: 'classify', response: { intent: 'doc' } },
@@ -111,8 +112,8 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
     { step: 'other/x', response: {} },
   ]);
   sub.startForReplay();
-  // Advance b → builds c prompt which captures stash
+  // Advance b -> builds c prompt which captures store
   const result = await sub.advance('doc/b', { x: 'ok' });
   assert.equal((result as PromptResult).step, 'doc/c');
-  assert.deepEqual(capturedStash, { val: 'hello' });
+  assert.deepEqual(capturedStoreValue, { v: 'hello' });
 });

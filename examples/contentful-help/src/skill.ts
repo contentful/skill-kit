@@ -10,7 +10,6 @@ export default skill({
   argumentHint: '[doctor|setup]',
   disableModelInvocation: true,
   entry: 'choose',
-  stash: type({ intent: 'string', spaceId: 'string' }),
 })
   .step('choose', {
     prompt: act.askUser({
@@ -23,7 +22,6 @@ export default skill({
       ],
     }),
     response: type({ choice: "'doctor' | 'setup' | 'faq'" }),
-    updateStash: ({ response }) => ({ intent: response.choice, spaceId: '' }),
     next: ({ response }) => {
       if (response.choice === 'faq') return 'ask-topic';
       if (response.choice === 'doctor') return 'get-space';
@@ -34,7 +32,6 @@ export default skill({
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environment.',
     response: type({ spaceId: 'string' }),
-    updateStash: ({ response }) => ({ intent: 'doctor', spaceId: response.spaceId }),
     next: 'subskill:doctor',
   })
 
@@ -54,7 +51,7 @@ export default skill({
   })
 
   .subskill('doctor', doctorSkill, {
-    params: (_output, stash) => ({ spaceId: (stash as { spaceId: string }).spaceId }),
+    params: (_output, store) => ({ spaceId: store.maybe('get-space')?.spaceId ?? '' }),
   })
   .subskill('setup', setupSkill)
 

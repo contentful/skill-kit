@@ -121,7 +121,7 @@ test('engine provides dynamic prompt context', async () => {
     .step('b', {
       prompt: (ctx) => {
         capturedCtx = ctx;
-        return `Previous: ${JSON.stringify(ctx.history.at(-1)?.response)}`;
+        return `Previous: ${JSON.stringify(ctx.store.history.at(-1)?.response)}`;
       },
       response: type({}),
       next: { terminal: true },
@@ -137,15 +137,14 @@ test('engine provides dynamic prompt context', async () => {
 });
 
 test('engine replays history for single-invocation mode', () => {
-  const s = skill({ name: 'replay', entry: 'a', stash: type({ memo: 'string' }) })
+  const s = skill({ name: 'replay', entry: 'a' })
     .step('a', {
       prompt: 'A',
       response: type({ val: 'string' }),
-      updateStash: ({ response }) => ({ memo: response.val }),
       next: 'b',
     })
     .step('b', {
-      prompt: (ctx) => `Stash: ${JSON.stringify(ctx.stash)}`,
+      prompt: (ctx) => `Store: ${JSON.stringify(ctx.store.maybe('a'))}`,
       response: type({}),
       next: { terminal: true },
     })
@@ -275,7 +274,7 @@ test('actionInput mapping decouples step output from action input', async () => 
   assert.deepEqual(receivedInput, { path: '/out/report.md', content: 'hello' });
 });
 
-test('actionInput receives current stash', async () => {
+test('actionInput receives store accessor', async () => {
   let receivedInput: unknown;
 
   const myAction = action({
@@ -288,11 +287,10 @@ test('actionInput receives current stash', async () => {
     },
   });
 
-  const s = skill({ name: 'stash-map', entry: 'setup', stash: type({ prefix: 'string' }) })
+  const s = skill({ name: 'store-map', entry: 'setup' })
     .step('setup', {
       prompt: 'Setup',
-      response: type({}),
-      updateStash: () => ({ prefix: 'pre' }),
+      response: type({ prefix: 'string' }),
       next: 'a',
     })
     .step('a', {
@@ -300,7 +298,10 @@ test('actionInput receives current stash', async () => {
       response: type({ val: 'string' }),
       action: {
         run: myAction,
-        input: ({ response, stash }) => ({ prefix: stash.prefix, val: response.val }),
+        input: ({ response, store }) => ({
+          prefix: store.maybe('setup')?.prefix ?? '',
+          val: response.val,
+        }),
       },
       next: { terminal: true },
     })
@@ -308,7 +309,7 @@ test('actionInput receives current stash', async () => {
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
-  await engine.advance('setup', {});
+  await engine.advance('setup', { prefix: 'pre' });
   await engine.advance('a', { val: 'test' });
   assert.deepEqual(receivedInput, { prefix: 'pre', val: 'test' });
 });
@@ -359,8 +360,8 @@ test('action is undefined in next when no action configured', async () => {
   assert.equal(capturedAction, undefined);
 });
 
-test('afterAction stashes action result', async () => {
-  let capturedStash: unknown;
+test('action result is stored and accessible via store', async () => {
+  let capturedActionResult: unknown;
 
   const apiAction = action({
     name: 'api',
@@ -369,19 +370,18 @@ test('afterAction stashes action result', async () => {
     run: async () => ({ responseCode: 201 }),
   });
 
-  const s = skill({ name: 'post-stash', entry: 'call', stash: type({ lastCode: 'number' }) })
+  const s = skill({ name: 'post-store', entry: 'call' })
     .step('call', {
       prompt: 'Call API',
       response: type({ url: 'string' }),
-      action: {
-        run: apiAction,
-        updateStash: ({ actionResult }) => ({ lastCode: actionResult.responseCode }),
-      },
+      action: { run: apiAction },
       next: 'report',
     })
     .step('report', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        // Access the action result from the store history
+        const callRecord = ctx.store.history.find((r) => r.step === 'call');
+        capturedActionResult = callRecord?.actionResult;
         return 'Report';
       },
       response: type({}),
@@ -392,11 +392,11 @@ test('afterAction stashes action result', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('call', { url: 'https://api.example.com' });
-  assert.deepEqual(capturedStash, { lastCode: 201 });
+  assert.deepEqual(capturedActionResult, { responseCode: 201 });
 });
 
-test('afterAction is replayed correctly from history', () => {
-  let capturedStash: unknown;
+test('action result is replayed correctly from history', () => {
+  let capturedActionResult: unknown;
 
   const apiAction = action({
     name: 'api',
@@ -405,17 +405,15 @@ test('afterAction is replayed correctly from history', () => {
     run: async () => ({ code: 200 }),
   });
 
-  const s = skill({ name: 'replay-after', entry: 'call', stash: type({ code: 'number' }) })
+  const s = skill({ name: 'replay-after', entry: 'call' })
     .step('call', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        const record = ctx.store.history.find((r) => r.step === 'call');
+        capturedActionResult = record?.actionResult;
         return 'Call';
       },
       response: type({ url: 'string' }),
-      action: {
-        run: apiAction,
-        updateStash: ({ actionResult }) => ({ code: actionResult.code }),
-      },
+      action: { run: apiAction },
       next: 'report',
     })
     .step('report', {
@@ -425,16 +423,16 @@ test('afterAction is replayed correctly from history', () => {
     })
     .build();
 
-  // Replay history with action output → afterAction should populate stash
+  // Replay history with action output
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([{ step: 'call', response: { url: 'https://x.com' }, actionResult: { code: 404 } }]);
-  // start() builds prompt for entry step 'call', which captures stash
+  // start() builds prompt for entry step 'call', which captures action result
   engine.start();
-  assert.deepEqual(capturedStash, { code: 404 });
+  assert.deepEqual(capturedActionResult, { code: 404 });
 });
 
-test('action stash vs step stash: both survive replay into next prompt', async () => {
-  let capturedStash: unknown;
+test('action result and step response survive replay into next prompt', async () => {
+  let capturedData: { fromStep: unknown; fromAction: unknown } | undefined;
 
   const fetchAction = action({
     name: 'fetch',
@@ -444,18 +442,13 @@ test('action stash vs step stash: both survive replay into next prompt', async (
   });
 
   const s = skill({
-    name: 'stash-compare',
+    name: 'store-compare',
     entry: 'explore',
-    stash: type({ fromStep: 'string', fromAction: 'string' }),
   })
     .step('explore', {
       prompt: 'Explore',
       response: type({ url: 'string' }),
-      updateStash: ({ response }) => ({ fromStep: response.url }),
-      action: {
-        run: fetchAction,
-        updateStash: ({ actionResult }) => ({ fromAction: actionResult.spaceId }),
-      },
+      action: { run: fetchAction },
       next: 'triage',
     })
     .step('triage', {
@@ -465,7 +458,12 @@ test('action stash vs step stash: both survive replay into next prompt', async (
     })
     .step('report', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        const exploreResponse = ctx.store.maybe('explore');
+        const exploreRecord = ctx.store.history.find((r) => r.step === 'explore');
+        capturedData = {
+          fromStep: exploreResponse?.url,
+          fromAction: (exploreRecord?.actionResult as { spaceId: string })?.spaceId,
+        };
         return 'Report';
       },
       response: type({}),
@@ -473,17 +471,17 @@ test('action stash vs step stash: both survive replay into next prompt', async (
     })
     .build();
 
-  // Simulate: explore completed (with action), triage being advanced → report prompt built
+  // Simulate: explore completed (with action), triage being advanced -> report prompt built
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([{ step: 'explore', response: { url: 'https://x.com' }, actionResult: { spaceId: 'abc123' } }]);
   engine.start();
   await engine.advance('triage', { decision: 'go' });
 
-  assert.deepEqual(capturedStash, { fromStep: 'https://x.com', fromAction: 'abc123' });
+  assert.deepEqual(capturedData, { fromStep: 'https://x.com', fromAction: 'abc123' });
 });
 
-test('action stash survives cross-process replay into next step prompt', async () => {
-  let capturedStash: unknown;
+test('action result survives cross-process replay into next step prompt', async () => {
+  let capturedScanResult: unknown;
 
   const fetchAction = action({
     name: 'fetch',
@@ -492,14 +490,11 @@ test('action stash survives cross-process replay into next step prompt', async (
     run: async () => ({ spaceId: 'never-called' }),
   });
 
-  const s = skill({ name: 'cross-process', entry: 'explore', stash: type({ spaceId: 'string' }) })
+  const s = skill({ name: 'cross-process', entry: 'explore' })
     .step('explore', {
       prompt: 'Explore',
       response: type({ url: 'string' }),
-      action: {
-        run: fetchAction,
-        updateStash: ({ actionResult }) => ({ spaceId: actionResult.spaceId }),
-      },
+      action: { run: fetchAction },
       next: 'triage',
     })
     .step('triage', {
@@ -509,7 +504,8 @@ test('action stash survives cross-process replay into next step prompt', async (
     })
     .step('report', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        const record = ctx.store.history.find((r) => r.step === 'explore');
+        capturedScanResult = (record?.actionResult as { spaceId: string })?.spaceId;
         return 'Report';
       },
       response: type({ summary: 'string' }),
@@ -527,17 +523,17 @@ test('action stash survives cross-process replay into next step prompt', async (
   const result = await engine.advance('triage', { decision: 'fix' });
 
   assert.equal((result as PromptResult).step, 'report');
-  assert.deepEqual(capturedStash, { spaceId: '58j6jt5cfhic' });
+  assert.equal(capturedScanResult, '58j6jt5cfhic');
 });
 
-test('getStep provides typed history access', async () => {
+test('store.maybe provides typed history access', async () => {
   let stepAResult: unknown;
 
   const s = skill({ name: 'get-step', entry: 'a' })
     .step('a', { prompt: 'A', response: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
-        stepAResult = ctx.getStep('a');
+        stepAResult = ctx.store.maybe('a');
         return 'B';
       },
       response: type({}),
@@ -548,16 +544,16 @@ test('getStep provides typed history access', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('a', { val: 42 });
-  assert.deepEqual(stepAResult, { response: { val: 42 }, actionResult: undefined });
+  assert.deepEqual(stepAResult, { val: 42 });
 });
 
-test('getStep returns undefined for missing step', async () => {
+test('store.maybe returns undefined for missing step', async () => {
   let result: unknown = 'not-set';
 
   const s = skill({ name: 'get-step-missing', entry: 'a' })
     .step('a', {
       prompt: (ctx) => {
-        result = ctx.getStep('nonexistent');
+        result = ctx.store.maybe('nonexistent');
         return 'A';
       },
       response: type({}),
@@ -571,11 +567,10 @@ test('getStep returns undefined for missing step', async () => {
 });
 
 test('engine returns RedirectResult when next target is not a local step', async () => {
-  const s = skill({ name: 'redirect-test', entry: 'classify', stash: type({ intent: 'string' }) })
+  const s = skill({ name: 'redirect-test', entry: 'classify' })
     .step('classify', {
       prompt: 'Classify',
       response: type({ intent: 'string' }),
-      updateStash: ({ response }) => ({ intent: response.intent }),
       next: ({ response }) => `subskill:${response.intent}`,
     })
     .build();
@@ -591,7 +586,9 @@ test('engine returns RedirectResult when next target is not a local step', async
     response: { intent: 'doctor' },
     actionResult: undefined,
   });
-  assert.deepEqual(redirect.stash, { intent: 'doctor' });
+  // store is a StoreAccessor
+  assert.ok(redirect.store);
+  assert.equal(typeof redirect.store.maybe, 'function');
 });
 
 test('engine returns RedirectResult for topic targets', async () => {
@@ -815,14 +812,13 @@ test('isPromptless returns false for steps with prompt', () => {
 });
 
 test('prompt-less step can be advanced with empty output', async () => {
-  const s = skill({ name: 'gate-advance', entry: 'gate', stash: type({ routed: 'boolean' }) })
+  const s = skill({ name: 'gate-advance', entry: 'gate' })
     .step('gate', {
       response: type({}),
-      updateStash: () => ({ routed: true }),
       next: 'main',
     })
     .step('main', {
-      prompt: (ctx) => `Routed: ${ctx.stash.routed}`,
+      prompt: (ctx) => `Routed: ${ctx.store.ran('gate')}`,
       response: type({}),
       next: { terminal: true },
     })

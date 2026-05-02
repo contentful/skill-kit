@@ -9,9 +9,8 @@ import type { Handshake, PromptResult, DoneResult } from '../types.js';
 const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent: false };
 
 test('autoAdvance skips prompt-less steps and returns autoAdvanced entries', async () => {
-  const s = skill({ name: 'gate-test', entry: 'gate', stash: type({ routed: 'boolean' }) })
+  const s = skill({ name: 'gate-test', entry: 'gate' })
     .step('gate', {
-      updateStash: () => ({ routed: true }),
       next: 'main',
     })
     .step('main', {

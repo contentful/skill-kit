@@ -6,7 +6,6 @@ export default skill({
   description: 'Diagnose and fix common Contentful issues.',
   entry: 'diagnose',
   params: type({ spaceId: 'string = ""' }),
-  stash: type({ issues: 'string[]' }),
 })
   .step('diagnose', {
     prompt: ({ params }) =>
@@ -16,14 +15,17 @@ export default skill({
       issues: 'string[]',
       healthy: 'boolean',
     }),
-    updateStash: ({ response }) => ({ issues: response.issues }),
     next: ({ response }) => (response.healthy ? 'report-clean' : 'suggest-fix'),
   })
 
   .step('suggest-fix', {
-    prompt: ({ stash }) =>
-      `Found issues: ${stash.issues.join(', ')}. Suggest fixes for each issue. ` +
-      'Explain what each fix does and any risks.',
+    prompt: ({ store }) => {
+      const issues = store.maybe('diagnose')?.issues ?? [];
+      return (
+        `Found issues: ${issues.join(', ')}. Suggest fixes for each issue. ` +
+        'Explain what each fix does and any risks.'
+      );
+    },
     response: type({
       fixes: type({ issue: 'string', fix: 'string' }).array(),
     }),
@@ -50,7 +52,10 @@ export default skill({
   })
 
   .step('report-issues', {
-    prompt: ({ stash }) => `Summarize: found ${stash.issues.length} issue(s). Report the status of each.`,
+    prompt: ({ store }) => {
+      const issues = store.maybe('diagnose')?.issues ?? [];
+      return `Summarize: found ${issues.length} issue(s). Report the status of each.`;
+    },
     response: type({ summary: 'string' }),
     next: { terminal: true },
   })

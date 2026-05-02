@@ -17,6 +17,7 @@ export { ModuleBuilder } from './module.js';
 export { checkSkill } from './lint/index.js';
 export { isPrompt, isDone, isError, isRedirect } from './types.js';
 export type { LintDiagnostic } from './lint/types.js';
+export type { StoreAccessor } from './runtime/state-store.js';
 export type {
   SkillBuilderConfig,
   SkillDefinition,

@@ -10,6 +10,7 @@ import type {
   SubskillRegistration,
   TopicConfig,
 } from './types.js';
+import type { StoreAccessor } from './runtime/state-store.js';
 import { step as createStep } from './step.js';
 
 function checkActionInputCompat(stepName: string, outputSchema: type.Any, actionDef: ActionDefinition): void {
@@ -33,7 +34,7 @@ function checkActionInputCompat(stepName: string, outputSchema: type.Any, action
   }
 }
 
-export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown> = Record<string, never>> {
+export class SkillBuilder<TParams, TSteps extends Record<string, unknown> = Record<string, never>> {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
   private readonly subskills: Record<string, SubskillRegistration> = {};
@@ -48,25 +49,18 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
     name: Name,
     configOrDef:
       | (Omit<
-          StepConfig<
-            TOutput,
-            TParams,
-            TStash,
-            A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
-            TSteps
-          >,
+          StepConfig<TOutput, TParams, A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined, TSteps>,
           'action'
         > & {
           action?: A extends ActionDefinition<any, any>
             ? {
                 run: A;
-                input?: (ctx: { response: TOutput['infer']; stash: Readonly<TStash>; params: TParams }) => unknown;
-                updateStash?: (ctx: { actionResult: InferActionResult<A> }) => Partial<TStash>;
+                input?: (ctx: { response: TOutput['infer']; store: StoreAccessor<TSteps>; params: TParams }) => unknown;
               }
             : undefined;
         })
       | StepDefinition,
-  ): SkillBuilder<TParams, TStash, TSteps & { [K in Name]: TOutput extends type.Any ? TOutput['infer'] : unknown }> {
+  ): SkillBuilder<TParams, TSteps & { [K in Name]: TOutput extends type.Any ? TOutput['infer'] : unknown }> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
@@ -78,7 +72,6 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
     }
     return this as SkillBuilder<
       TParams,
-      TStash,
       TSteps & { [K in Name]: TOutput extends type.Any ? TOutput['infer'] : unknown }
     >;
   }
@@ -86,16 +79,13 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
   extend<Name extends string, TOutput extends type.Any>(
     name: Name,
     base: StepDefinition<TOutput>,
-    overrides: Partial<StepConfig<TOutput, TParams, TStash, unknown, TSteps>>,
-  ): SkillBuilder<TParams, TStash, TSteps & { [K in Name]: TOutput['infer'] }> {
+    overrides: Partial<StepConfig<TOutput, TParams, unknown, TSteps>>,
+  ): SkillBuilder<TParams, TSteps & { [K in Name]: TOutput['infer'] }> {
     this.steps[name] = createStep({ ...base.config, ...overrides } as StepConfig);
-    return this as SkillBuilder<TParams, TStash, TSteps & { [K in Name]: TOutput['infer'] }>;
+    return this as SkillBuilder<TParams, TSteps & { [K in Name]: TOutput['infer'] }>;
   }
 
-  register<TModuleStash extends type.Any>(
-    mod: ModuleDefinition<TModuleStash>,
-    opts: { next: string },
-  ): SkillBuilder<TParams, TStash & TModuleStash['infer'], TSteps> {
+  register(mod: ModuleDefinition, opts: { next: string }): SkillBuilder<TParams, TSteps> {
     for (const [name, stepDef] of Object.entries(mod.steps)) {
       const isExit = stepDef.config.next === '__parent__';
       if (isExit) {
@@ -105,14 +95,14 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
       }
     }
 
-    return this as unknown as SkillBuilder<TParams, TStash & TModuleStash['infer'], TSteps>;
+    return this;
   }
 
   subskill(
     name: string,
     definition: SkillDefinition,
-    opts?: { params?: (response: unknown, stash: unknown) => unknown },
-  ): SkillBuilder<TParams, TStash, TSteps> {
+    opts?: { params?: (response: unknown, store: StoreAccessor) => unknown },
+  ): SkillBuilder<TParams, TSteps> {
     if (definition.subskills && Object.keys(definition.subskills).length > 0) {
       throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);
     }
@@ -123,7 +113,7 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
     return this;
   }
 
-  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TStash, TSteps> {
+  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TSteps> {
     this.topics[name] = config;
     return this;
   }
@@ -154,7 +144,6 @@ export class SkillBuilder<TParams, TStash, TSteps extends Record<string, unknown
       entry,
       system: this.config.system,
       params: this.config.params,
-      stash: this.config.stash,
       steps: Object.freeze({ ...this.steps }),
       observers: this.config.observers,
       finalOutput: this.config.finalOutput,

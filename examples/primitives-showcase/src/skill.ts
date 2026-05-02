@@ -22,14 +22,6 @@ export default skill({
   description: 'Exercises every SDK primitive in a single skill. Used as a reference and integration test.',
   argumentHint: '[theme]',
   entry: 'gather-preferences',
-
-  stash: type({
-    theme: 'string',
-    framework: 'string',
-    approved: 'boolean',
-    researchSummary: 'string',
-    savedPath: 'string',
-  }),
 })
   // --- survey: batched multi-question ---
   .step('gather-preferences', {
@@ -54,33 +46,39 @@ export default skill({
       },
     ]),
     response: type({ theme: 'string', framework: 'string' }),
-    updateStash: ({ response }) => ({ theme: response.theme, framework: response.framework }),
     next: 'research',
   })
 
   // --- subagent: delegated research ---
   .step('research', {
-    prompt: ({ stash }) => [
-      prompt`Research ${stash.theme} best practices for ${stash.framework} projects.`,
-      act.subagent({
-        prompt: `Find 3 key recommendations for ${stash.theme} in ${stash.framework}. Return a concise summary.`,
-        output: type({ summary: 'string' }),
-      }),
-    ],
+    prompt: ({ store }) => {
+      const theme = store.maybe('gather-preferences')?.theme ?? '';
+      const framework = store.maybe('gather-preferences')?.framework ?? '';
+      return [
+        prompt`Research ${theme} best practices for ${framework} projects.`,
+        act.subagent({
+          prompt: `Find 3 key recommendations for ${theme} in ${framework}. Return a concise summary.`,
+          output: type({ summary: 'string' }),
+        }),
+      ];
+    },
     response: type({ summary: 'string' }),
-    updateStash: ({ response }) => ({ researchSummary: response.summary }),
     next: 'plan-report',
   })
 
   // --- plan: structured approval ---
   .step('plan-report', {
-    prompt: ({ stash }) => [
-      prompt`Based on the research, plan the report structure.`,
-      act.plan({
-        summary: `${stash.theme} report for ${stash.framework}`,
-        steps: ['Executive summary', 'Key findings', 'Recommendations', 'Action items'],
-      }),
-    ],
+    prompt: ({ store }) => {
+      const theme = store.maybe('gather-preferences')?.theme ?? '';
+      const framework = store.maybe('gather-preferences')?.framework ?? '';
+      return [
+        prompt`Based on the research, plan the report structure.`,
+        act.plan({
+          summary: `${theme} report for ${framework}`,
+          steps: ['Executive summary', 'Key findings', 'Recommendations', 'Action items'],
+        }),
+      ];
+    },
     response: type({ approved: 'boolean', 'modifications?': 'string' }),
     next: ({ response }) => (response.approved ? 'write-report' : 'ask-changes'),
   })
@@ -99,27 +97,29 @@ export default skill({
 
   // --- checklist: tracked work items ---
   .step('write-report', {
-    prompt: ({ stash, act, system }) => [
-      system`Write concisely. Each section should be 2-3 sentences.`,
-      act.checklist({
-        create: [
-          { title: 'Executive summary', status: 'pending' },
-          { title: 'Key findings', status: 'pending' },
-          { title: 'Recommendations', status: 'pending' },
-          { title: 'Action items', status: 'pending' },
-        ],
-      }),
-      prompt`
-        Write the ${stash.theme} report for ${stash.framework}.
-        Research summary: ${stash.researchSummary}
-        Complete each checklist item as you write.
-      `,
-    ],
-    response: type({ title: 'string', body: 'string' }),
-    action: {
-      run: saveReport,
-      updateStash: ({ actionResult }) => ({ savedPath: actionResult.path }),
+    prompt: ({ store, act, system }) => {
+      const theme = store.maybe('gather-preferences')?.theme ?? '';
+      const framework = store.maybe('gather-preferences')?.framework ?? '';
+      const researchSummary = store.maybe('research')?.summary ?? '';
+      return [
+        system`Write concisely. Each section should be 2-3 sentences.`,
+        act.checklist({
+          create: [
+            { title: 'Executive summary', status: 'pending' },
+            { title: 'Key findings', status: 'pending' },
+            { title: 'Recommendations', status: 'pending' },
+            { title: 'Action items', status: 'pending' },
+          ],
+        }),
+        prompt`
+          Write the ${theme} report for ${framework}.
+          Research summary: ${researchSummary}
+          Complete each checklist item as you write.
+        `,
+      ];
     },
+    response: type({ title: 'string', body: 'string' }),
+    action: { run: saveReport },
     next: 'confirm-publish',
   })
 
@@ -130,31 +130,37 @@ export default skill({
       act.confirm({ message: 'Publish the report?', destructive: false, defaultAnswer: 'yes' }),
     ],
     response: type({ publish: 'boolean' }),
-    updateStash: ({ response }) => ({ approved: response.publish }),
     next: ({ response }) => (response.publish ? 'summary' : 'ask-changes'),
   })
 
   // --- view + terminal: pre-rendered card ---
   .step('summary', {
-    prompt: ({ stash }) => [
-      view([
-        render.section(
-          'Report Published',
-          render.kv({
-            Theme: stash.theme,
-            Framework: stash.framework,
-            'Saved to': stash.savedPath,
-          }),
-        ),
-        render.checklist([
-          { text: 'Research', done: true },
-          { text: 'Plan approved', done: true },
-          { text: 'Written', done: true },
-          { text: 'Published', done: stash.approved },
+    prompt: ({ store }) => {
+      const theme = store.maybe('gather-preferences')?.theme ?? '';
+      const framework = store.maybe('gather-preferences')?.framework ?? '';
+      const writeRecord = store.history.find((r) => r.step === 'write-report');
+      const savedPath = (writeRecord?.actionResult as { path: string } | undefined)?.path ?? '';
+      const published = store.maybe('confirm-publish')?.publish ?? false;
+      return [
+        view([
+          render.section(
+            'Report Published',
+            render.kv({
+              Theme: theme,
+              Framework: framework,
+              'Saved to': savedPath,
+            }),
+          ),
+          render.checklist([
+            { text: 'Research', done: true },
+            { text: 'Plan approved', done: true },
+            { text: 'Written', done: true },
+            { text: 'Published', done: published },
+          ]),
         ]),
-      ]),
-      'Present the summary card verbatim.',
-    ],
+        'Present the summary card verbatim.',
+      ];
+    },
     response: type({ summary: 'string' }),
     next: terminal,
   })

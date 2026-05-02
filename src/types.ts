@@ -1,4 +1,5 @@
 import type { type } from 'arktype';
+import type { StoreAccessor } from './runtime/state-store.js';
 
 // --- Host ---
 
@@ -167,45 +168,43 @@ export interface StepResult<TOutput = unknown> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface PromptContext<
-  TParams = any,
-  TStash = any,
-  TSteps extends Record<string, unknown> = Record<string, unknown>,
-> {
-  history: readonly StepResult[];
-  getStep: {
-    <K extends string & keyof TSteps>(stepName: K): { response: TSteps[K]; actionResult: unknown } | undefined;
-    (stepName: string): { response: unknown; actionResult: unknown } | undefined;
-  };
+export interface PromptContext<TParams = any, TSteps extends Record<string, unknown> = Record<string, unknown>> {
+  store: StoreAccessor<TSteps>;
   params: TParams;
   refs: ReferenceLoader;
   attempts: number;
   host: Handshake;
-  stash: Readonly<TStash>;
   act: ActBuilder;
   system: SystemBuilder;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PromptFn<TParams = any, TStash = any, TSteps extends Record<string, unknown> = Record<string, unknown>> = (
-  ctx: PromptContext<TParams, TStash, TSteps>,
+export type PromptFn<TParams = any, TSteps extends Record<string, unknown> = Record<string, unknown>> = (
+  ctx: PromptContext<TParams, TSteps>,
 ) => PromptReturn;
 
-export type TransitionFn<TOutput = unknown, TActionResult = unknown, TParams = unknown, TStash = unknown> = (ctx: {
+export type TransitionFn<
+  TOutput = unknown,
+  TActionResult = unknown,
+  TParams = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+> = (ctx: {
   response: TOutput;
   attempts: number;
   actionResult: TActionResult;
   params: Readonly<TParams>;
-  stash: Readonly<TStash>;
+  store: StoreAccessor<TSteps>;
 }) => string;
 
-export type NextTarget<TOutput = unknown, TActionResult = unknown, TParams = unknown, TStash = unknown> =
-  | string
-  | TransitionFn<TOutput, TActionResult, TParams, TStash>
-  | { terminal: true };
+export type NextTarget<
+  TOutput = unknown,
+  TActionResult = unknown,
+  TParams = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+> = string | TransitionFn<TOutput, TActionResult, TParams, TSteps> | { terminal: true };
 
 /**
- * Lifecycle: prompt → model → validate(response) → action.input → action.run → action.updateStash → updateStash → next
+ * Lifecycle: prompt → model → validate(response) → action.input → action.run → next
  *
  * When prompt is omitted the engine auto-advances (no LLM round-trip).
  * When response is omitted no schema block is emitted and validation is skipped.
@@ -214,24 +213,16 @@ export type NextTarget<TOutput = unknown, TActionResult = unknown, TParams = unk
 export interface StepConfig<
   TOutput extends type.Any = type.Any,
   TParams = any,
-  TStash = any,
   TActionResult = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
 > {
-  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash, TSteps>;
+  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TSteps>;
   response?: TOutput;
-  next: string | TransitionFn<TOutput['infer'], TActionResult, TParams, TStash> | { terminal: true };
+  next: string | TransitionFn<TOutput['infer'], TActionResult, TParams, TSteps> | { terminal: true };
   action?: {
     run: ActionDefinition;
-    input?: (ctx: { response: TOutput['infer']; stash: Readonly<TStash>; params: Readonly<TParams> }) => unknown;
-    updateStash?: (ctx: { actionResult: TActionResult }) => Partial<TStash>;
+    input?: (ctx: { response: TOutput['infer']; store: StoreAccessor<TSteps>; params: Readonly<TParams> }) => unknown;
   };
-  updateStash?: (ctx: {
-    response: TOutput['infer'];
-    actionResult: TActionResult;
-    stash: Readonly<TStash>;
-    params: Readonly<TParams>;
-  }) => Partial<TStash>;
   maxVisits?: number;
   onMaxVisits?: string;
 }
@@ -240,15 +231,14 @@ export interface StepConfig<
 export interface StepDefinition<
   TOutput extends type.Any = type.Any,
   TParams = any,
-  TStash = any,
   TActionResult = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
 > {
   readonly kind: 'step';
-  readonly config: StepConfig<TOutput, TParams, TStash, TActionResult, TSteps>;
+  readonly config: StepConfig<TOutput, TParams, TActionResult, TSteps>;
   extend(
-    overrides: Partial<StepConfig<TOutput, TParams, TStash, TActionResult, TSteps>>,
-  ): StepDefinition<TOutput, TParams, TStash, TActionResult, TSteps>;
+    overrides: Partial<StepConfig<TOutput, TParams, TActionResult, TSteps>>,
+  ): StepDefinition<TOutput, TParams, TActionResult, TSteps>;
 }
 
 // --- Observers ---
@@ -280,14 +270,13 @@ export type VersionStrategy = { version?: string; resolveVersion?: never } | { v
 
 // --- Skill Builder Config (input to skill()) ---
 
-export type SkillBuilderConfig<TParams extends type.Any = type.Any, TStash extends type.Any = type.Any> = {
+export type SkillBuilderConfig<TParams extends type.Any = type.Any> = {
   name: string;
   description?: string;
   triggers?: string[];
   entry: string;
   system?: string;
   params?: TParams;
-  stash?: TStash;
   observers?: ObserverMap;
   finalOutput?: type.Any;
   skillMd?: string | ((skill: SkillDefinition) => string);
@@ -308,7 +297,7 @@ export type SkillBuilderConfig<TParams extends type.Any = type.Any, TStash exten
 
 // --- Skill Definition (output of .build()) ---
 
-export interface SkillDefinition<TParams extends type.Any = type.Any, TStash extends type.Any = type.Any> {
+export interface SkillDefinition<TParams extends type.Any = type.Any> {
   readonly kind: 'skill';
   readonly name: string;
   readonly version: string;
@@ -317,7 +306,6 @@ export interface SkillDefinition<TParams extends type.Any = type.Any, TStash ext
   readonly entry: string;
   readonly system: string | undefined;
   readonly params: TParams | undefined;
-  readonly stash: TStash | undefined;
   readonly steps: Readonly<Record<string, StepDefinition>>;
   readonly observers: ObserverMap | undefined;
   readonly finalOutput: type.Any | undefined;
@@ -341,11 +329,10 @@ export interface SkillDefinition<TParams extends type.Any = type.Any, TStash ext
 
 // --- Module Definition (output of module().build()) ---
 
-export interface ModuleDefinition<TModuleStash extends type.Any = type.Any> {
+export interface ModuleDefinition {
   readonly kind: 'module';
   readonly name: string;
   readonly entry: string;
-  readonly stash: TModuleStash;
   readonly steps: Record<string, StepDefinition>;
 }
 
@@ -400,7 +387,7 @@ export interface ReferenceDefinition {
 
 export interface SubskillRegistration {
   readonly definition: SkillDefinition;
-  readonly paramsMap?: (response: unknown, stash: unknown) => unknown;
+  readonly paramsMap?: (response: unknown, store: StoreAccessor) => unknown;
 }
 
 export type Buildable = SkillDefinition | ReferenceDefinition;
@@ -437,7 +424,7 @@ export interface RedirectResult {
   readonly kind: 'redirect';
   redirect: string;
   completed: StepResult;
-  stash: unknown;
+  store: StoreAccessor;
 }
 
 export type CliResult = PromptResult | DoneResult | ValidationErrorResult | RedirectResult;
@@ -492,6 +479,7 @@ export interface SkillRunResult {
   outputs: Record<string, unknown>;
   response: unknown;
   history: readonly StepResult[];
+  store: StoreAccessor;
 }
 
 export interface ModelAdapter {

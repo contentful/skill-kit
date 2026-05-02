@@ -16,8 +16,7 @@ import { type } from 'arktype';
 import { renderPrimitive } from '../primitives/registry.js';
 import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
 import { validateOutput } from './schema-validator.js';
-import { History } from './history.js';
-import { StashStore } from './stash.js';
+import { StateStore } from './state-store.js';
 import { ObserverDispatcher } from './observer-dispatch.js';
 import { generatePreamble } from './preamble.js';
 import { act } from '../act.js';
@@ -40,8 +39,7 @@ export class WorkflowEngine implements SkillEngine {
   private readonly skill: SkillDefinition;
   private readonly handshake: Handshake;
   private readonly skillParams: Readonly<unknown>;
-  private readonly history: History;
-  private readonly stash: StashStore;
+  private readonly state: StateStore;
   private readonly refs: ReferenceLoader;
   private readonly observers: ObserverDispatcher;
   private readonly abortController: AbortController;
@@ -55,8 +53,7 @@ export class WorkflowEngine implements SkillEngine {
     this.refs = refs ?? NOOP_REFS;
     this.observers = new ObserverDispatcher(skill.observers ?? {});
     this.abortController = new AbortController();
-    this.history = new History();
-    this.stash = new StashStore(skill.stash ?? undefined);
+    this.state = new StateStore();
     this.currentStep = skill.entry;
 
     if (skill.params) {
@@ -113,7 +110,7 @@ export class WorkflowEngine implements SkillEngine {
           step: stepName,
           raw: rawOutput,
           error: validation.error!,
-          attempt: this.history.visitCount(stepName) + 1,
+          attempt: this.state.visitCount(stepName) + 1,
         });
         return {
           kind: 'error',
@@ -130,9 +127,9 @@ export class WorkflowEngine implements SkillEngine {
 
     let actionResult: unknown = undefined;
     if (stepDef.config.action) {
-      const { run: actionDef, input: inputFn, updateStash: actionUpdateStash } = stepDef.config.action;
+      const { run: actionDef, input: inputFn } = stepDef.config.action;
       const rawActionInput = inputFn
-        ? inputFn({ response, stash: this.stash.all(), params: this.skillParams })
+        ? inputFn({ response, store: this.state.buildAccessor(), params: this.skillParams })
         : response;
       const actionInput = actionDef.input.assert(rawActionInput);
       actionResult = await actionDef.run({
@@ -140,23 +137,9 @@ export class WorkflowEngine implements SkillEngine {
         signal: this.abortController.signal,
       });
       actionResult = Object.freeze(actionResult);
-      if (actionUpdateStash) {
-        this.stash.merge(actionUpdateStash({ actionResult }) as Record<string, unknown>);
-      }
     }
 
-    if (stepDef.config.updateStash) {
-      this.stash.merge(
-        stepDef.config.updateStash({
-          response,
-          actionResult,
-          stash: this.stash.all(),
-          params: this.skillParams,
-        }) as Record<string, unknown>,
-      );
-    }
-
-    this.history.append(stepName, response, actionResult);
+    this.state.append(stepName, response, actionResult);
 
     this.observers.fire('onStepComplete', {
       step: stepName,
@@ -168,7 +151,7 @@ export class WorkflowEngine implements SkillEngine {
     const nextStep = this.resolveNext(stepDef, response, stepName, actionResult);
 
     if (nextStep === null) {
-      const path = this.history.all().map((r) => r.step);
+      const path = this.state.all().map((r) => r.step);
       this.observers.fire('onTransition', { from: stepName, to: '__terminal__', reason: 'terminal' });
       this.observers.fire('onSkillComplete', {
         path,
@@ -182,7 +165,12 @@ export class WorkflowEngine implements SkillEngine {
     if (!this.skill.steps[nextStep]) {
       this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'redirect' });
       await this.observers.flush();
-      return { kind: 'redirect', redirect: nextStep, completed, stash: this.stash.all() } satisfies RedirectResult;
+      return {
+        kind: 'redirect',
+        redirect: nextStep,
+        completed,
+        store: this.state.buildAccessor(),
+      } satisfies RedirectResult;
     }
 
     this.observers.fire('onTransition', { from: stepName, to: nextStep, reason: 'next' });
@@ -212,24 +200,7 @@ export class WorkflowEngine implements SkillEngine {
         response = Object.freeze(entry.response ?? {});
       }
 
-      if (stepDef.config.action?.updateStash && entry.actionResult !== undefined) {
-        this.stash.merge(
-          stepDef.config.action.updateStash({ actionResult: entry.actionResult }) as Record<string, unknown>,
-        );
-      }
-
-      if (stepDef.config.updateStash) {
-        this.stash.merge(
-          stepDef.config.updateStash({
-            response,
-            actionResult: entry.actionResult,
-            stash: this.stash.all(),
-            params: this.skillParams,
-          }) as Record<string, unknown>,
-        );
-      }
-
-      this.history.append(entry.step, response, entry.actionResult);
+      this.state.append(entry.step, response, entry.actionResult);
     }
   }
 
@@ -249,8 +220,8 @@ export class WorkflowEngine implements SkillEngine {
     if (typeof next === 'string') {
       target = next;
     } else if (typeof next === 'function') {
-      const attempts = this.history.visitCount(stepName);
-      target = next({ response, attempts, actionResult, params: this.skillParams, stash: this.stash.all() });
+      const attempts = this.state.visitCount(stepName);
+      target = next({ response, attempts, actionResult, params: this.skillParams, store: this.state.buildAccessor() });
     } else {
       return null;
     }
@@ -258,7 +229,7 @@ export class WorkflowEngine implements SkillEngine {
     if (target === 'self') target = stepName;
 
     if (maxVisits !== undefined) {
-      const visits = this.history.visitCount(target);
+      const visits = this.state.visitCount(target);
       if (visits >= maxVisits) {
         if (onMaxVisits !== undefined) {
           return onMaxVisits;
@@ -268,7 +239,7 @@ export class WorkflowEngine implements SkillEngine {
         );
       }
     } else if (this.cycleGuard?.stepsInCycles.has(target)) {
-      const visits = this.history.visitCount(target);
+      const visits = this.state.visitCount(target);
       if (visits >= this.cycleGuard.defaultMaxVisits) {
         throw new CycleGuardError(
           `Step "${target}" exceeded implicit cycle limit (${this.cycleGuard.defaultMaxVisits} visits). ` +
@@ -285,13 +256,11 @@ export class WorkflowEngine implements SkillEngine {
     if (!stepDef) throw new Error(`Step "${stepName}" not found`);
 
     const promptCtx: PromptContext = {
-      history: this.history.all(),
-      getStep: <TOutput = unknown, TAction = unknown>(name: string) => this.history.get<TOutput, TAction>(name),
+      store: this.state.buildAccessor(),
       params: this.skillParams,
       refs: this.refs,
-      attempts: this.history.visitCount(stepName),
+      attempts: this.state.visitCount(stepName),
       host: this.handshake,
-      stash: this.stash.all(),
       act,
       system,
     };
@@ -350,7 +319,7 @@ export class WorkflowEngine implements SkillEngine {
   }
 
   private buildDone(): DoneResult {
-    const lastResult = this.history.last();
+    const lastResult = this.state.last();
     const finalOutput = lastResult?.response ?? null;
 
     if (this.skill.finalOutput) {

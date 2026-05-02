@@ -1,25 +1,23 @@
-import type { type } from 'arktype';
 import type { ModuleDefinition, StepConfig, StepDefinition } from './types.js';
 import { step as createStep } from './step.js';
 
-export interface ModuleConfig<TModuleStash extends type.Any = type.Any> {
+export interface ModuleConfig {
   name: string;
   entry: string;
-  stash: TModuleStash;
 }
 
-export class ModuleBuilder<TStashSchema extends type.Any> {
-  private readonly config: ModuleConfig<TStashSchema>;
+export class ModuleBuilder {
+  private readonly config: ModuleConfig;
   private readonly steps: Record<string, StepDefinition> = {};
 
-  constructor(config: ModuleConfig<TStashSchema>) {
+  constructor(config: ModuleConfig) {
     this.config = config;
   }
 
-  step<TOutput extends type.Any>(
+  step<TOutput extends import('arktype').type.Any>(
     name: string,
-    configOrDef: StepConfig<TOutput, unknown, TStashSchema['infer']> | StepDefinition,
-  ): ModuleBuilder<TStashSchema> {
+    configOrDef: StepConfig<TOutput> | StepDefinition,
+  ): ModuleBuilder {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
@@ -28,7 +26,7 @@ export class ModuleBuilder<TStashSchema extends type.Any> {
     return this;
   }
 
-  build(): ModuleDefinition<TStashSchema> {
+  build(): ModuleDefinition {
     const { name, entry } = this.config;
 
     if (!name) throw new Error('module: name is required');
@@ -40,12 +38,11 @@ export class ModuleBuilder<TStashSchema extends type.Any> {
       kind: 'module' as const,
       name,
       entry,
-      stash: this.config.stash,
       steps: { ...this.steps },
-    }) as ModuleDefinition<TStashSchema>;
+    }) as ModuleDefinition;
   }
 }
 
-export function module<TModuleStash extends type.Any>(config: ModuleConfig<TModuleStash>): ModuleBuilder<TModuleStash> {
-  return new ModuleBuilder<TModuleStash>(config);
+export function module(config: ModuleConfig): ModuleBuilder {
+  return new ModuleBuilder(config);
 }
