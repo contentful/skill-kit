@@ -20,7 +20,7 @@ export default skill({
 
   .step('suggest-fix', {
     prompt: ({ store }) => {
-      const issues = store.diagnose?.issues ?? [];
+      const issues = store.steps.diagnose?.issues ?? [];
       return (
         `Found issues: ${issues.join(', ')}. Suggest fixes for each issue. ` +
         'Explain what each fix does and any risks.'
@@ -53,7 +53,7 @@ export default skill({
 
   .step('report-issues', {
     prompt: ({ store }) => {
-      const issues = store.diagnose?.issues ?? [];
+      const issues = store.steps.diagnose?.issues ?? [];
       return `Summarize: found ${issues.length} issue(s). Report the status of each.`;
     },
     response: type({ summary: 'string' }),

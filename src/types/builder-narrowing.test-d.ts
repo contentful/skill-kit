@@ -24,7 +24,7 @@ skill({ name: 'linear', entry: 'a' })
   .step('b', {
     prompt: ({ store }) => {
       // a is a linear predecessor → guaranteed, non-optional
-      const name: string = store.a.name;
+      const name: string = store.steps.a.name;
       void name;
       return 'B';
     },
@@ -34,8 +34,8 @@ skill({ name: 'linear', entry: 'a' })
   .step('c', {
     prompt: ({ store }) => {
       // a and b are both guaranteed
-      const name: string = store.a.name;
-      const role: string = store.b.role;
+      const name: string = store.steps.a.name;
+      const role: string = store.steps.b.role;
       void name;
       void role;
       return 'C';
@@ -62,8 +62,8 @@ skill({ name: 'branch', entry: 'start' })
   .step('path-a', {
     prompt: ({ store }) => {
       // start and choose are guaranteed (before the branch)
-      const name: string = store.start.name;
-      const path: string = store.choose.path;
+      const name: string = store.steps.start.name;
+      const path: string = store.steps.choose.path;
       void name;
       void path;
       return 'A';
@@ -74,15 +74,15 @@ skill({ name: 'branch', entry: 'start' })
   .step('path-b', {
     prompt: ({ store }) => {
       // start and choose are guaranteed
-      const name: string = store.start.name;
+      const name: string = store.steps.start.name;
       void name;
 
       // path-a is a branch target → must be optional, use ?.
-      const aResult = store['path-a']?.resultA;
+      const aResult = store.steps['path-a']?.resultA;
       void aResult;
 
       // NEGATIVE TEST: direct access on branch target should be undefined-able
-      // path-a is in TSteps but NOT in TGuaranteed, so store['path-a']
+      // path-a is in TSteps but NOT in TGuaranteed, so store.steps['path-a']
       // is an optional property requiring ?. for field access.
 
       return 'B';
@@ -93,12 +93,12 @@ skill({ name: 'branch', entry: 'start' })
   .step('end', {
     prompt: ({ store }) => {
       // start and choose are guaranteed
-      const name: string = store.start.name;
+      const name: string = store.steps.start.name;
       void name;
 
       // Both path-a and path-b are branch targets → optional
-      const a = store['path-a']?.resultA;
-      const b = store['path-b']?.resultB;
+      const a = store.steps['path-a']?.resultA;
+      const b = store.steps['path-b']?.resultB;
       void a;
       void b;
 
@@ -127,7 +127,7 @@ skill({ name: 'extend', entry: 'a' })
   .extend('b', confirmStep, {
     prompt: ({ store }) => {
       // a is guaranteed
-      const name: string = store.a.name;
+      const name: string = store.steps.a.name;
       void name;
       return 'Confirm for ' + name;
     },
@@ -136,8 +136,8 @@ skill({ name: 'extend', entry: 'a' })
   .step('c', {
     prompt: ({ store }) => {
       // a and b are guaranteed (b was added via extend, still linear)
-      const name: string = store.a.name;
-      const confirmed: boolean = store.b.confirmed;
+      const name: string = store.steps.a.name;
+      const confirmed: boolean = store.steps.b.confirmed;
       void name;
       void confirmed;
       return 'C';
@@ -171,12 +171,12 @@ skill({ name: 'action-store', entry: 'find' })
   })
   .step('report', {
     prompt: ({ store }) => {
-      // store.find carries the ACTION output, not the response
-      const statuses = store.find.statuses;
+      // store.steps.find carries the ACTION output, not the response
+      const statuses = store.steps.find.statuses;
       void statuses;
 
       // @ts-expect-error - 'links' is on the response, not the action output
-      store.find.links;
+      store.steps.find.links;
 
       return 'Report';
     },
@@ -204,13 +204,13 @@ skill({ name: 'three-way', entry: 'root' })
   .step('join', {
     prompt: ({ store }) => {
       // root is guaranteed (before the branch)
-      const choice: string = store.root.choice;
+      const choice: string = store.steps.root.choice;
       void choice;
 
       // x, y, z are all branch targets → all optional
-      const xv = store.x?.xVal;
-      const yv = store.y?.yVal;
-      const zv = store.z?.zVal;
+      const xv = store.steps.x?.xVal;
+      const yv = store.steps.y?.yVal;
+      const zv = store.steps.z?.zVal;
       void xv;
       void yv;
       void zv;
@@ -239,17 +239,17 @@ skill({ name: 'negative-branch', entry: 'root' })
   .step('end', {
     prompt: ({ store }) => {
       // root is guaranteed → direct access should work
-      const val: string = store.root.val;
+      const val: string = store.steps.root.val;
       void val;
 
       // left is a branch target → direct access MUST be an error
       // @ts-expect-error - left is a branch target, not guaranteed
-      const leftDirect: { leftVal: string } = store.left;
+      const leftDirect: { leftVal: string } = store.steps.left;
       void leftDirect;
 
       // right is a branch target → direct access MUST be an error
       // @ts-expect-error - right is a branch target, not guaranteed
-      const rightDirect: { rightVal: string } = store.right;
+      const rightDirect: { rightVal: string } = store.steps.right;
       void rightDirect;
 
       return 'End';
@@ -296,8 +296,8 @@ skill({ name: 'branch-then-linear', entry: 'a' })
   .step('c', {
     prompt: ({ store }) => {
       // a and b are both guaranteed (linear chain + retry loop filtered)
-      const val: string = store.a.val;
-      const ok: boolean = store.b.ok;
+      const val: string = store.steps.a.val;
+      const ok: boolean = store.steps.b.ok;
       void val;
       void ok;
       return 'C';
@@ -354,18 +354,18 @@ skill({ name: 'reconvergent', entry: 'root' })
   .step('end', {
     prompt: ({ store }) => {
       // root, branch, merge, confirm are all guaranteed
-      const val: string = store.root.val;
-      const path: string = store.branch.path;
-      const hobby: string = store.merge.hobby;
-      const approved: boolean = store.confirm.approved;
+      const val: string = store.steps.root.val;
+      const path: string = store.steps.branch.path;
+      const hobby: string = store.steps.merge.hobby;
+      const approved: boolean = store.steps.confirm.approved;
       void val;
       void path;
       void hobby;
       void approved;
 
       // left and right are true branch targets — optional
-      const l = store.left?.answer;
-      const r = store.right?.answer;
+      const l = store.steps.left?.answer;
+      const r = store.steps.right?.answer;
       void l;
       void r;
 
@@ -392,15 +392,15 @@ skill({ name: 'reconvergent-negative', entry: 'root' })
   .step('merge', {
     prompt: ({ store }) => {
       // root is guaranteed
-      const val: string = store.root.val;
+      const val: string = store.steps.root.val;
       void val;
 
       // @ts-expect-error - left is a branch target, not guaranteed
-      const leftDirect: { lv: string } = store.left;
+      const leftDirect: { lv: string } = store.steps.left;
       void leftDirect;
 
       // @ts-expect-error - right is a branch target, not guaranteed
-      const rightDirect: { rv: string } = store.right;
+      const rightDirect: { rv: string } = store.steps.right;
       void rightDirect;
 
       return 'Merge';
@@ -432,13 +432,13 @@ skill({ name: 'multi-visit', entry: 'setup' })
   .step('end', {
     prompt: ({ store }) => {
       // setup and loop are guaranteed
-      const name: string = store.setup.name;
-      const item: string = store.loop.item;
+      const name: string = store.steps.setup.name;
+      const item: string = store.steps.loop.item;
       void name;
       void item;
 
       // .all() returns typed array
-      const items: Array<{ item: string; done: boolean }> = store.all('loop');
+      const items: Array<{ item: string; done: boolean }> = store.steps.all('loop');
       void items;
 
       return 'End';
@@ -474,21 +474,21 @@ skill({ name: 'merge-point', entry: 'a' })
   .step('f', {
     prompt: ({ store }) => {
       // a, b, e are guaranteed
-      const val: string = store.a.val;
-      const choice: string = store.b.choice;
-      const merged: boolean = store.e.merged;
+      const val: string = store.steps.a.val;
+      const choice: string = store.steps.b.choice;
+      const merged: boolean = store.steps.e.merged;
       void val;
       void choice;
       void merged;
 
       // c and d are branch targets — optional
-      const cv = store.c?.cv;
-      const dv = store.d?.dv;
+      const cv = store.steps.c?.cv;
+      const dv = store.steps.d?.dv;
       void cv;
       void dv;
 
       // @ts-expect-error - c is a branch target, not guaranteed
-      const cDirect: { cv: number } = store.c;
+      const cDirect: { cv: number } = store.steps.c;
       void cDirect;
 
       return 'F';
@@ -506,3 +506,97 @@ step({ response: type({ val: 'string' }), next: 'b' });
 
 // Promptless step without response is fine
 step({ next: 'b' });
+
+// ============================================================
+// 14. Reconvergence: branch target IS the merge point
+// ============================================================
+// gather → [test-staging, test-prod]
+// test-staging → test-prod (string next)
+// test-prod is on ALL paths → should be guaranteed
+
+skill({ name: 'reconvergence', entry: 'gather' })
+  .step('gather', {
+    prompt: 'Gather',
+    response: type({ val: 'string' }),
+    next: [{ to: 'test-staging', when: ({ response }) => response.val === 'staging' }, { to: 'test-prod' }],
+  })
+  .step('test-staging', {
+    prompt: 'Staging',
+    response: type({ stagingResult: 'string' }),
+    next: 'test-prod',
+  })
+  .step('test-prod', {
+    prompt: ({ store }) => {
+      // gather is guaranteed (before the branch)
+      const val: string = store.steps.gather.val;
+      void val;
+
+      // test-staging is a branch target — optional
+      const staging = store.steps['test-staging']?.stagingResult;
+      void staging;
+
+      return 'Prod';
+    },
+    response: type({ prodResult: 'string' }),
+    next: 'report',
+  })
+  .step('report', {
+    prompt: ({ store }) => {
+      // gather AND test-prod are guaranteed (test-prod promoted via reconvergence)
+      const val: string = store.steps.gather.val;
+      const prod: string = store.steps['test-prod'].prodResult;
+      void val;
+      void prod;
+
+      // test-staging is still optional (true branch target)
+      const staging = store.steps['test-staging']?.stagingResult;
+      void staging;
+
+      return 'Report';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 15. NEGATIVE: partial reconvergence must NOT promote
+// ============================================================
+// root → [a, b, c], a → c, but b does NOT route to c
+// c must remain optional
+
+skill({ name: 'partial-reconvergence', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ choice: 'string' }),
+    next: [
+      { to: 'a', when: ({ response }) => response.choice === 'a' },
+      { to: 'b', when: ({ response }) => response.choice === 'b' },
+      { to: 'c' },
+    ],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'c' })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'end' })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'end' })
+  .step('end', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const choice: string = store.steps.root.choice;
+      void choice;
+
+      // a, b, c are all branch targets — optional
+      const a = store.steps.a?.av;
+      const b = store.steps.b?.bv;
+      const c = store.steps.c?.cv;
+      void a;
+      void b;
+      void c;
+
+      // @ts-expect-error - c is NOT promoted (b doesn't route to c)
+      const cDirect: { cv: string } = store.steps.c;
+      void cDirect;
+
+      return 'End';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });

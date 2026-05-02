@@ -51,7 +51,7 @@ export default skill({
   })
 
   .subskill('doctor', doctorSkill, {
-    params: (_output, store) => ({ spaceId: store['get-space']?.spaceId ?? '' }),
+    params: (_output, store) => ({ spaceId: store.steps['get-space']?.spaceId ?? '' }),
   })
   .subskill('setup', setupSkill)
 

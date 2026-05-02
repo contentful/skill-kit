@@ -25,7 +25,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
   })
   .step('report', {
     prompt: (ctx) => {
-      const record = ctx.store.history.find((r) => r.step === 'diagnose');
+      const record = ctx.store.steps.history.find((r) => r.step === 'diagnose');
       return `Report: scanResult=${JSON.stringify((record?.actionResult as { found: string })?.found)}`;
     },
     response: type({ summary: 'string' }),
@@ -57,7 +57,7 @@ const composite = skill({
   .topic('basics', { label: 'Basic FAQ', content: () => 'This is the basics FAQ content.' })
   .subskill('doctor', doctorSkill, {
     params: (_output: unknown, store) => ({
-      from: (store.classify as { intent: string } | undefined)?.intent ?? '',
+      from: (store.steps.classify as { intent: string } | undefined)?.intent ?? '',
     }),
   })
   .subskill('setup', setupSkill)

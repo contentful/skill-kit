@@ -27,7 +27,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
   })
   .step('report', {
     prompt: (ctx) => {
-      const record = ctx.store.history.find((r) => r.step === 'diagnose');
+      const record = ctx.store.steps.history.find((r) => r.step === 'diagnose');
       return `Report: scanResult=${JSON.stringify((record?.actionResult as { found: string })?.found)}`;
     },
     response: type({ summary: 'string' }),
@@ -96,7 +96,7 @@ test('SubskillEngine.replayHistory filters and unqualifies entries', async () =>
     })
     .step('c', {
       prompt: (ctx) => {
-        capturedStoreValue = ctx.store.a;
+        capturedStoreValue = ctx.store.steps.a;
         return 'C';
       },
       response: type({}),

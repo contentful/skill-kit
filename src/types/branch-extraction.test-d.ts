@@ -19,7 +19,8 @@ const afterBranch = skill({ name: 'test', entry: 'a' }).step('a', {
 });
 
 type AfterBranch = typeof afterBranch;
-type Branched = AfterBranch extends SkillBuilder<infer _P, infer _S, infer _G, infer B> ? B : 'FAIL';
+type Branched =
+  AfterBranch extends SkillBuilder<infer _P, infer _S, infer _G, infer B, infer _St> ? B['branched'] : 'FAIL';
 
 // TBranched should include 'b' and 'c'
 type _t1 = Expect<Equal<Branched, 'b' | 'c'>>;
@@ -34,7 +35,8 @@ const afterLinear = skill({ name: 'test', entry: 'a' }).step('a', {
 });
 
 type AfterLinear = typeof afterLinear;
-type LinearBranched = AfterLinear extends SkillBuilder<infer _P, infer _S, infer _G, infer B> ? B : 'FAIL';
+type LinearBranched =
+  AfterLinear extends SkillBuilder<infer _P, infer _S, infer _G, infer B, infer _St> ? B['branched'] : 'FAIL';
 type _t2 = Expect<IsNever<LinearBranched>>;
 void (0 as unknown as _t2);
 
@@ -47,7 +49,8 @@ const afterTerminal = skill({ name: 'test', entry: 'a' }).step('a', {
 });
 
 type AfterTerminal = typeof afterTerminal;
-type TerminalBranched = AfterTerminal extends SkillBuilder<infer _P, infer _S, infer _G, infer B> ? B : 'FAIL';
+type TerminalBranched =
+  AfterTerminal extends SkillBuilder<infer _P, infer _S, infer _G, infer B, infer _St> ? B['branched'] : 'FAIL';
 type _t3 = Expect<IsNever<TerminalBranched>>;
 void (0 as unknown as _t3);
 
@@ -64,12 +67,12 @@ skill({ name: 'full', entry: 'root' })
   .step('end', {
     prompt: ({ store }) => {
       // root is guaranteed
-      const val: string = store.root.val;
+      const val: string = store.steps.root.val;
       void val;
 
       // left and right are branch targets — optional
-      const lv: string | undefined = store.left?.lv;
-      const rv: string | undefined = store.right?.rv;
+      const lv: string | undefined = store.steps.left?.lv;
+      const rv: string | undefined = store.steps.right?.rv;
       void lv;
       void rv;
 
@@ -98,8 +101,8 @@ skill({ name: 'retry', entry: 'first' })
   .step('proceed', {
     prompt: ({ store }) => {
       // first and review are guaranteed (linear chain + retry loop)
-      const val: string = store.first.val;
-      const approved: boolean = store.review.approved;
+      const val: string = store.steps.first.val;
+      const approved: boolean = store.steps.review.approved;
       void val;
       void approved;
       return 'Done';
@@ -122,8 +125,10 @@ const afterSelfLoop = skill({ name: 'self-loop', entry: 'collect' }).step('colle
 });
 
 type AfterSelfLoop = typeof afterSelfLoop;
-type SelfLoopBranched = AfterSelfLoop extends SkillBuilder<infer _P, infer _S, infer _G, infer B> ? B : 'FAIL';
-type SelfLoopGuaranteed = AfterSelfLoop extends SkillBuilder<infer _P, infer _S, infer G, infer _B> ? G : 'FAIL';
+type SelfLoopBranched =
+  AfterSelfLoop extends SkillBuilder<infer _P, infer _S, infer _G, infer B, infer _St> ? B['branched'] : 'FAIL';
+type SelfLoopGuaranteed =
+  AfterSelfLoop extends SkillBuilder<infer _P, infer _S, infer G, infer _B, infer _St> ? G['steps'] : 'FAIL';
 
 // Self-loop filtered out → single forward target → not a real branch
 type _t6a = Expect<IsNever<SelfLoopBranched>>;
@@ -136,7 +141,7 @@ void (0 as unknown as _t6b);
 afterSelfLoop.step('summarize', {
   prompt: ({ store }) => {
     // collect is guaranteed
-    const item: string = store.collect.item;
+    const item: string = store.steps.collect.item;
     void item;
     return 'Summary';
   },
@@ -170,9 +175,9 @@ skill({ name: 'multi-backward', entry: 'a' })
   .step('d', {
     prompt: ({ store }) => {
       // a, b, c are all guaranteed
-      const av: string = store.a.val;
-      const bv: string = store.b.val;
-      const cc: string = store.c.choice;
+      const av: string = store.steps.a.val;
+      const bv: string = store.steps.b.val;
+      const cc: string = store.steps.c.choice;
       void av;
       void bv;
       void cc;

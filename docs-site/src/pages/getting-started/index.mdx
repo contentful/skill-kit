@@ -36,7 +36,7 @@ export default skill({
     next: 'welcome',
   })
   .step('welcome', {
-    prompt: ({ store }) => `Say hello to ${store.ask.name}.`,
+    prompt: ({ store }) => `Say hello to ${store.steps.ask.name}.`,
     response: type({ message: 'string' }),
     next: terminal,
   })
@@ -45,7 +45,7 @@ export default skill({
 
 `skill()` returns a builder. `.step()` adds steps with a prompt, an ArkType response schema, and a transition. `.build()` freezes the definition. The agent sees one step at a time, returns structured output matching the schema, and the skill decides what happens next.
 
-The `store` gives every step typed access to all prior step results. In the `welcome` step, `store.ask.name` is typed as `string` automatically — the SDK knows the `ask` step is guaranteed to have run before `welcome`, so the access is non-optional. No manual wiring, no null checks.
+The `store` gives every step typed access to all prior step results. In the `welcome` step, `store.steps.ask.name` is typed as `string` automatically — the SDK knows the `ask` step is guaranteed to have run before `welcome`, so the access is non-optional. No manual wiring, no null checks.
 
 ## Run it without an agent
 

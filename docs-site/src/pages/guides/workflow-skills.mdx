@@ -75,9 +75,8 @@ Adds a step to the skill. The prompt callbacks receive typed `params` and `store
     run: writeReportAction,
     input: ({ response, store }) => ({ checks: response.checks }),
   },
-  result: ({ response, actionResult }) => ({
-    checks: response.checks,
-    reportPath: actionResult.path,
+  save: ({ response, actionResult }) => ({
+    step: { checks: response.checks, reportPath: actionResult.path },
   }),
   next: ({ response }) => response.checks.every(c => c.passed) ? 'approve' : 'remediate',
   maxVisits: 3,
@@ -87,15 +86,15 @@ Adds a step to the skill. The prompt callbacks receive typed `params` and `store
 
 ### Full step config shape
 
-| Field         | Type                                                    | Required | Description                                                             |
-| ------------- | ------------------------------------------------------- | -------- | ----------------------------------------------------------------------- |
-| `prompt`      | `string \| PromptPiece \| PromptFn`                     | No       | The prose shown to the agent. Can be static, a segment, or a function.  |
-| `response`    | `type.Any`                                              | No       | ArkType schema the agent's response must match. Omit for pass-through.  |
-| `next`        | `string \| NextBranch[] \| (ctx) => string \| terminal` | Yes      | Where to go after this step. Static name, branches, function, terminal. |
-| `action`      | `{ run, input? }`                                       | No       | CLI-side side effect that runs after response validation.               |
-| `result`      | `(ctx: { response, actionResult }) => unknown`          | No       | Transform what gets stored. Defaults to actionResult or response.       |
-| `maxVisits`   | `number`                                                | No       | Explicit visit limit for this step.                                     |
-| `onMaxVisits` | `string`                                                | No       | Fallback step when `maxVisits` is exceeded.                             |
+| Field         | Type                                                          | Required | Description                                                             |
+| ------------- | ------------------------------------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `prompt`      | `string \| PromptPiece \| PromptFn`                           | No       | The prose shown to the agent. Can be static, a segment, or a function.  |
+| `response`    | `type.Any`                                                    | No       | ArkType schema the agent's response must match. Omit for pass-through.  |
+| `next`        | `string \| NextBranch[] \| (ctx) => string \| terminal`       | Yes      | Where to go after this step. Static name, branches, function, terminal. |
+| `action`      | `{ run, input? }`                                             | No       | CLI-side side effect that runs after response validation.               |
+| `save`        | `(ctx: { response, actionResult, store, params }) => unknown` | No       | Transform what gets stored. Defaults to actionResult or response.       |
+| `maxVisits`   | `number`                                                      | No       | Explicit visit limit for this step.                                     |
+| `onMaxVisits` | `string`                                                      | No       | Fallback step when `maxVisits` is exceeded.                             |
 
 ## PromptContext
 
@@ -118,29 +117,29 @@ The store gives every step typed access to all prior step results. The SDK analy
 **Guaranteed steps** are non-optional — direct property access, no null checks:
 
 ```typescript
-store.greet.name; // string -- guaranteed, TypeScript knows it ran
-store['ask-role'].role; // string -- guaranteed, non-optional
+store.steps.greet.name; // string -- guaranteed, TypeScript knows it ran
+store.steps['ask-role'].role; // string -- guaranteed, non-optional
 ```
 
 **Branch targets** are optional — the SDK enforces `?.` because only one branch ran:
 
 ```typescript
-store['ask-stack']?.answer; // string | undefined -- branch target
-store['ask-tools']?.answer; // string | undefined -- branch target
+store.steps['ask-stack']?.answer; // string | undefined -- branch target
+store.steps['ask-tools']?.answer; // string | undefined -- branch target
 ```
 
 **Loop visits** — all results from a step that ran multiple times:
 
 ```typescript
-store.all('ask-hobby'); // typed array of all visit results
-store.ran('ask-stack'); // boolean -- whether it ran at least once
+store.steps.all('ask-hobby'); // typed array of all visit results
+store.steps.ran('ask-stack'); // boolean -- whether it ran at least once
 ```
 
 This is computed automatically from your step declarations via DAG analysis. Retry loops (backward edges to already-defined steps) don't create false branches — the forward path is still guaranteed. There is no `setState`, no manual wiring, no reducers. Step results flow into the store automatically.
 
-### The `result` callback
+### The `save` callback
 
-By default, the store carries the step's `response` (or `actionResult` if an action ran). The `result` callback transforms what gets stored — the agent contract and the step's contribution to state are separate:
+By default, the store carries the step's `response` (or `actionResult` if an action ran). The `save` callback transforms what gets stored — the agent contract and the step's contribution to state are separate:
 
 ```typescript
 .step('save', {
@@ -149,15 +148,14 @@ By default, the store carries the step's `response` (or `actionResult` if an act
     run: writeProfile,
     input: ({ response }) => ({ profile: response.profile }),
   },
-  result: ({ response, actionResult }) => ({
-    profile: response.profile,
-    savedPath: actionResult.path,
+  save: ({ response, actionResult }) => ({
+    step: { profile: response.profile, savedPath: actionResult.path },
   }),
   next: 'confirm',
 })
 ```
 
-`response` is what the model gives back. `result` is what downstream steps see in `store['save']`. The model's reasoning stays in the response; the store carries only what matters.
+`response` is what the model gives back. The `step` key in the `save` return is what downstream steps see in `store.steps['save']`. The model's reasoning stays in the response; the store carries only what matters.
 
 ### Declarative branching powers type narrowing
 
@@ -175,7 +173,7 @@ Declarative branching with `NextBranch[]` lets the SDK see your transition targe
 })
 ```
 
-Because the SDK can read the branch targets, it knows that in a later step, `store['ask-stack']` might not exist (only developers take that path), so it requires `?.`. But `store['ask-role']` is guaranteed — every path goes through it — so it's non-optional.
+Because the SDK can read the branch targets, it knows that in a later step, `store.steps['ask-stack']` might not exist (only developers take that path), so it requires `?.`. But `store.steps['ask-role']` is guaranteed — every path goes through it — so it's non-optional.
 
 ## Transitions
 
@@ -285,7 +283,7 @@ const openQuestion = step({
 // In a skill — .extend() applies typed params/store:
 skill({ params: ParamsSchema, entry: 'ask', ... })
   .extend('ask', openQuestion, {
-    prompt: ({ store }) => `${store.greet.name}, tell me about yourself.`,  // typed
+    prompt: ({ store }) => `${store.steps.greet.name}, tell me about yourself.`,  // typed
     next: 'done',  // overrides __parent__
   })
 ```
@@ -432,12 +430,12 @@ export default skill({
     next: [{ to: 'run-checks', when: ({ response }) => response.approved }, { to: 'force-report' }],
   })
 
-  // Step 3: Run the checks — store.choose-env.env is guaranteed (non-optional)
+  // Step 3: Run the checks — store.steps['choose-env'].env is guaranteed (non-optional)
   .step('run-checks', {
     prompt: ({ store }) => prompt`
       ${strictTone}
 
-      Run deployment checks for the **${store['choose-env'].env}** environment:
+      Run deployment checks for the **${store.steps['choose-env'].env}** environment:
       1. Verify the build completes without errors
       2. Check that all tests pass
       3. Confirm environment variables are set
@@ -452,7 +450,7 @@ export default skill({
   // Step 4a: Remediation (if checks failed)
   .step('remediate', {
     prompt: ({ store, act }) => {
-      const failCount = store['run-checks'].checks.filter((c) => !c.passed).length;
+      const failCount = store.steps['run-checks'].checks.filter((c) => !c.passed).length;
       return [
         act.checklist({
           create: [
@@ -463,9 +461,9 @@ export default skill({
         prompt`
           ${strictTone}
 
-          ${failCount} check(s) failed for **${store['choose-env'].env}**.
+          ${failCount} check(s) failed for **${store.steps['choose-env'].env}**.
           Failed checks: ${JSON.stringify(
-            store['run-checks'].checks.filter((c) => !c.passed),
+            store.steps['run-checks'].checks.filter((c) => !c.passed),
             null,
             2,
           )}
@@ -497,9 +495,9 @@ export default skill({
   // Step 5a: Final report (happy path) — uses store for typed access
   .step('report', {
     prompt: ({ store }) => {
-      // store['run-checks'] is guaranteed — no ?. needed
-      const checks = store['run-checks'].checks;
-      const env = store['choose-env'].env;
+      // store.steps['run-checks'] is guaranteed — no ?. needed
+      const checks = store.steps['run-checks'].checks;
+      const env = store.steps['choose-env'].env;
       const table = render.table(checks, { columns: ['name', 'passed', 'detail'] });
       const report = render.section(`Deployment Report: ${env}`, table);
       return `Output the following deployment report exactly as shown:\n\n${report}`;
@@ -511,7 +509,7 @@ export default skill({
   // Step 5b: Force report (after max remediation attempts)
   .step('force-report', {
     prompt: ({ store }) => prompt`
-      Remediation attempts exhausted for **${store['choose-env'].env}**.
+      Remediation attempts exhausted for **${store.steps['choose-env'].env}**.
       Generate a summary noting which checks still fail and recommend manual intervention.
     `,
     response: type({ ready: 'boolean', summary: 'string' }),

@@ -84,7 +84,7 @@ export default skill({
 
   .step('ask-stack', {
     prompt: ({ store }) => {
-      const name = store.greet.name;
+      const name = store.steps.greet.name;
       return [
         prompt`
           ${name} is a developer — nice!
@@ -154,17 +154,17 @@ export default skill({
 
   .step('profile-card', {
     prompt: ({ store, refs }) => {
-      const name = store.greet.name;
-      const role = store['ask-role'].role;
+      const name = store.steps.greet.name;
+      const role = store.steps['ask-role'].role;
 
       const specialty =
-        store['ask-stack']?.answer ??
-        store['ask-tools']?.answer ??
-        store['ask-team-size']?.answer ??
-        store['ask-specialty']?.answer ??
+        store.steps['ask-stack']?.answer ??
+        store.steps['ask-tools']?.answer ??
+        store.steps['ask-team-size']?.answer ??
+        store.steps['ask-specialty']?.answer ??
         'Classified';
 
-      const hobbies = store.all('ask-hobby').map((v) => v.hobby);
+      const hobbies = store.steps.all('ask-hobby').map((v) => v.hobby);
 
       let funFact = '';
       try {

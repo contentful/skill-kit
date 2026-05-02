@@ -168,13 +168,15 @@ export interface StepResult<TOutput = unknown> {
   readonly result: unknown;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
 export interface PromptContext<
   TParams = any,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
   TGuaranteed extends keyof TSteps = never,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > {
-  store: StoreAccessor<TSteps, TGuaranteed>;
+  store: StoreAccessor<TSteps, TGuaranteed, TStores, TStoreWrites>;
   params: TParams;
   refs: ReferenceLoader;
   attempts: number;
@@ -183,38 +185,46 @@ export interface PromptContext<
   system: SystemBuilder;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
 export type PromptFn<
   TParams = any,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
   TGuaranteed extends keyof TSteps = never,
-> = (ctx: PromptContext<TParams, TSteps, TGuaranteed>) => PromptReturn;
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> = (ctx: PromptContext<TParams, TSteps, TGuaranteed, TStores, TStoreWrites>) => PromptReturn;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type TransitionFn<
   TOutput = unknown,
   TActionResult = unknown,
   TParams = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > = (ctx: {
   response: TOutput;
   attempts: number;
   actionResult: TActionResult;
   params: Readonly<TParams>;
-  store: StoreAccessor<TSteps>;
+  store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
 }) => string;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface NextBranch<
   TOutput = unknown,
   TActionResult = unknown,
   TParams = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > {
   to: string;
   when?: (ctx: {
     response: TOutput;
     actionResult: TActionResult;
     params: Readonly<TParams>;
-    store: StoreAccessor<TSteps>;
+    store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
     attempts: number;
   }) => boolean;
 }
@@ -238,35 +248,44 @@ export type NextTarget<
  * When result is omitted, the step result defaults to the action output (if action exists) or the response.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
 interface BaseStepFields<
   TOutput extends type.Any = type.Any,
   TParams = any,
   TActionResult = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > {
-  result?: (ctx: { response: TOutput['infer']; actionResult: TActionResult }) => unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  save?: (ctx: { response: any; actionResult: any; store: any; params: any }) => { step?: unknown } | void;
   next:
     | string
-    | TransitionFn<TOutput['infer'], TActionResult, TParams, TSteps>
-    | readonly NextBranch<TOutput['infer'], TActionResult, TParams, TSteps>[]
+    | TransitionFn<TOutput['infer'], TActionResult, TParams, TSteps, TStores, TStoreWrites>
+    | readonly NextBranch<TOutput['infer'], TActionResult, TParams, TSteps, TStores, TStoreWrites>[]
     | { terminal: true };
   action?: {
     run: ActionDefinition;
-    input?: (ctx: { response: TOutput['infer']; store: StoreAccessor<TSteps>; params: Readonly<TParams> }) => unknown;
+    input?: (ctx: {
+      response: TOutput['infer'];
+      store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
+      params: Readonly<TParams>;
+    }) => unknown;
   };
   maxVisits?: number;
   onMaxVisits?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
 interface PromptStepFields<
   TOutput extends type.Any = type.Any,
   TParams = any,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
   TGuaranteed extends keyof TSteps = never,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > {
-  prompt: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TSteps, TGuaranteed>;
+  prompt: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TSteps, TGuaranteed, TStores, TStoreWrites>;
   response?: TOutput;
 }
 
@@ -275,15 +294,17 @@ interface PromptlessStepFields {
   response?: never;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
 export type StepConfig<
   TOutput extends type.Any = type.Any,
   TParams = any,
   TActionResult = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
   TGuaranteed extends keyof TSteps = never,
-> = BaseStepFields<TOutput, TParams, TActionResult, TSteps> &
-  (PromptStepFields<TOutput, TParams, TSteps, TGuaranteed> | PromptlessStepFields);
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> = BaseStepFields<TOutput, TParams, TActionResult, TSteps, TStores, TStoreWrites> &
+  (PromptStepFields<TOutput, TParams, TSteps, TGuaranteed, TStores, TStoreWrites> | PromptlessStepFields);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepDefinition<
@@ -335,6 +356,7 @@ export type SkillBuilderConfig<TParams extends type.Any = type.Any> = {
   entry: string;
   system?: string;
   params?: TParams;
+  stores?: Record<string, type.Any>;
   observers?: ObserverMap;
   finalOutput?: type.Any;
   skillMd?: string | ((skill: SkillDefinition) => string);
@@ -364,6 +386,7 @@ export interface SkillDefinition<TParams extends type.Any = type.Any> {
   readonly entry: string;
   readonly system: string | undefined;
   readonly params: TParams | undefined;
+  readonly stores?: Readonly<Record<string, type.Any>>;
   readonly steps: Readonly<Record<string, StepDefinition>>;
   readonly observers: ObserverMap | undefined;
   readonly finalOutput: type.Any | undefined;

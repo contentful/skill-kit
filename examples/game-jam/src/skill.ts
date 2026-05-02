@@ -89,9 +89,9 @@ export default skill({
   // --- Design review (confirm) ---
   .step('design-review', {
     prompt: ({ store }) => {
-      const variant = store['choose-variant'].variant;
-      const name = store['name-game'].name;
-      const renderer = store['choose-renderer'].renderer;
+      const variant = store.steps['choose-variant'].variant;
+      const name = store.steps['name-game'].name;
+      const renderer = store.steps['choose-renderer'].renderer;
       return [
         act.confirm({
           message: 'Design choices are locked in. Ready to start planning the build?',
@@ -107,7 +107,7 @@ export default skill({
   // --- Research renderer (subagent) ---
   .step('research-renderer', {
     prompt: ({ store, refs }) => {
-      const renderer = store['choose-renderer'].renderer;
+      const renderer = store.steps['choose-renderer'].renderer;
       return [
         act.subagent({
           prompt:
@@ -128,10 +128,10 @@ export default skill({
   // --- Implementation plan (act.plan — dynamic from store) ---
   .step('implementation-plan', {
     prompt: ({ store, act }) => {
-      const name = store['name-game'].name;
-      const variant = store['choose-variant'].variant;
-      const renderer = store['choose-renderer'].renderer;
-      const researchSummary = store['research-renderer']?.summary ?? '';
+      const name = store.steps['name-game'].name;
+      const variant = store.steps['choose-variant'].variant;
+      const renderer = store.steps['choose-renderer'].renderer;
+      const researchSummary = store.steps['research-renderer']?.summary ?? '';
       return [
         act.plan({
           summary: `Build "${name}" — a ${variant} Tetris game with ${renderer} rendering`,
@@ -161,10 +161,10 @@ export default skill({
   // --- Build (checklist + work in one step via array composition) ---
   .step('build', {
     prompt: ({ store, act, system }) => {
-      const variant = store['choose-variant'].variant;
-      const name = store['name-game'].name;
-      const renderer = store['choose-renderer'].renderer;
-      const researchSummary = store['research-renderer']?.summary ?? '';
+      const variant = store.steps['choose-variant'].variant;
+      const name = store.steps['name-game'].name;
+      const renderer = store.steps['choose-renderer'].renderer;
+      const researchSummary = store.steps['research-renderer']?.summary ?? '';
       return [
         system`Be methodical — complete each checklist item before moving to the next.`,
 
@@ -193,9 +193,9 @@ export default skill({
   // --- Generate README (subagent) ---
   .step('generate-readme', {
     prompt: ({ store }) => {
-      const name = store['name-game'].name;
-      const variant = store['choose-variant'].variant;
-      const renderer = store['choose-renderer'].renderer;
+      const name = store.steps['name-game'].name;
+      const variant = store.steps['choose-variant'].variant;
+      const renderer = store.steps['choose-renderer'].renderer;
       return [
         act.subagent({
           prompt:
@@ -232,9 +232,9 @@ export default skill({
   // --- Summary card (terminal) ---
   .step('summary', {
     prompt: ({ store }) => {
-      const name = store['name-game'].name;
-      const variant = store['choose-variant'].variant;
-      const renderer = store['choose-renderer'].renderer;
+      const name = store.steps['name-game'].name;
+      const variant = store.steps['choose-variant'].variant;
+      const renderer = store.steps['choose-renderer'].renderer;
       return [
         view(
           render.section(
@@ -265,9 +265,9 @@ export default skill({
       run: saveGameConfig,
       input: ({ store }) => ({
         config: {
-          name: store['name-game']?.name ?? '',
-          variant: store['choose-variant']?.variant ?? 'classic',
-          renderer: store['choose-renderer']?.renderer ?? 'canvas',
+          name: store.steps['name-game']?.name ?? '',
+          variant: store.steps['choose-variant']?.variant ?? 'classic',
+          renderer: store.steps['choose-renderer']?.renderer ?? 'canvas',
         },
       }),
     },

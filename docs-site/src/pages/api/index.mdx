@@ -12,7 +12,7 @@ Full reference for `@contentful/skill-kit`. Start with the [Getting Started](/ge
 ```typescript
 import { skill, type } from '@contentful/skill-kit';
 
-skill({ name, entry, system?, params?, observers?, finalOutput?, skillMd?, argumentHint?, allowedTools?, paths?, context? })
+skill({ name, entry, system?, params?, stores?, observers?, finalOutput?, skillMd?, argumentHint?, allowedTools?, paths?, context? })
   .step(name, config)                       // add a step
   .extend(name, sharedStep, overrides)      // inherit + override a shared step
   .register(module, { next })               // merge module steps, widen store type
@@ -25,12 +25,13 @@ skill({ name, entry, system?, params?, observers?, finalOutput?, skillMd?, argum
 | ------------------------ | ---------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
 | `name`                   | `string`                                       | yes      | Skill identifier                                                                                                     |
 | `entry`                  | `string`                                       | yes      | Name of the first step                                                                                               |
-| `system`                 | `string`                                       | no       | System-level directive prepended to the preamble (persona, constraints, tone)                                        |
+| `system`                 | `string`                                       | no       | System-level persona prepended to the preamble. Steps inherit it; steps can override with `system` in array prompts  |
 | `version`                | `string`                                       | no       | Defaults to `'0.0.0'`. Mutually exclusive with `resolveVersion`                                                      |
 | `resolveVersion`         | `true`                                         | no       | Resolve version from nearest ancestor `package.json`. Mutually exclusive with `version`                              |
 | `description`            | `string`                                       | no       | Used in generated SKILL.md                                                                                           |
 | `triggers`               | `string[]`                                     | no       | Keywords appended to description for agent discoverability                                                           |
 | `params`                 | `type.Any`                                     | no       | ArkType schema for immutable skill-wide params                                                                       |
+| `stores`                 | `Record<string, type.Any>`                     | no       | Named sub-stores with ArkType schemas. Written via `save` return keys, deep-merged across steps                      |
 | `finalOutput`            | `type.Any`                                     | no       | Schema for the terminal step's output                                                                                |
 | `observers`              | `ObserverMap`                                  | no       | Lifecycle hooks (see [Observers](#observers))                                                                        |
 | `skillMd`                | `string \| (skill: SkillDefinition) => string` | no       | Custom SKILL.md template override                                                                                    |
@@ -70,7 +71,7 @@ const openQuestion = step({
 .extend('ask-stack', openQuestion, {
   prompt: ({ store, act }) => [
     act.askUser({ type: 'open', question: "What's your tech stack?" }),
-    `Ask ${store.greet.name} about their tech stack.`,
+    `Ask ${store.steps.greet.name} about their tech stack.`,
   ],
   next: 'ask-hobby',
 })
@@ -78,7 +79,7 @@ const openQuestion = step({
 
 ### `.register(module, { next })`
 
-Merges all steps from a module into the skill. Module steps with `next: '__parent__'` are rewritten to point to `next`. Store types widen automatically — see [Modules](#modules).
+Merges all steps from a module into the skill. Module steps with `next: '__parent__'` are rewritten to point to `next`. Step types accumulate into the store — see [Modules](#modules).
 
 ### `.build()`
 
@@ -99,7 +100,7 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
     run: ActionDefinition,
     input?: (ctx: { response; store; params }) => unknown,
   },
-  result?: (ctx: { response; actionResult }) => unknown,
+  save?: (ctx: { response; actionResult; store; params }) => { step?; ...storeWrites },
   maxVisits?: number,
   onMaxVisits?: string,
 }
@@ -122,15 +123,15 @@ The `prompt` field accepts `PromptPiece` directly (including `ActSegment`), so s
 
 Available in dynamic `prompt` functions:
 
-| Field      | Type                             | Description                                                                                    |
-| ---------- | -------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `store`    | `StoreView<TSteps, TGuaranteed>` | Typed accessor for prior step results (guaranteed steps non-optional, branch targets use `?.`) |
-| `params`   | `TParams`                        | Immutable skill params (typed from builder)                                                    |
-| `refs`     | `ReferenceLoader`                | Loader for `references/` files                                                                 |
-| `attempts` | `number`                         | How many times this step has been visited                                                      |
-| `host`     | `Handshake`                      | Current host info and available tools                                                          |
-| `act`      | `ActBuilder`                     | Primitive directive builders: `askUser`, `confirm`, `plan`, `survey`, etc.                     |
-| `system`   | `SystemBuilder`                  | System segment tag/function for persona/frame                                                  |
+| Field      | Type                                                    | Description                                                                                    |
+| ---------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `store`    | `StoreView<TSteps, TGuaranteed, TStores, TStoreWrites>` | Typed accessor for step results via `store.steps.*` and sub-store data via `store.<storeName>` |
+| `params`   | `TParams`                                               | Immutable skill params (typed from builder)                                                    |
+| `refs`     | `ReferenceLoader`                                       | Loader for `references/` files                                                                 |
+| `attempts` | `number`                                                | How many times this step has been visited                                                      |
+| `host`     | `Handshake`                                             | Current host info and available tools                                                          |
+| `act`      | `ActBuilder`                                            | Primitive directive builders: `askUser`, `confirm`, `plan`, `survey`, etc.                     |
+| `system`   | `SystemBuilder`                                         | System segment tag/function for persona/frame                                                  |
 
 ### Prompt Types
 
@@ -143,11 +144,130 @@ Available in dynamic `prompt` functions:
 | `SystemSegment` | `{ kind: 'system'; text: string }`            | A system-level directive injected via `system`                      |
 | `ActSegment`    | `{ kind: 'act'; primitive: PrimitiveConfig }` | A primitive action injected via `act.*`                             |
 
+### The Store
+
+The store gives every step typed access to all prior step results and sub-store data. Step results live under `store.steps`, and sub-stores are accessed as top-level properties on `store`.
+
+The SDK analyzes your workflow graph at build time and computes which steps are guaranteed to have run by the time each step executes. This flows directly into the TypeScript types: guaranteed predecessors are non-optional, branch targets require `?.`.
+
+**Guaranteed steps** (on all paths from entry to the current step) are non-optional — direct property access:
+
+```typescript
+store.steps.greet.name; // string -- guaranteed, non-optional
+store.steps['ask-role'].role; // string -- guaranteed, non-optional
+```
+
+**Branch targets** (steps that only run on some paths) are optional — use `?.`:
+
+```typescript
+store.steps['ask-stack']?.answer; // string | undefined -- branch target
+store.steps['ask-tools']?.answer; // string | undefined -- branch target
+```
+
+This is computed automatically from your step declarations via DAG analysis. Retry loops (backward edges to already-defined steps) don't create false branches — the forward path is still guaranteed.
+
+**Sub-stores** are accessed as top-level properties on `store`:
+
+```typescript
+store.profile.name; // sub-store access
+store.settings.theme; // sub-store access
+```
+
+See [Sub-Stores](#sub-stores) for details on declaration and writing.
+
+**Store methods:**
+
+| Method                  | Type                       | Description                                             |
+| ----------------------- | -------------------------- | ------------------------------------------------------- |
+| `store.steps.all(step)` | `(step: K) => TSteps[K][]` | All results from a step that ran multiple times (loops) |
+| `store.steps.ran(step)` | `(step: K) => boolean`     | Whether a step has run at least once                    |
+| `store.steps.history`   | `readonly StepResult[]`    | Raw step records (escape hatch)                         |
+
+### Sub-Stores
+
+Sub-stores are named, schema-typed data bags that accumulate state across steps. Unlike step results (which are keyed by step name), sub-stores are keyed by domain concept — `profile`, `settings`, `progress`, etc.
+
+**Declaration** — define sub-stores in the `stores` field of the skill config:
+
+```typescript
+skill({
+  name: 'onboarding',
+  entry: 'greet',
+  stores: {
+    profile: type({ name: 'string', 'role?': 'string', 'stack?': 'string[]' }),
+    preferences: type({ 'theme?': 'string', 'notifications?': 'boolean' }),
+  },
+});
+```
+
+**Writing** — return sub-store keys from the `save` callback. Keys that match a declared store name are written to that sub-store:
+
+```typescript
+.step('greet', {
+  response: type({ name: 'string' }),
+  save: ({ response }) => ({
+    step: { name: response.name },
+    profile: { name: response.name },
+  }),
+  next: 'ask-role',
+})
+.step('ask-role', {
+  response: type({ role: 'string' }),
+  save: ({ response }) => ({
+    profile: { role: response.role },
+  }),
+  next: 'done',
+})
+```
+
+**Deep merge** — sub-store writes are deep-merged across steps. After both steps above, `store.profile` contains `{ name, role }`.
+
+**Reading** — sub-stores appear as top-level properties on `store`:
+
+```typescript
+.step('done', {
+  prompt: ({ store }) => `Welcome ${store.profile.name}, you're a ${store.profile.role}!`,
+  next: terminal,
+})
+```
+
+**Type narrowing** — the SDK tracks which sub-store fields are guaranteed to have been written by the time each step executes. Fields written on all paths from entry are non-optional; fields written only on some branches are optional. This follows the same DAG analysis used for step results.
+
+### The `save` callback
+
+Steps control what gets stored via the `save` callback. The return object has two kinds of keys:
+
+- **`step`** — the value stored as this step's result in `store.steps.<stepName>`.
+- **Any other key** — written to the matching sub-store (deep-merged across steps).
+
+The priority for the step result is:
+
+1. Explicit `save()` return's `step` property (if provided)
+2. Action output (if an action ran)
+3. Response (the model's validated output)
+
+```typescript
+.step('profile-card', {
+  response: type({ card: 'string', profile: ProfileSchema }),
+  action: { run: writeProfile },
+  save: ({ response, actionResult }) => ({
+    step: {
+      card: response.card,
+      savedPath: actionResult.path,
+    },
+    profile: { name: response.profile.name, avatar: response.profile.avatar },
+  }),
+  next: { terminal: true },
+})
+```
+
+The agent contract (`response`) and the step's contribution to state (`save`) are separate. `response` is what the model gives back. The `step` key in the `save` return is what downstream steps see in `store.steps`. Other keys write to sub-stores — downstream steps access them via `store.<storeName>`. When an action transforms the response, the store carries the transformed result — not the raw model output.
+
 ### Transitions
 
 - **Static:** `next: 'step-name'` — always goes to the named step.
 - **Declarative branching:** `next: [{ to: 'a', when: ... }, { to: 'b' }]` — pattern-match style. First match wins; last entry without `when` is the default.
-- **Dynamic:** `next: ({ response, actionResult, attempts, params, store }) => 'step-name'` — choose based on output, action result, or visit count.
+- **Dynamic:** `next: ({ response, actionResult, attempts, params, store }) => 'step-name'` — choose based on output, action result, store, or visit count.
 - **Terminal:** `next: terminal` — ends the skill. Output becomes `finalOutput`. The `terminal` constant is exported from `@contentful/skill-kit` and is equivalent to `{ terminal: true }`.
 - **Self:** `next: 'self'` or returning the current step name — revisit the same step (requires `maxVisits`).
 
@@ -158,7 +278,7 @@ Steps in detected cycles have an implicit visit limit (10) enforced at runtime. 
 ```typescript
 .step('ask-hobby', {
   // ...
-  maxVisits: 3,
+  maxVisits: 2,
   onMaxVisits: 'confirm-profile',  // fallback when limit hit
   next: [
     { to: 'ask-hobby', when: ({ response }) => response.wantsMore },
@@ -168,28 +288,6 @@ Steps in detected cycles have an implicit visit limit (10) enforced at runtime. 
 ```
 
 The cycle guard validator detects potential cycles and reports them as lint warnings. At runtime, exceeding the limit with `onMaxVisits` set redirects; without it, the engine throws.
-
-### The `result` callback
-
-Steps can transform what gets stored via the `result` callback. The priority is:
-
-1. Explicit `result()` return value (if provided)
-2. Action output (if an action ran)
-3. Response (the model's validated output)
-
-```typescript
-.step('profile-card', {
-  response: type({ card: 'string', profile: ProfileSchema }),
-  action: { run: writeProfile },
-  result: ({ response, actionResult }) => ({
-    card: response.card,
-    savedPath: actionResult.path,
-  }),
-  next: terminal,
-})
-```
-
-The agent contract (`response`) and the step's contribution to state (`result`) are separate. `response` is what the model gives back. `result` is what downstream steps see in the store. All stored values are frozen with `Object.freeze()` to prevent mutation.
 
 ---
 
@@ -305,7 +403,7 @@ const authModule = module({
   .build();
 ```
 
-Register into a skill — store types accumulate:
+Register into a skill — step types accumulate into the store:
 
 ```typescript
 skill({ name: 'app', entry: 'start' })
@@ -313,7 +411,7 @@ skill({ name: 'app', entry: 'start' })
   .register(authModule, { next: 'dashboard' })
   .step('dashboard', {
     // store now includes auth-login results
-    prompt: ({ store }) => `Welcome ${store['auth-login'].userId}`,
+    prompt: ({ store }) => `Welcome ${store.steps['auth-login'].userId}`,
     // ...
   })
   .build();
@@ -347,7 +445,7 @@ skill({ name: 'helper', entry: 'classify' })
     next: ({ response }) => `subskill:${response.intent}`,
   })
   .subskill('doctor', doctorSkill, {
-    params: (_response, store) => ({ spaceId: store['get-space']?.spaceId ?? '' }),
+    params: (_response, store) => ({ spaceId: store.steps.spaceId }),
   })
   .build();
 ```
@@ -555,7 +653,7 @@ prompt: act.checklist({
 
 // Or via act in a prompt function
 prompt: ({ store, act }) => [
-  act.checklist({ create: store.all('task').map(t => ({ title: t.name, status: 'pending' })) }),
+  act.checklist({ create: store.steps.all('task').map(t => ({ title: t.name, status: 'pending' })) }),
   `Work through each task. Update the checklist as you go.`,
 ],
 ```
@@ -609,7 +707,7 @@ When a prompt function needs to mix primitives with other content or derive prim
     act.checklist({
       create: [
         { title: 'Board data structure', status: 'pending' },
-        { title: `${store['choose-renderer'].renderer} renderer`, status: 'pending' },
+        { title: `${store.steps['choose-renderer'].renderer} renderer`, status: 'pending' },
       ],
     }),
 
@@ -765,7 +863,7 @@ Named views help the model reference specific rendered blocks when a prompt cont
 ```typescript
 .step('report', {
   prompt: ({ store }) => {
-    const checks = store.diagnose.checks;
+    const checks = store.steps.diagnose.checks;
     return [
       view('report', render.table(checks, { columns: ['name', 'status', 'detail'] })),
       `Output the report above to the user exactly as shown.`,
@@ -832,16 +930,15 @@ When the model's response doesn't match action input exactly:
     run: writeProfile,
     input: ({ response }) => ({ profile: response.profile }),
   },
-  result: ({ response, actionResult }) => ({
-    profile: response.profile,
-    savedPath: actionResult.path,
+  save: ({ response, actionResult }) => ({
+    step: { profile: response.profile, savedPath: actionResult.path },
   }),
-  next: ({ actionResult }) => actionResult.path ? 'confirm' : 'retry',
+  next: 'confirm',
 })
 ```
 
 - `action.input` transforms step response into action input (runs before action)
-- `result` transforms what gets stored (runs after action, receives `{ response, actionResult }`)
+- The `save` callback controls what gets stored (runs after action, receives `{ response, actionResult, store, params }`)
 - `next` receives action result for conditional routing
 
 ### `action()` config
@@ -1184,7 +1281,7 @@ export default skill({
     next: 'verify',
   })
   .step('verify', {
-    prompt: ({ store }) => `Run pre-deploy checks for ${store.choose.target}. Report any blockers.`,
+    prompt: ({ store }) => `Run pre-deploy checks for ${store.steps.choose.target}. Report any blockers.`,
     response: type({ blockers: 'string[]', safe: 'boolean' }),
     next: [{ to: 'deploy', when: ({ response }) => response.safe }, { to: 'abort' }],
   })
@@ -1205,7 +1302,7 @@ export default skill({
 
 1. **`choose`** — Uses `prompt: act.askUser(...)` to present environment options. The agent sees the options via host-appropriate tooling (AskUserQuestion on Claude Code, prose list elsewhere).
 
-2. **`verify`** — Dynamic prompt reads `store.choose.target` (guaranteed, non-optional) to customize the instruction. Declarative branching routes to `deploy` or `abort` based on the `safe` boolean.
+2. **`verify`** — Dynamic prompt reads `store.steps.choose.target` to customize the instruction. Response schema enforces a `safe` boolean. Declarative branching routes to `deploy` or `abort`.
 
 3. **`deploy` / `abort`** — Two terminal paths. The skill ends cleanly regardless of which path is taken.
 
@@ -1227,4 +1324,4 @@ const result = await runSkill(deploy, {
 // result.response -> { url: 'https://staging.example.com' }
 ```
 
-Params and store types flow end-to-end — `store.choose.target` in the `verify` prompt is typed as `string`, and the `choose` step's response schema is checked against the ArkType definition. No type annotations needed anywhere.
+Params and store types flow end-to-end — `store.steps.choose.target` in the `verify` prompt is typed as `string`, and the `choose` step's response schema is checked against the ArkType definition. No type annotations needed anywhere.

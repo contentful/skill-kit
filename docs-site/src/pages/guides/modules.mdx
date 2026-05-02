@@ -47,7 +47,7 @@ module({
     next: 'auth-verify',
   })
   .step('auth-verify', {
-    prompt: ({ store }) => `Verify credentials for user ${store['auth-login'].userId}.`,
+    prompt: ({ store }) => `Verify credentials for user ${store.steps['auth-login'].userId}.`,
     response: type({ token: 'string', valid: 'boolean' }),
     next: '__parent__', // exits back to the registering skill
   })
@@ -85,7 +85,8 @@ export default skill({
 
   .step('dashboard', {
     // store includes module step results — auth-login and auth-verify
-    prompt: ({ store }) => `Welcome ${store['auth-login'].userId}. Your session token: ${store['auth-verify'].token}`,
+    prompt: ({ store }) =>
+      `Welcome ${store.steps['auth-login'].userId}. Your session token: ${store.steps['auth-verify'].token}`,
     response: type({ action: 'string' }),
     next: { terminal: true },
   })
@@ -125,7 +126,7 @@ export const authModule = module({
     next: 'auth-credentials',
   })
   .step('auth-credentials', {
-    prompt: ({ store }) => `Collect credentials for ${store['auth-login'].method} authentication.`,
+    prompt: ({ store }) => `Collect credentials for ${store.steps['auth-login'].method} authentication.`,
     response: type({ userId: 'string', success: 'boolean' }),
     next: [{ to: 'auth-confirm', when: ({ response }) => response.success }, { to: 'auth-login' }],
     maxVisits: 3,
@@ -166,9 +167,9 @@ export default skill({
   .step('dashboard', {
     // Type-safe access to both skill steps and module steps via the store
     prompt: ({ store }) => prompt`
-      Welcome back, ${store['auth-credentials'].userId}!
-      Project: ${store.welcome.projectName}
-      Auth method: ${store['auth-login'].method}
+      Welcome back, ${store.steps['auth-credentials'].userId}!
+      Project: ${store.steps.welcome.projectName}
+      Auth method: ${store.steps['auth-login'].method}
 
       What would you like to do?
     `,

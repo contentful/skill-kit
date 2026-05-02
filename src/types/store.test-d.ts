@@ -8,12 +8,16 @@
 import type { Expect, Equal, IsNever, IsOptional, IsRequired } from './test-utils.js';
 import type {
   StoreView,
+  StepsView,
   StoreMethods,
   RequiredSteps,
   OptionalSteps,
   ExtractBranchTargets,
-  AddToGuaranteed,
-  AddToBranched,
+  AddStepGuarantees,
+  AddStepBranches,
+  BranchState,
+  GuaranteeState,
+  ShouldPromote,
   StepResultType,
 } from './store.js';
 
@@ -61,60 +65,71 @@ type _ebt8 = Expect<
 >;
 
 // ============================================================
-// AddToGuaranteed
+// AddStepGuarantees
 // ============================================================
+
+type EmptyG = GuaranteeState;
+type EmptyB = BranchState;
 
 // Not branched → joins guaranteed set
-type _atg1 = Expect<Equal<AddToGuaranteed<'a', never, 'b'>, 'a' | 'b'>>;
+type _atg1 = Expect<Equal<AddStepGuarantees<GuaranteeState<'a'>, 'b', EmptyB, {}>['steps'], 'a' | 'b'>>;
 
 // Branched → stays out of guaranteed
-type _atg2 = Expect<Equal<AddToGuaranteed<'a', 'b', 'b'>, 'a'>>;
+type _atg2 = Expect<Equal<AddStepGuarantees<GuaranteeState<'a'>, 'b', BranchState<'b'>, {}>['steps'], 'a'>>;
 
 // First step → joins from empty
-type _atg3 = Expect<Equal<AddToGuaranteed<never, never, 'first'>, 'first'>>;
+type _atg3 = Expect<Equal<AddStepGuarantees<EmptyG, 'first', EmptyB, {}>['steps'], 'first'>>;
 
-// Already guaranteed + new non-branched
-type _atg4 = Expect<Equal<AddToGuaranteed<'a' | 'b', 'x', 'c'>, 'a' | 'b' | 'c'>>;
+// Store writes accumulate for guaranteed steps
+type _atg4 = Expect<
+  Equal<AddStepGuarantees<EmptyG, 'a', EmptyB, { env: { host: string } }>['storeWrites'], { env: { host: string } }>
+>;
 
-// Already guaranteed + new branched
-type _atg5 = Expect<Equal<AddToGuaranteed<'a' | 'b', 'x' | 'c', 'c'>, 'a' | 'b'>>;
+// Store writes don't accumulate for branched steps
+type _atg5 = Expect<
+  Equal<AddStepGuarantees<EmptyG, 'a', BranchState<'a'>, { env: { host: string } }>['storeWrites'], {}>
+>;
 
 // ============================================================
-// AddToBranched
+// AddStepBranches
 // ============================================================
+
+type BranchNext = readonly [{ to: 'a'; when: () => boolean }, { to: 'b' }];
+
+// Branch array → adds targets to branched union
+type _atb1 = Expect<Equal<AddStepBranches<EmptyB, 'root', BranchNext, 'root'>['branched'], 'a' | 'b'>>;
+
+// Records branch group entries (target → origin)
+type _atb2 = AddStepBranches<EmptyB, 'root', BranchNext, 'root'>['groups'];
+type _atb2a = Expect<Equal<_atb2['a'], 'root'>>;
+type _atb2b = Expect<Equal<_atb2['b'], 'root'>>;
 
 // String next → no new branches
-type _atb1 = Expect<Equal<AddToBranched<never, 'single'>, never>>;
+type _atb3 = Expect<IsNever<AddStepBranches<EmptyB, 'a', 'next-step', 'a'>['branched']>>;
 
-// Branch array → adds targets
-type _atb2 = Expect<Equal<AddToBranched<never, readonly [{ to: 'a'; when: () => boolean }, { to: 'b' }]>, 'a' | 'b'>>;
+// Records sibling-to-sibling edge when branched step routes to branched step
+type _atb4 = AddStepBranches<BranchState<'a' | 'b', { a: 'root'; b: 'root' }>, 'a', 'b', 'a'>['edges'];
+type _atb4a = Expect<Equal<_atb4, 'a->b'>>;
 
-// Accumulates with prior branches
-type _atb3 = Expect<
-  Equal<AddToBranched<'x', readonly [{ to: 'a'; when: () => boolean }, { to: 'b' }]>, 'x' | 'a' | 'b'>
+// ============================================================
+// ShouldPromote (reconvergence detection)
+// ============================================================
+
+// 2-target: all siblings route to target → promote
+type _sp1 = Expect<Equal<ShouldPromote<'b', BranchState<'a' | 'b', { a: 'root'; b: 'root' }, 'a->b'>>, true>>;
+
+// 3-target: only 1 sibling routes → don't promote
+type _sp2 = Expect<
+  Equal<ShouldPromote<'c', BranchState<'a' | 'b' | 'c', { a: 'root'; b: 'root'; c: 'root' }, 'a->c'>>, false>
 >;
 
-// Backward edge filtering: one forward + one backward → no new branches
-type _atb4 = Expect<
-  Equal<AddToBranched<never, readonly [{ to: 'forward'; when: () => boolean }, { to: 'backward' }], 'backward'>, never>
+// 3-target: both siblings route → promote
+type _sp3 = Expect<
+  Equal<ShouldPromote<'c', BranchState<'a' | 'b' | 'c', { a: 'root'; b: 'root'; c: 'root' }, 'a->c' | 'b->c'>>, true>
 >;
 
-// Backward edge filtering: two forward + one backward → only forward targets added
-type _atb5 = Expect<
-  Equal<
-    AddToBranched<
-      never,
-      readonly [{ to: 'a'; when: () => boolean }, { to: 'b'; when: () => boolean }, { to: 'retry' }],
-      'retry'
-    >,
-    'a' | 'b'
-  >
->;
-
-// Self-loop + single forward → no new branches (single forward = not a real branch)
-type _atb6 = Expect<
-  Equal<AddToBranched<never, readonly [{ to: 'self'; when: () => boolean }, { to: 'next' }], 'self'>, never>
->;
+// Not in any branch group → don't promote
+type _sp4 = Expect<Equal<ShouldPromote<'x', BranchState<'a' | 'b', { a: 'root'; b: 'root' }, 'a->b'>>, false>>;
 
 // ============================================================
 // RequiredSteps / OptionalSteps
@@ -137,31 +152,41 @@ type _os1_check = Expect<IsOptional<_os1['ask-role']>>;
 type _os1_keys = Expect<Equal<keyof _os1, 'ask-role' | 'ask-stack'>>;
 
 // ============================================================
-// StoreView — combined type
+// StepsView — step-keyed accessor
 // ============================================================
 
 // No guaranteed keys: all step keys are optional properties
-type PlainView = StoreView<Steps>;
+type PlainView = StepsView<Steps>;
 
 type _sv1a = Expect<IsOptional<PlainView['greet']>>;
 type _sv1b = Expect<IsOptional<PlainView['ask-role']>>;
 type _sv1c = Expect<IsOptional<PlainView['ask-stack']>>;
 
 // With guaranteed keys: those are required, rest optional
-type NarrowedView = StoreView<Steps, 'greet' | 'ask-role'>;
+type NarrowedView = StepsView<Steps, 'greet' | 'ask-role'>;
 
 type _sv2 = Expect<IsRequired<NarrowedView['greet']>>;
 type _sv3 = Expect<IsRequired<NarrowedView['ask-role']>>;
 type _sv4 = Expect<Equal<NarrowedView['greet'], { name: string }>>;
 type _sv5 = Expect<IsOptional<NarrowedView['ask-stack']>>;
 
-// Methods exist on the store type
+// Methods exist on the steps view
 type _sv6 = Expect<Equal<'all' extends keyof NarrowedView ? true : false, true>>;
 type _sv7 = Expect<Equal<'ran' extends keyof NarrowedView ? true : false, true>>;
 
 // Verify method-only keys don't include step names
 type MethodKeys = keyof StoreMethods<Steps>;
 type _sv8 = Expect<Equal<MethodKeys, 'all' | 'ran' | 'history'>>;
+
+// ============================================================
+// StoreView — combined type with steps namespace
+// ============================================================
+
+// StoreView wraps StepsView under .steps
+type FullStore = StoreView<Steps, 'greet' | 'ask-role'>;
+type _fv1 = Expect<IsRequired<FullStore['steps']>>;
+type _fv2 = Expect<Equal<FullStore['steps']['greet'], { name: string }>>;
+type _fv3 = Expect<IsOptional<FullStore['steps']['ask-stack']>>;
 
 // ============================================================
 // StepResultType
@@ -191,10 +216,15 @@ void (0 as unknown as _atg4);
 void (0 as unknown as _atg5);
 void (0 as unknown as _atb1);
 void (0 as unknown as _atb2);
+void (0 as unknown as _atb2a);
+void (0 as unknown as _atb2b);
 void (0 as unknown as _atb3);
 void (0 as unknown as _atb4);
-void (0 as unknown as _atb5);
-void (0 as unknown as _atb6);
+void (0 as unknown as _atb4a);
+void (0 as unknown as _sp1);
+void (0 as unknown as _sp2);
+void (0 as unknown as _sp3);
+void (0 as unknown as _sp4);
 void (0 as unknown as _rs1_check);
 void (0 as unknown as _rs1_keys);
 void (0 as unknown as _os1_check);
@@ -209,5 +239,8 @@ void (0 as unknown as _sv5);
 void (0 as unknown as _sv6);
 void (0 as unknown as _sv7);
 void (0 as unknown as _sv8);
+void (0 as unknown as _fv1);
+void (0 as unknown as _fv2);
+void (0 as unknown as _fv3);
 void (0 as unknown as _srt1);
 void (0 as unknown as _srt2);

@@ -72,7 +72,7 @@ export default skill({
     next: 'welcome',
   })
   .step('welcome', {
-    prompt: ({ store }) => `Say hello to ${store.ask.name}.`,
+    prompt: ({ store }) => `Say hello to ${store.steps.ask.name}.`,
     response: type({ message: 'string' }),
     next: terminal,
   })
@@ -172,7 +172,7 @@ skill({ name: 'contentful-help', entry: 'choose', system: 'You are a helpful Con
     next: ({ response }) => `subskill:${response.choice}`,
   })
   .topic('rate-limits', { label: 'API rate limits', content: ({ refs }) => refs.load('rate-limits.md') })
-  .subskill('doctor', doctorSkill, { params: (_out, store) => ({ spaceId: store.spaceId }) })
+  .subskill('doctor', doctorSkill, { params: (_out, store) => ({ spaceId: store.steps.choose.spaceId }) })
   .subskill('setup', setupSkill)
   .build();
 ```
@@ -228,10 +228,10 @@ No tool names in the XML. The preamble handles the mapping. Same skill, same XML
 
 ### Step Lifecycle
 
-Each step follows a fixed lifecycle. Understanding the order matters when using actions and the `result` callback:
+Each step follows a fixed lifecycle. Understanding the order matters when using actions and the `save` callback:
 
 ```
-prompt -> model -> validate(response) -> action.input -> action.run -> result -> store -> next
+prompt -> model -> validate(response) -> action.input -> action.run -> save -> store -> next
 ```
 
 1. **prompt** -- the CLI emits the step's prompt and schema to the agent (steps without a prompt auto-advance immediately)
@@ -239,27 +239,30 @@ prompt -> model -> validate(response) -> action.input -> action.run -> result ->
 3. **validate(response)** -- the CLI validates the output against the step's ArkType schema (skipped for response-less steps)
 4. **action.input** -- if the step has an action, `action.input` transforms the validated response into action input
 5. **action.run** -- the action executes CLI-side (file writes, API calls, etc.)
-6. **result** -- the `result` callback transforms what gets stored (priority: explicit result() > action output > response)
-7. **store** -- the step's result is appended to the store, accessible to subsequent steps
+6. **save** -- the `save` callback returns `{ step?, ...subStoreWrites }`. The `step` property controls what gets stored as the step result (defaults to action output or response). Additional keys are deep-merged into the corresponding sub-stores.
+7. **store** -- the step result is appended to `store.steps`, and sub-store writes are merged into their top-level store properties
 8. **next** -- the transition function determines the next step (or terminal)
 
 ### The store knows your workflow graph
 
-The store provides typed access to prior step results. The type system tracks which steps are guaranteed (on all paths from entry) vs optional (branch targets), computed automatically from your step declarations:
+The store organizes state into two namespaces: `store.steps` for step-keyed results and top-level sub-stores for domain-structured state. Step results flow into `store.steps` automatically. Sub-stores are populated by `save` callbacks that return additional keys alongside the optional `step` property.
+
+The type system tracks which steps are guaranteed (on all paths from entry) vs optional (branch targets), computed automatically from your step declarations:
 
 ```typescript
 .step('profile-card', {
   prompt: ({ store }) => {
-    const name = store.greet.name;              // guaranteed -- non-optional
-    const role = store['ask-role'].role;         // guaranteed -- non-optional
-    const stack = store['ask-stack']?.answer;    // branch target -- optional, use ?.
-    const hobbies = store.all('ask-hobby');      // loop visits -- typed array
+    const name = store.steps.greet.name;              // guaranteed -- non-optional
+    const role = store.steps['ask-role'].role;         // guaranteed -- non-optional
+    const stack = store.steps['ask-stack']?.answer;    // branch target -- optional, use ?.
+    const hobbies = store.steps.all('ask-hobby');      // loop visits -- typed array
+    const env = store.environment;                     // sub-store -- domain state
     // ...
   },
 })
 ```
 
-Zero boilerplate. No `updateStash`, no manual wiring. Step results flow into the store automatically. Retry loops (backward edges) don't create false branches — the forward path is still guaranteed.
+Zero boilerplate. No `updateStash`, no manual wiring. Retry loops (backward edges) don't create false branches — the forward path is still guaranteed.
 
 ---
 
@@ -377,7 +380,7 @@ Prompt functions receive `act` and `system` via `PromptContext` for composable p
 ```typescript
 prompt: ({ store, act, system }) => [
   system`You are a game dev mentor.`,
-  act.checklist({ create: store.all('task').map(t => ({ title: t.name, status: 'pending' })) }),
+  act.checklist({ create: store.steps.all('task').map(t => ({ title: t.name, status: 'pending' })) }),
   prompt`Build the game. Update the checklist as you go.`,
 ],
 ```
@@ -417,19 +420,19 @@ skill-kit check <skill.ts>                          # Lint for portability issue
     run: ActionDefinition,                                     // the action to execute
     input?: (ctx: { response; store; params }) => unknown,     // transform response to action input
   },
-  result?: (ctx: { response; actionResult }) => unknown,       // transform what gets stored
+  save?: (ctx: { response; actionResult; store; params }) => { step?: unknown; [subStore: string]: unknown } | void,
   maxVisits?: number,
   onMaxVisits?: string,
 }
 ```
 
-**Step lifecycle:** `prompt` -> `model` -> `validate(response)` -> `action.input` -> `action.run` -> `result` -> `store` -> `next`
+**Step lifecycle:** `prompt` -> `model` -> `validate(response)` -> `action.input` -> `action.run` -> `save` -> `store` -> `next`
 
 `PromptContext` fields available in dynamic prompts:
 
 | Field      | Description                                                                                    |
 | ---------- | ---------------------------------------------------------------------------------------------- |
-| `store`    | Typed accessor for prior step results (guaranteed steps non-optional, branch targets use `?.`) |
+| `store`    | Typed accessor with `store.steps.*` for step results and top-level sub-stores for domain state |
 | `params`   | Global skill params (typed from `skill({ params: ... })`)                                      |
 | `refs`     | Lazy loader for `references/` files                                                            |
 | `attempts` | How many times this step has been visited                                                      |
@@ -445,7 +448,7 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 
 - **Builder pattern.** `skill()` returns a builder. `.step()` callbacks get typed params and store via contextual inference — no annotations.
 - **Schemas are ArkType.** One validator, native TS types. String-based type expressions: `type({ name: 'string' })`.
-- **The store knows your graph.** Guaranteed predecessors are non-optional (`store.greet.name`). Branch targets require `?.` (`store['ask-stack']?.answer`). Computed automatically from step declarations via DAG analysis.
+- **The store knows your graph.** Step results live under `store.steps` with DAG-based typing — guaranteed predecessors are non-optional (`store.steps.greet.name`), branch targets require `?.` (`store.steps['ask-stack']?.answer`). Top-level sub-stores hold domain state populated by `save` callbacks.
 - **Declarative branching.** `next: [{ to: 'a', when: ... }, { to: 'b' }]` — pattern-match style transitions. The type system extracts targets and computes guaranteed vs optional.
 - **XML output format.** Primitives render as XML tags (`<ask-user>`, `<plan>`, `<checklist>`, etc.). The preamble maps tags to host-specific tools via a markdown table.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.

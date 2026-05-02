@@ -12,6 +12,7 @@ import type {
 } from './types.js';
 import type { StoreAccessor } from './runtime/state-store.js';
 import { step as createStep } from './step.js';
+import type { DeepPartial, BranchState, GuaranteeState, AddStepGuarantees, AddStepBranches } from './types/store.js';
 
 function checkActionInputCompat(stepName: string, outputSchema: type.Any, actionDef: ActionDefinition): void {
   try {
@@ -34,14 +35,18 @@ function checkActionInputCompat(stepName: string, outputSchema: type.Any, action
   }
 }
 
-import type { ExtractBranchTargets } from './types/store.js';
+type ExtractStoreWrites<T> = T extends void ? {} : Omit<T, 'step'>;
 
 export class SkillBuilder<
   TParams,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   TSteps extends Record<string, unknown> = {},
-  TGuaranteed extends string = never,
-  TBranched extends string = never,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  TGuarantees extends GuaranteeState<any, any> = GuaranteeState,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  TBranches extends BranchState<any, any, any> = BranchState,
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  TStores extends Record<string, unknown> = {},
 > {
   private readonly config: SkillBuilderConfig;
   private readonly steps: Record<string, StepDefinition> = {};
@@ -57,21 +62,30 @@ export class SkillBuilder<
     Name extends string,
     TOutput extends type.Any,
     A extends ActionDefinition<any, any> | undefined = undefined,
-    TResultValue = A extends ActionDefinition<any, infer TActionOut>
-      ? TActionOut['infer']
-      : TOutput extends type.Any
-        ? TOutput['infer']
-        : unknown,
+    TSaveReturn extends ({ step?: unknown } & DeepPartial<TStores>) | void = void,
+    TResultValue = TSaveReturn extends { step: infer S }
+      ? S
+      : A extends ActionDefinition<any, infer TActionOut>
+        ? TActionOut['infer']
+        : TOutput extends type.Any
+          ? TOutput['infer']
+          : unknown,
     const TNext extends StepConfig<
       TOutput,
       TParams,
       A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
-      TSteps
+      TSteps,
+      never,
+      TStores,
+      TGuarantees['storeWrites']
     >['next'] = StepConfig<
       TOutput,
       TParams,
       A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
-      TSteps
+      TSteps,
+      never,
+      TStores,
+      TGuarantees['storeWrites']
     >['next'],
   >(
     name: Name,
@@ -82,19 +96,27 @@ export class SkillBuilder<
             TParams,
             A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
             TSteps,
-            Exclude<TGuaranteed, Name>
+            Exclude<TGuarantees['steps'], Name>,
+            TStores,
+            TGuarantees['storeWrites']
           >,
-          'action' | 'next' | 'result'
+          'action' | 'next' | 'save'
         > & {
           next: TNext;
-          result?: (ctx: {
+          save?: (ctx: {
             response: TOutput['infer'];
             actionResult: A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined;
-          }) => TResultValue;
+            store: StoreAccessor<TSteps, Exclude<TGuarantees['steps'], Name>, TStores, TGuarantees['storeWrites']>;
+            params: Readonly<TParams>;
+          }) => TSaveReturn;
           action?: A extends ActionDefinition<any, any>
             ? {
                 run: A;
-                input?: (ctx: { response: TOutput['infer']; store: StoreAccessor<TSteps>; params: TParams }) => unknown;
+                input?: (ctx: {
+                  response: TOutput['infer'];
+                  store: StoreAccessor<TSteps, never, TStores, TGuarantees['storeWrites']>;
+                  params: TParams;
+                }) => unknown;
               }
             : undefined;
         })
@@ -102,8 +124,9 @@ export class SkillBuilder<
   ): SkillBuilder<
     TParams,
     TSteps & { [K in Name]: TResultValue },
-    Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
-    TBranched | ExtractBranchTargets<TNext, Extract<keyof TSteps, string> | Name>
+    AddStepGuarantees<TGuarantees, Name, TBranches, ExtractStoreWrites<TSaveReturn>>,
+    AddStepBranches<TBranches, Name, TNext, Extract<keyof TSteps, string> | Name>,
+    TStores
   > {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
@@ -117,34 +140,39 @@ export class SkillBuilder<
     return this as unknown as SkillBuilder<
       TParams,
       TSteps & { [K in Name]: TResultValue },
-      Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
-      TBranched | ExtractBranchTargets<TNext, Extract<keyof TSteps, string> | Name>
+      AddStepGuarantees<TGuarantees, Name, TBranches, ExtractStoreWrites<TSaveReturn>>,
+      AddStepBranches<TBranches, Name, TNext, Extract<keyof TSteps, string> | Name>,
+      TStores
     >;
   }
 
   extend<Name extends string, TOutput extends type.Any>(
     name: Name,
     base: StepDefinition<TOutput>,
-    overrides: Partial<StepConfig<TOutput, TParams, unknown, TSteps, Exclude<TGuaranteed, Name>>>,
+    overrides: Partial<StepConfig<TOutput, TParams, unknown, TSteps, Exclude<TGuarantees['steps'], Name>>>,
   ): SkillBuilder<
     TParams,
     TSteps & { [K in Name]: TOutput['infer'] },
-    Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
-    TBranched
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    AddStepGuarantees<TGuarantees, Name, TBranches, {}>,
+    TBranches,
+    TStores
   > {
     this.steps[name] = createStep({ ...base.config, ...overrides } as StepConfig);
     return this as unknown as SkillBuilder<
       TParams,
       TSteps & { [K in Name]: TOutput['infer'] },
-      Name extends TBranched ? TGuaranteed : TGuaranteed | Name,
-      TBranched
+      // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+      AddStepGuarantees<TGuarantees, Name, TBranches, {}>,
+      TBranches,
+      TStores
     >;
   }
 
   register<TModuleSteps extends Record<string, unknown>>(
     mod: ModuleDefinition<TModuleSteps>,
     opts: { next: string },
-  ): SkillBuilder<TParams, TSteps & TModuleSteps, TGuaranteed, TBranched> {
+  ): SkillBuilder<TParams, TSteps & TModuleSteps, TGuarantees, TBranches, TStores> {
     for (const [name, stepDef] of Object.entries(mod.steps)) {
       const isExit = stepDef.config.next === '__parent__';
       if (isExit) {
@@ -154,14 +182,14 @@ export class SkillBuilder<
       }
     }
 
-    return this as unknown as SkillBuilder<TParams, TSteps & TModuleSteps, TGuaranteed, TBranched>;
+    return this as unknown as SkillBuilder<TParams, TSteps & TModuleSteps, TGuarantees, TBranches, TStores>;
   }
 
   subskill(
     name: string,
     definition: SkillDefinition,
-    opts?: { params?: (response: unknown, store: StoreAccessor<TSteps, TGuaranteed>) => unknown },
-  ): SkillBuilder<TParams, TSteps, TGuaranteed, TBranched> {
+    opts?: { params?: (response: unknown, store: StoreAccessor<TSteps, TGuarantees['steps']>) => unknown },
+  ): SkillBuilder<TParams, TSteps, TGuarantees, TBranches, TStores> {
     if (definition.subskills && Object.keys(definition.subskills).length > 0) {
       throw new Error(`subskill "${name}": sub-skills cannot be nested (definition already has subskills)`);
     }
@@ -172,7 +200,7 @@ export class SkillBuilder<
     return this;
   }
 
-  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TSteps, TGuaranteed, TBranched> {
+  topic(name: string, config: TopicConfig): SkillBuilder<TParams, TSteps, TGuarantees, TBranches, TStores> {
     this.topics[name] = config;
     return this;
   }
@@ -192,8 +220,18 @@ export class SkillBuilder<
       description = description ? `${description}${separator}${triggerLine}` : triggerLine;
     }
 
+    if (this.config.stores) {
+      const reserved = new Set(['steps', 'step']);
+      for (const storeName of Object.keys(this.config.stores)) {
+        if (reserved.has(storeName)) {
+          throw new Error(`skill: store name "${storeName}" is reserved`);
+        }
+      }
+    }
+
     const hasSubskills = Object.keys(this.subskills).length > 0;
     const hasTopics = Object.keys(this.topics).length > 0;
+    const hasStores = this.config.stores && Object.keys(this.config.stores).length > 0;
 
     const definition: SkillDefinition = {
       kind: 'skill',
@@ -204,6 +242,7 @@ export class SkillBuilder<
       system: this.config.system,
       params: this.config.params,
       steps: Object.freeze({ ...this.steps }),
+      ...(hasStores ? { stores: Object.freeze({ ...this.config.stores }) } : {}),
       observers: this.config.observers,
       finalOutput: this.config.finalOutput,
       skillMd: this.config.skillMd,

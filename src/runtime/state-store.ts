@@ -1,5 +1,6 @@
 import type { StepResult } from '../types.js';
-import type { StoreView } from '../types/store.js';
+import type { StoreView, StepsView } from '../types/store.js';
+import { deepMerge } from './deep-merge.js';
 
 export type { StoreView as StoreAccessor };
 
@@ -12,16 +13,24 @@ function findLast(records: readonly StepResult[], step: string): unknown {
 
 export class StateStore {
   private readonly records: StepResult[] = [];
+  private readonly subStores: Record<string, unknown> = {};
 
   append(step: string, response: unknown, actionResult?: unknown, result?: unknown): void {
     const record: StepResult = Object.freeze({ step, response, actionResult, result: result ?? response });
     this.records.push(record);
   }
 
-  buildAccessor<
+  applySave(saveData: Record<string, unknown>): void {
+    for (const [storeName, value] of Object.entries(saveData)) {
+      if (value === undefined) continue;
+      this.subStores[storeName] = deepMerge(this.subStores[storeName] ?? {}, value);
+    }
+  }
+
+  private buildStepsAccessor<
     TSteps extends Record<string, unknown> = Record<string, unknown>,
     TGuaranteed extends keyof TSteps = never,
-  >(): StoreView<TSteps, TGuaranteed> {
+  >(): StepsView<TSteps, TGuaranteed> {
     const records = this.records;
 
     const methods = {
@@ -44,7 +53,25 @@ export class StateStore {
         if (typeof prop === 'string') return findLast(records, prop);
         return undefined;
       },
-    }) as StoreView<TSteps, TGuaranteed>;
+    }) as StepsView<TSteps, TGuaranteed>;
+  }
+
+  buildAccessor<
+    TSteps extends Record<string, unknown> = Record<string, unknown>,
+    TGuaranteed extends keyof TSteps = never,
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    TStores extends Record<string, unknown> = {},
+  >(): StoreView<TSteps, TGuaranteed, TStores> {
+    const stepsAccessor = this.buildStepsAccessor<TSteps, TGuaranteed>();
+    const subStores = this.subStores;
+
+    return new Proxy({} as StoreView<TSteps, TGuaranteed, TStores>, {
+      get(_target, prop) {
+        if (prop === 'steps') return stepsAccessor;
+        if (typeof prop === 'string' && prop in subStores) return subStores[prop];
+        return undefined;
+      },
+    });
   }
 
   last(): StepResult | undefined {

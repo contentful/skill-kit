@@ -157,7 +157,7 @@ export const openQuestion = step({
 
 // In a skill:
 .extend("ask-name", openQuestion, {
-  prompt: ({ store }) => `${store.greet.name}, tell me more.`,  // typed via builder
+  prompt: ({ store }) => `${store.steps.greet.name}, tell me more.`,  // typed via builder
   next: "done",
 })
 ```
@@ -186,7 +186,7 @@ skill({ ... })
   .register(authModule, { next: "dashboard" })
   // store types from module steps are available
   .step("dashboard", {
-    prompt: ({ store }) => `${store['auth-login'].userId} logged in`,  // typed ✓
+    prompt: ({ store }) => `${store.steps['auth-login'].userId} logged in`,  // typed ✓
     ...
   })
 ```
@@ -219,7 +219,7 @@ A function of the workflow state, returning `string | PromptPiece | PromptPiece[
 ```typescript
 step({
   prompt: ({ params, store }) => {
-    const diagnose = store.diagnose;
+    const diagnose = store.steps.diagnose;
     return `
       Failed checks for ${params.repoPath}:
       ${JSON.stringify(diagnose.failedChecks, null, 2)}
@@ -234,15 +234,15 @@ step({
 
 Fields available in the prompt function:
 
-| Field      | Description                                                                                                                                            |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `store`    | Step-keyed state accessor. Guaranteed steps are non-optional (`store.greet.name`), branch targets are optional (`store['ask-stack']?.answer`). See §7. |
-| `params`   | Skill params — the external data passed at invocation (config defaults + runtime overrides)                                                            |
-| `refs`     | Lazy loader for reference files (§5)                                                                                                                   |
-| `attempts` | How many times this step has been visited (for retries)                                                                                                |
-| `host`     | The handshake — `host`, `toolsAvailable`, `isSubagent`                                                                                                 |
-| `act`      | Primitive directive builders (see §2.1)                                                                                                                |
-| `system`   | System segment tag/function for persona/frame (see §2.1)                                                                                               |
+| Field      | Description                                                                                                                                                                                                           |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `store`    | State accessor. Step results under `store.steps.*` — guaranteed steps are non-optional (`store.steps.greet.name`), branch targets are optional (`store.steps['ask-stack']?.answer`). Sub-stores at `store.*`. See §7. |
+| `params`   | Skill params — the external data passed at invocation (config defaults + runtime overrides)                                                                                                                           |
+| `refs`     | Lazy loader for reference files (§5)                                                                                                                                                                                  |
+| `attempts` | How many times this step has been visited (for retries)                                                                                                                                                               |
+| `host`     | The handshake — `host`, `toolsAvailable`, `isSubagent`                                                                                                                                                                |
+| `act`      | Primitive directive builders (see §2.1)                                                                                                                                                                               |
+| `system`   | System segment tag/function for persona/frame (see §2.1)                                                                                                                                                              |
 
 > **Why `params` instead of `context`?** "Context" is overloaded — callback context, execution context, prompt context, etc. "params" clearly identifies the external data passed to the skill at invocation time, distinct from the internal workflow state.
 
@@ -279,7 +279,7 @@ import { enterpriseTone, jsonOutputRules } from '../fragments/tone';
 
 step({
   prompt: ({ store }) => {
-    const gather = store.gather;
+    const gather = store.steps.gather;
     return prompt`
       ${enterpriseTone}
 
@@ -306,7 +306,7 @@ The `act` and `system` helpers are injected via `PromptContext`, not imported. A
 .step('build', {
   prompt: ({ store, act, system }) => [
     system`You are a game dev mentor. Be methodical.`,
-    act.checklist({ create: store.plan.tasks.map(t => ({ title: t, status: 'pending' })) }),
+    act.checklist({ create: store.steps.plan.tasks.map(t => ({ title: t, status: 'pending' })) }),
     prompt`Build the game. Update the checklist as you go.`,
   ],
   response: type({ filesCreated: 'string[]' }),
@@ -355,7 +355,7 @@ This is useful for **pure routing gates** — steps that exist solely to branch 
 ```typescript
 .step('route', {
   // No prompt, no response — pure routing gate
-  next: ({ params, store }) => store.diagnose.issues.length > 0 ? 'remediate' : 'report',
+  next: ({ params, store }) => store.steps.diagnose.issues.length > 0 ? 'remediate' : 'report',
 })
 ```
 
@@ -435,7 +435,7 @@ When `next` is a function, it receives the following fields:
 | `actionResult` | The action's result, if an action was configured (typed by action's schema)      |
 | `attempts`     | How many times this step has been visited (for bounded-loop patterns)            |
 | `params`       | Skill params — the external data passed at invocation                            |
-| `store`        | Step-keyed state accessor — prior step results                                   |
+| `store`        | State accessor — step results via `store.steps.*`, sub-stores via `store.*`       |
 
 ### Declarative branching (`NextBranch[]`)
 
@@ -456,7 +456,7 @@ import { step, view, render, prompt, terminal } from '@contentful/skill-kit';
 
 step({
   prompt: ({ store }) => {
-    const diagnose = store.diagnose;
+    const diagnose = store.steps.diagnose;
     const table = render.table(diagnose.checks, {
       columns: ['name', 'status', 'detail'],
       statusIcons: { pass: '✅', fail: '❌', warn: '⚠️' },
@@ -514,7 +514,7 @@ skills/repo-doctor/
 ```typescript
 step({
   prompt: ({ refs, store }) => {
-    const gather = store.gather;
+    const gather = store.steps.gather;
     return prompt`
       Classify each finding's severity using this rubric:
 
@@ -606,7 +606,7 @@ skill({ ... })
   .register(authModule, { next: "dashboard" })
   .step("dashboard", {
     // store has auth-login results available
-    prompt: ({ store }) => `Welcome ${store['auth-login'].userId}`,
+    prompt: ({ store }) => `Welcome ${store.steps['auth-login'].userId}`,
     ...
   })
   .build();
@@ -644,7 +644,7 @@ export default skill({
     content: ({ refs }) => refs.load('rate-limits.md'),
   })
   .subskill('doctor', doctorSkill, {
-    params: (_output, store) => ({ spaceId: store['get-space']?.spaceId ?? '' }),
+    params: (_output, store) => ({ spaceId: store.steps['get-space']?.spaceId ?? '' }),
   })
   .subskill('setup', setupSkill)
   .build();
@@ -670,7 +670,7 @@ Each `.subskill()` registration accepts an optional `params` function:
 
 ```typescript
 .subskill('doctor', doctorSkill, {
-  params: (_output, store) => ({ spaceId: store['get-space']?.spaceId ?? '' }),
+  params: (_output, store) => ({ spaceId: store.steps['get-space']?.spaceId ?? '' }),
 })
 ```
 
@@ -726,57 +726,78 @@ skill({
 
 > **Why "params" and not "context"?** "Context" is overloaded — callback context, execution context, prompt context, workflow context. "params" clearly identifies the external data passed to the skill at invocation, making it easy to distinguish from internal workflow state like the store.
 
-### The store (step-keyed state)
+### The store
 
-The store gives every step typed access to all prior step results via a single step-keyed accessor. Each step's result is stored under its name, and the type system tracks which steps are guaranteed (on all paths) vs optional (branch targets) — computed automatically from your step declarations.
+The store has two namespaces: `store.steps.*` for step-keyed results, and top-level `store.*` for named sub-stores declared via the `stores` config. The type system tracks which entries are guaranteed (on all paths) vs optional (branch targets or unwritten sub-store paths) — computed automatically from your declarations.
 
 ```typescript
-// Guaranteed step — always runs, non-optional access
-store.greet.name
+// Step results live under store.steps
+store.steps.greet.name              // guaranteed step — non-optional
+store.steps['ask-stack']?.answer    // branch target — optional
+store.steps.all('ask-hobby')        // loop visits
+store.steps.ran('ask-stack')        // boolean check
+store.steps.history                 // raw records
 
-// Branch target — may not have run, optional access
-store['ask-stack']?.answer
-
-// Loop visits — all results from a repeated step
-store.all('ask-hobby')
-
-// Boolean check — whether a step has run
-store.ran('ask-stack')
-
-// Raw history — escape hatch
-store.history
+// Sub-stores live at the top level
+store.environment?.apiA?.host       // sub-store — optional until narrowed
 ```
 
-The store is available in prompt callbacks, `next` callbacks, `result` callbacks, and `action.input` callbacks. It provides typed access to prior step results based on what the builder has accumulated — no manual annotations needed. There is no `updateState`, no `setState`, no reducers, no manual wiring. Step results flow into the store automatically.
+Skills can declare named sub-stores for domain-structured state that doesn't belong to any single step. Sub-stores are typed by their schema and accessed at the top level of `store` (everything outside `steps`):
 
-### The `result` callback
+```typescript
+skill({
+  stores: {
+    environment: type({ apiA: { host: 'string', key: 'string' } }),
+  },
+})
+```
 
-By default, the value stored for a step is its `response` (or `actionResult` if the step has an action). The `result` callback transforms what gets stored — useful when a step's response is verbose but downstream steps only need a subset, or when an action produces the canonical result:
+Steps write to sub-stores via the `save` callback (see below). Sub-store writes are deep-merged — each step can contribute a slice without overwriting the rest.
+
+The store is available in prompt callbacks, `next` callbacks, `save` callbacks, and `action.input` callbacks. It provides typed access to step results and sub-store state based on what the builder has accumulated — no manual annotations needed. There is no `updateState`, no `setState`, no reducers, no manual wiring. Step results flow into the store automatically.
+
+### The `save` callback
+
+The `save` callback routes data to the store. It returns an object where the `step` key sets the step-keyed result (stored under `store.steps.<stepName>`) and other top-level keys write to named sub-stores (deep-merged). By default — when `save` is omitted — the step-keyed result is the `response` (or `actionResult` if the step has an action).
 
 ```typescript
 .step('write-report', {
   response: type({ title: 'string', body: 'string' }),
   action: { run: saveReport },
-  result: ({ response, actionResult }) => ({
-    title: response.title,
-    path: actionResult.path,
-    bytes: actionResult.bytes,
+  save: ({ response, actionResult }) => ({
+    step: {
+      title: response.title,
+      path: actionResult.path,
+      bytes: actionResult.bytes,
+    },
   }),
   next: 'confirm-publish',
 })
 ```
 
-Later steps access the transformed result via `store['write-report']?.path`, not the raw response or action result. The `result` callback receives `{ response, actionResult }` — the step's validated response and the action's result (if any).
+Later steps access the transformed result via `store.steps['write-report']?.path`, not the raw response or action result. The priority for step results: explicit `save().step` > action output > response.
+
+Sub-store writes use the same callback — top-level keys matching declared store names are deep-merged into the corresponding sub-store:
+
+```typescript
+save: ({ actionResult }) => ({
+  environment: { apiA: { host: actionResult.host } },
+})
+```
+
+A single `save` callback can write to both the step store and sub-stores simultaneously. The `save` callback receives `{ response, actionResult, store, params }` — the step's validated response, the action's result (if any), the current store accessor, and the skill params.
 
 ### Store type narrowing
 
 The builder tracks which steps are guaranteed (on all paths to the current step) vs optional (branch targets). This flows into the `StoreView` type:
 
-- **Guaranteed steps** appear as required properties: `store.greet.name` (no `?.` needed)
-- **Branch targets** appear as optional properties: `store['ask-stack']?.answer` (must use `?.`)
-- **Methods** are always available: `store.all(stepName)`, `store.ran(stepName)`, `store.history`
+- **Guaranteed steps** appear as required properties: `store.steps.greet.name` (no `?.` needed)
+- **Branch targets** appear as optional properties: `store.steps['ask-stack']?.answer` (must use `?.`)
+- **Methods** are always available: `store.steps.all(stepName)`, `store.steps.ran(stepName)`, `store.steps.history`
 
 The guarantee tracking uses `NextBranch[]` declarations. When a step's `next` is a branch array with multiple forward targets, those targets become optional. When there's only one forward target (others are backward edges to already-defined steps), it remains guaranteed.
+
+Sub-store narrowing follows a similar principle. When a guaranteed predecessor writes to a sub-store via `save`, those paths become non-optional downstream — the type system knows the data is present. Branch target writes remain optional, since the writing step may not have run.
 
 ### No globals, no mutation
 
@@ -854,13 +875,15 @@ step({
   action: {
     run: writeReport,
     input: ({ response, store, params }) => ({
-      path: `${store['setup']?.outDir ?? '.'}/${response.fileName}`,
+      path: `${store.steps['setup']?.outDir ?? '.'}/${response.fileName}`,
       content: response.body,
     }),
   },
-  result: ({ response, actionResult }) => ({
-    fileName: response.fileName,
-    bytesWritten: actionResult.bytesWritten,
+  save: ({ response, actionResult }) => ({
+    step: {
+      fileName: response.fileName,
+      bytesWritten: actionResult.bytesWritten,
+    },
   }),
   next: ({ actionResult }) => (actionResult.bytesWritten > 0 ? 'confirm' : 'retry'),
 });
@@ -868,9 +891,9 @@ step({
 
 **`action.input`** receives `{ response, store, params }` — the step's validated response, the store accessor, and the skill params. Use it to transform the model's response into the shape the action expects.
 
-**The `result` callback** runs after the action completes (or after response validation if no action exists), receiving `{ response, actionResult }`. Its return value is what gets stored in the store under the step's name. When `result` is omitted, the store defaults to the action result (if an action exists) or the response.
+**The `save` callback** runs after the action completes (or after response validation if no action exists), receiving `{ response, actionResult, store, params }`. Its return value routes data to the store: the `step` key is stored under `store.steps.<stepName>`, and other keys write to named sub-stores via deep merge. When `save` is omitted, the step-keyed result defaults to the action result (if an action exists) or the response.
 
-The lifecycle of a step with an action: prompt → model → validate(response) → action.input → action.run → result → next.
+The lifecycle of a step with an action: prompt → model → validate(response) → action.input → action.run → save → next.
 
 Actions accept an `AbortSignal` so long-running operations can be cancelled cleanly when the skill is interrupted.
 
@@ -1617,7 +1640,7 @@ The preamble maps `<plan>` to the host's tool (e.g., `EnterPlanMode` on Claude C
 ```typescript
 step({
   prompt: ({ store }) => {
-    const remediate = store.remediate;
+    const remediate = store.steps.remediate;
     return act.checklist({
       create: remediate.remediations.map((r) => ({ title: r.action, status: 'pending' })),
     });
@@ -1783,7 +1806,7 @@ For cases where a primitive doesn't cover the need, the handshake is queryable i
 ```typescript
 step({
   prompt: ({ host, store }) => {
-    const diagnose = store.diagnose;
+    const diagnose = store.steps.diagnose;
     if (host.toolsAvailable.includes('InteractiveCodeReview')) {
       return prompt`
         Use the InteractiveCodeReview tool to present the diff,

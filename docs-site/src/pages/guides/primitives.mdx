@@ -285,7 +285,7 @@ import { enterpriseTone, jsonOutputRules } from '../fragments/tone.js';
   prompt: ({ store }) => prompt`
     ${enterpriseTone}
 
-    Analyze the dependency tree at ${store.gather.repoPath}.
+    Analyze the dependency tree at ${store.steps.gather.repoPath}.
     Flag packages with known CVEs.
 
     ${jsonOutputRules}

@@ -409,9 +409,9 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 2. If invalid: fire `onStepValidationFailed`, return `ValidationErrorResult` with `retry: true`.
 3. **Map action input** via `action.input` (if configured), or use validated response directly.
 4. **Execute action** (if configured). Action receives typed input and AbortSignal.
-5. **Compute result** — priority: explicit `result()` callback > action output > response.
-6. **Freeze** the result object.
-7. **Append** to the state store (step name, response, actionResult, result).
+5. **Compute save** — call the `save` callback (if configured) with `{ response, actionResult, store, params }`. The return value is `{ step?, ...subStoreWrites }`. The `step` property determines what gets stored as the step result (priority: `save().step` > action output > response). Additional keys are deep-merged into the corresponding sub-stores via `applySave()`.
+6. **Freeze** the step result object.
+7. **Append** the step result to `store.steps`. Deep-merge any sub-store writes into their top-level store properties.
 8. Fire `onStepComplete`.
 9. **Resolve next step:**
    - `{ terminal: true }` / `terminal` — fire `onSkillComplete`, return `DoneResult`.
@@ -423,17 +423,19 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 11. If the next step has no prompt, auto-advance through it immediately (no agent round-trip needed).
 12. Return next step's `PromptResult`.
 
-The full lifecycle for a step with an action: prompt -> model -> validate(response) -> action.input -> action.run -> result -> store -> next.
+The full lifecycle for a step with an action: prompt -> model -> validate(response) -> action.input -> action.run -> save -> store -> next.
 
-**Auto-advance for prompt-less steps:** When a step omits `prompt`, the engine skips agent interaction and immediately processes the step. This is useful for computation-only steps that route based on store or params without requiring a model round-trip. The step's `result`, action, and `next` callbacks still execute normally. Multiple prompt-less steps can chain — the engine advances through them until it reaches a step with a prompt or a terminal transition.
+**Auto-advance for prompt-less steps:** When a step omits `prompt`, the engine skips agent interaction and immediately processes the step. This is useful for computation-only steps that route based on store or params without requiring a model round-trip. The step's `save`, action, and `next` callbacks still execute normally. Multiple prompt-less steps can chain — the engine advances through them until it reaches a step with a prompt or a terminal transition.
 
 ### History replay
 
-`replayHistory(history)` reconstructs engine state from a previous execution. It validates each entry's response against the step schema and re-computes `result` callbacks, but does not re-execute actions or fire observers. This is how the stateless protocol works — each `advance` call replays the full history to rebuild state before processing the new step.
+`replayHistory(history)` reconstructs engine state from a previous execution. It validates each entry's response against the step schema and re-executes `save` callbacks to rebuild both step results and sub-store state, but does not re-execute actions or fire observers. This is how the stateless protocol works — each `advance` call replays the full history to rebuild state before processing the new step.
 
 ### StateStore
 
-Append-only store. Each step appends a `StepResult` record containing the step name, response, actionResult, and computed result. The store provides a typed accessor (`StoreView`) via a `Proxy` that maps property access to step-name lookups. Guaranteed steps (on all paths from entry) are non-optional; branch targets require `?.`. Methods like `all(step)` and `ran(step)` provide loop and existence queries. Values are frozen after append.
+Append-only store with two namespaces. Step results live under `store.steps` — each step appends a `StepResult` record containing the step name, response, actionResult, and computed result. The `steps` namespace provides a typed accessor (`StepsView`) via a `Proxy` that maps property access to step-name lookups. Guaranteed steps (on all paths from entry) are non-optional; branch targets require `?.`. Methods like `steps.all(step)` and `steps.ran(step)` provide loop and existence queries. Values are frozen after append.
+
+Top-level sub-stores hold domain-structured state populated by `save` callbacks. When a `save` callback returns keys beyond `step`, those are deep-merged into the corresponding sub-store properties via `applySave()`. Multiple steps can write to the same sub-store — writes accumulate via deep merge, allowing incremental state building across the workflow.
 
 ### Observer dispatch
 

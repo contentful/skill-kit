@@ -175,7 +175,7 @@ test('store accessor is available in step prompt callbacks', () => {
     })
     .step('b', {
       prompt: ({ store }) => {
-        void store.a.name;
+        void store.steps.a.name;
         return 'hi';
       },
       response: type({}),

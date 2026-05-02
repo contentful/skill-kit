@@ -15,7 +15,7 @@ import type {
 import { type } from 'arktype';
 import { renderPrimitive } from '../primitives/registry.js';
 import { validateCycleGuards, type CycleGuardResult, CycleGuardError } from '../validation/cycle-guard.js';
-import { validateOutput } from './schema-validator.js';
+import { validateOutput, validateSave } from './schema-validator.js';
 import { StateStore } from './state-store.js';
 import { ObserverDispatcher } from './observer-dispatch.js';
 import { generatePreamble } from './preamble.js';
@@ -140,8 +140,25 @@ export class WorkflowEngine implements SkillEngine {
     }
 
     let stepResult: unknown;
-    if (stepDef.config.result) {
-      stepResult = Object.freeze(stepDef.config.result({ response, actionResult }));
+    if (stepDef.config.save) {
+      const saveReturn = stepDef.config.save({
+        response,
+        actionResult,
+        store: this.state.buildAccessor(),
+        params: this.skillParams,
+      });
+      const { step: stepValue, ...storeWrites } = (saveReturn as Record<string, unknown>) ?? {};
+      stepResult = stepValue !== undefined ? Object.freeze(stepValue) : (actionResult ?? response);
+
+      if (Object.keys(storeWrites).length > 0) {
+        if (this.skill.stores) {
+          const validation = validateSave(this.skill.stores, storeWrites);
+          if (!validation.success) {
+            process.stderr.write(`[skill-kit] save validation warning at step "${stepName}": ${validation.error}\n`);
+          }
+        }
+        this.state.applySave(storeWrites);
+      }
     } else if (actionResult !== undefined) {
       stepResult = actionResult;
     } else {
@@ -210,8 +227,17 @@ export class WorkflowEngine implements SkillEngine {
       }
 
       let replayResult: unknown;
-      if (stepDef.config.result) {
-        replayResult = Object.freeze(stepDef.config.result({ response, actionResult: entry.actionResult }));
+      let storeWrites: Record<string, unknown> | undefined;
+      if (stepDef.config.save) {
+        const saveReturn = stepDef.config.save({
+          response,
+          actionResult: entry.actionResult,
+          store: this.state.buildAccessor(),
+          params: this.skillParams,
+        });
+        const { step: stepValue, ...writes } = (saveReturn as Record<string, unknown>) ?? {};
+        replayResult = stepValue !== undefined ? Object.freeze(stepValue) : (entry.actionResult ?? response);
+        if (Object.keys(writes).length > 0) storeWrites = writes;
       } else if (entry.actionResult !== undefined) {
         replayResult = entry.actionResult;
       } else {
@@ -219,6 +245,7 @@ export class WorkflowEngine implements SkillEngine {
       }
 
       this.state.append(entry.step, response, entry.actionResult, replayResult);
+      if (storeWrites) this.state.applySave(storeWrites);
     }
   }
 

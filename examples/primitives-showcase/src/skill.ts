@@ -52,8 +52,8 @@ export default skill({
   // --- subagent: delegated research ---
   .step('research', {
     prompt: ({ store }) => {
-      const theme = store['gather-preferences']?.theme ?? '';
-      const framework = store['gather-preferences']?.framework ?? '';
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
       return [
         prompt`Research ${theme} best practices for ${framework} projects.`,
         act.subagent({
@@ -69,8 +69,8 @@ export default skill({
   // --- plan: structured approval ---
   .step('plan-report', {
     prompt: ({ store }) => {
-      const theme = store['gather-preferences']?.theme ?? '';
-      const framework = store['gather-preferences']?.framework ?? '';
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
       return [
         prompt`Based on the research, plan the report structure.`,
         act.plan({
@@ -98,9 +98,9 @@ export default skill({
   // --- checklist: tracked work items ---
   .step('write-report', {
     prompt: ({ store, act, system }) => {
-      const theme = store['gather-preferences']?.theme ?? '';
-      const framework = store['gather-preferences']?.framework ?? '';
-      const researchSummary = store.research?.summary ?? '';
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
+      const researchSummary = store.steps.research?.summary ?? '';
       return [
         system`Write concisely. Each section should be 2-3 sentences.`,
         act.checklist({
@@ -120,10 +120,12 @@ export default skill({
     },
     response: type({ title: 'string', body: 'string' }),
     action: { run: saveReport },
-    result: ({ response, actionResult }) => ({
-      title: response.title,
-      path: actionResult.path,
-      bytes: actionResult.bytes,
+    save: ({ response, actionResult }) => ({
+      step: {
+        title: response.title,
+        path: actionResult.path,
+        bytes: actionResult.bytes,
+      },
     }),
     next: 'confirm-publish',
   })
@@ -141,10 +143,10 @@ export default skill({
   // --- view + terminal: pre-rendered card ---
   .step('summary', {
     prompt: ({ store }) => {
-      const theme = store['gather-preferences']?.theme ?? '';
-      const framework = store['gather-preferences']?.framework ?? '';
-      const savedPath = store['write-report']?.path ?? '';
-      const published = store['confirm-publish']?.publish ?? false;
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
+      const savedPath = store.steps['write-report']?.path ?? '';
+      const published = store.steps['confirm-publish']?.publish ?? false;
       return [
         view([
           render.section(
