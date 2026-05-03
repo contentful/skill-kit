@@ -203,6 +203,8 @@ A function that receives the step output and returns a step name. Use this for b
 
 The function receives `{ response, attempts, actionResult, params, store }`.
 
+The type system infers literal return types from the function body. In the example above, TypeScript infers the return type as `"escalate" | "auto-fix"`, and the builder extracts both as branch targets -- making them optional in the store for downstream steps. This is the same DAG-based narrowing that declarative `NextBranch[]` arrays use.
+
 ### Declarative branching
 
 An array of `NextBranch` objects. Pattern-match style — first match wins, last entry without `when` is the default:

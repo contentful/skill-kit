@@ -297,34 +297,50 @@ interface BranchEntry {
  *
  * **How it works, step by step:**
  *
- * 1. **Tuple matching**: `T extends readonly [BranchEntry, BranchEntry, ...BranchEntry[]]`
- *    checks that T is a tuple with at least 2 BranchEntry elements. A single-entry
- *    array doesn't match — that's not a branch, just a conditional next with one option.
- *    String next, terminal next, and function next all fall through to `never`.
+ * **Path 1 — Branch array**: `T extends readonly [BranchEntry, BranchEntry, ...BranchEntry[]]`
+ * checks that T is a tuple with at least 2 BranchEntry elements. A single-entry
+ * array doesn't match — that's not a branch, just a conditional next with one option.
  *
- * 2. **Union extraction**: `T[number]` distributes a tuple into a union of its element
+ * 1. **Union extraction**: `T[number]` distributes a tuple into a union of its element
  *    types. For `readonly [{ to: 'a' }, { to: 'b' }]`, `T[number]` gives
  *    `{ to: 'a' } | { to: 'b' }`. Then `ExtractTo` pulls out just the `to` strings:
  *    `'a' | 'b'`.
  *
- * 3. **Backward-edge filtering**: `Exclude<..., TKnownSteps>` removes any target
+ * 2. **Backward-edge filtering**: `Exclude<..., TKnownSteps>` removes any target
  *    names that are already defined steps (backward edges / retry loops). A branch
  *    like `[{ to: 'forward' }, { to: 'already-defined' }]` with `'already-defined'`
  *    in TKnownSteps reduces to just `'forward'`.
  *
- * 4. **Single-target check**: `ForwardTargetsOrNever` checks if 2+ forward targets
+ * 3. **Single-target check**: `ForwardTargetsOrNever` checks if 2+ forward targets
  *    remain. If only one forward target survived filtering, there's no actual branch
  *    — that step will always run. Returns `never` in that case.
  *
- * Example:
+ * **Path 2 — Function next**: `T extends (...args: any[]) => infer R` extracts the
+ * function's return type. TypeScript infers literal return types from conditional
+ * expressions — e.g. `({ response }) => response.ok ? 'a' : 'b'` infers as
+ * `() => "a" | "b"`. The extracted union `R` then flows through the same
+ * backward-edge filtering and single-target check as branch arrays.
+ *
+ * The `[R] extends [string]` guard wraps `R` in a tuple to prevent distributive
+ * evaluation. Without it, `R extends string` would distribute over the union members
+ * individually, evaluating the conditional branch for each member separately. The
+ * tuple wrapper ensures the full union is tested as a unit: "is the entire return
+ * type assignable to string?"
+ *
+ * String next and terminal next fall through to `never` (no branching).
+ *
+ * Examples:
  *   ExtractBranchTargets<readonly [{ to: 'a', when: ... }, { to: 'b' }]>
  *     → 'a' | 'b'
  *
  *   ExtractBranchTargets<readonly [{ to: 'forward', when: ... }, { to: 'retry' }], 'retry'>
  *     → never  (only one forward target after filtering backward edge)
  *
+ *   ExtractBranchTargets<() => 'escalate' | 'auto-fix'>
+ *     → 'escalate' | 'auto-fix'
+ *
  *   ExtractBranchTargets<'next-step'>
- *     → never  (string next, not a branch array)
+ *     → never  (string next, not a branch)
  */
 export type ExtractBranchTargets<T, TKnownSteps extends string = never> = T extends readonly [
   BranchEntry,

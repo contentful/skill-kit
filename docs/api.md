@@ -257,6 +257,8 @@ The agent contract (`response`) and the step's contribution to state (`save`) ar
 - **Terminal:** `next: terminal` — ends the skill. Output becomes `finalOutput`. The `terminal` constant is exported from `@contentful/skill-kit` and is equivalent to `{ terminal: true }`.
 - **Self:** `next: 'self'` or returning the current step name — revisit the same step (requires `maxVisits`).
 
+All three branching forms (static, declarative, dynamic) participate in DAG-based type narrowing. The type system extracts branch targets from declarative `NextBranch[]` arrays via the `to` fields, and from function `next` via the literal return type (e.g., `({ response }) => response.ok ? 'a' : 'b'` infers as `() => "a" | "b"`, yielding targets `'a' | 'b'`). Downstream steps see branch targets as optional in the store.
+
 ### `NextBranch` type
 
 Declarative branching uses an array of `NextBranch` objects:

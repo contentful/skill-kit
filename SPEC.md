@@ -795,7 +795,7 @@ The builder tracks which steps are guaranteed (on all paths to the current step)
 - **Branch targets** appear as optional properties: `store.steps['ask-stack']?.answer` (must use `?.`)
 - **Methods** are always available: `store.steps.all(stepName)`, `store.steps.ran(stepName)`, `store.steps.history`
 
-The guarantee tracking uses `NextBranch[]` declarations. When a step's `next` is a branch array with multiple forward targets, those targets become optional. When there's only one forward target (others are backward edges to already-defined steps), it remains guaranteed.
+The guarantee tracking extracts branch targets from both `NextBranch[]` arrays (via the `to` fields) and function `next` (via the inferred literal return type — e.g., `() => response.ok ? 'a' : 'b'` infers as `() => "a" | "b"`, yielding targets `'a' | 'b'`). When a step's `next` produces multiple forward targets, those targets become optional. When there's only one forward target (others are backward edges to already-defined steps), it remains guaranteed.
 
 Sub-store narrowing follows a similar principle. When a guaranteed predecessor writes to a sub-store via `save`, those paths become non-optional downstream — the type system knows the data is present. Branch target writes remain optional, since the writing step may not have run.
 
