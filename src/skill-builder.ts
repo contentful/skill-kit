@@ -6,7 +6,6 @@ import type {
   StepDefinition,
   ModuleDefinition,
   ActionDefinition,
-  InferActionResult,
   SubskillRegistration,
   TopicConfig,
 } from './types.js';
@@ -58,6 +57,39 @@ function checkActionInputCompat(stepName: string, outputSchema: type.Any, action
  * optional (`store.env?.host`) to required (`store.env.host`) downstream.
  */
 type ExtractStoreWrites<T> = T extends void ? {} : Omit<T, 'step'>;
+
+/**
+ * Context passed to inline action functions.
+ */
+interface InlineActionContext<TOutput, TSteps, TStores, TStoreWrites, TParams> {
+  response: TOutput;
+  store: StoreAccessor<
+    TSteps & Record<string, unknown>,
+    never,
+    TStores & Record<string, unknown>,
+    TStoreWrites & Record<string, unknown>
+  >;
+  params: TParams;
+  signal: AbortSignal;
+}
+
+/**
+ * Extracts the action result type from any valid action config shape:
+ * - Inline fn: `(ctx) => Promise<R>` → `R`
+ * - ActionDefinition directly: `ActionDefinition<_, TOut>` → `TOut['infer']`
+ * - Reusable config object: `{ run: ActionDefinition<_, TOut> }` → `TOut['infer']`
+ * - Absent: `undefined` → `undefined`
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ExtractActionResult<TAction> = TAction extends (...args: any[]) => Promise<infer R>
+  ? R
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    TAction extends { run: ActionDefinition<any, infer TOut> }
+    ? TOut['infer']
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      TAction extends ActionDefinition<any, infer TOut>
+      ? TOut['infer']
+      : undefined;
 
 /**
  * Fluent builder for defining a skill's step graph with full type safety.
@@ -254,33 +286,37 @@ export class SkillBuilder<
   step<
     Name extends string,
     TOutput extends type.Any,
+    /**
+     * TReusableAction — inferred from `action: { run: TReusableAction, ... }`.
+     * TypeScript infers this from the `run` property of the object form.
+     * The conditional `T extends ActionDefinition ? { run: T } : never` is the
+     * canonical pattern: TypeScript infers T from the structural `{ run: T }` position.
+     */
+    TReusableAction extends ActionDefinition<any, any> | undefined = undefined,
+    /**
+     * TInlineAction — inferred from `action: async ctx => ...`.
+     * TypeScript infers this from the direct function value at the call site
+     * via `T extends fn ? T : never` — T appears in both condition and result,
+     * which triggers inference from the provided value.
+     */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    A extends ActionDefinition<any, any> | ((...args: any[]) => Promise<unknown>) | undefined = undefined,
+    TInlineAction extends ((ctx: any) => Promise<unknown>) | undefined = undefined,
     TSaveReturn extends ({ step?: unknown } & DeepPartial<TStores>) | void = void,
+    TActionResult = ExtractActionResult<TReusableAction extends undefined ? TInlineAction : TReusableAction>,
     TResultValue = TSaveReturn extends { step: infer S }
       ? S
-      : A extends ActionDefinition<any, infer TActionOut>
-        ? TActionOut['infer']
-        : TOutput extends type.Any
-          ? TOutput['infer']
-          : unknown,
+      : TActionResult extends undefined
+        ? TOutput['infer']
+        : TActionResult,
     const TNext extends StepConfig<
       TOutput,
       TParams,
-      A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
+      TActionResult,
       TSteps,
       never,
       TStores,
       TGuarantees['storeWrites']
-    >['next'] = StepConfig<
-      TOutput,
-      TParams,
-      A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
-      TSteps,
-      never,
-      TStores,
-      TGuarantees['storeWrites']
-    >['next'],
+    >['next'] = StepConfig<TOutput, TParams, TActionResult, TSteps, never, TStores, TGuarantees['storeWrites']>['next'],
   >(
     name: Name,
     configOrDef:
@@ -288,7 +324,7 @@ export class SkillBuilder<
           StepConfig<
             TOutput,
             TParams,
-            A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined,
+            TActionResult,
             TSteps,
             Exclude<TGuarantees['steps'], Name>,
             TStores,
@@ -299,22 +335,36 @@ export class SkillBuilder<
           next: TNext;
           save?: (ctx: {
             response: TOutput['infer'];
-            actionResult: A extends ActionDefinition<any, any> ? InferActionResult<A> : undefined;
+            actionResult: TActionResult;
             store: StoreAccessor<TSteps, Exclude<TGuarantees['steps'], Name>, TStores, TGuarantees['storeWrites']>;
             params: Readonly<TParams>;
           }) => TSaveReturn;
-          action?: A extends ActionDefinition<any, any>
+          /**
+           * Accepts either form:
+           * - Reusable: `{ run: ActionDefinition, mapInput?: fn }` — TypeScript infers
+           *   TReusableAction from the `run` property (structural inference position).
+           * - Inline: `async ctx => ...` — TypeScript infers TInlineAction from the
+           *   conditional `TInlineAction extends fn ? TInlineAction : never`. The T
+           *   appears in both condition and result, enabling inference from the value.
+           *
+           * Both conditionals resolve to `never` when their respective generic is absent
+           * (default `undefined`). TypeScript eliminates `never` from the union.
+           */
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          action?: TReusableAction extends ActionDefinition<any, any>
             ? {
-                run: A;
+                run: TReusableAction;
                 mapInput?: (ctx: {
                   response: TOutput['infer'];
                   store: StoreAccessor<TSteps, never, TStores, TGuarantees['storeWrites']>;
                   params: TParams;
                 }) => unknown;
               }
-            : A extends (...args: any[]) => Promise<unknown>
-              ? A
-              : undefined;
+            : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                | (TInlineAction extends (ctx: any) => Promise<unknown> ? TInlineAction : never)
+                | ((
+                    ctx: InlineActionContext<TOutput['infer'], TSteps, TStores, TGuarantees['storeWrites'], TParams>,
+                  ) => Promise<unknown>);
         })
       | StepDefinition,
   ): SkillBuilder<
