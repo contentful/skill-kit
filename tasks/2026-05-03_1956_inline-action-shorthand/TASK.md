@@ -161,17 +161,19 @@ Update to:
 ## Steps
 
 - [x] Create TASK.md and commit
-- [ ] Update `src/types.ts`: union action type, rename `input` → `mapInput`, update `InferActionResult`
-- [ ] Update `src/skill-builder.ts`: generalize `A` generic, update action field type, update compat guard
-- [ ] Update `src/runtime/engine.ts`: inline action branch, `input` → `mapInput`
-- [ ] Update test files: `engine.test.ts`, `skill.test.ts`, type test-d files, fixtures, subskill-engine.test.ts
-- [ ] Update examples: `game-jam/src/skill.ts`
-- [ ] Run typecheck + tests + format — pass
-- [ ] Update docs: SPEC.md, docs/api.md, docs/architecture.md, README.md, docs-site MDX
-- [ ] Final typecheck + tests + format — pass
+- [x] Update `src/types.ts`: union action type, rename `input` → `mapInput`, update `InferActionResult`
+- [x] Update `src/skill-builder.ts`: generalize `A` generic, update action field type, update compat guard
+- [x] Update `src/runtime/engine.ts`: inline action branch, `input` → `mapInput`
+- [x] Update test files: `engine.test.ts`, `skill.test.ts`, type test-d files, fixtures, subskill-engine.test.ts
+- [x] Update examples: `game-jam/src/skill.ts`
+- [x] Run typecheck + tests + format — pass
+- [x] Update docs: SPEC.md, docs/api.md, docs/architecture.md, README.md, docs-site MDX
+- [x] Final typecheck + tests + format — pass
 
 ## Notes
 
 - `input` inside `ActionConfig` / `ActionDefinition` (the action's own input schema field) is NOT renamed — only the step-level mapper `action.input` → `action.mapInput`
+- The builder uses two separate generics (`TReusableAction` + `TInlineAction`) instead of one conditional generic for the action field. This is required because TypeScript cannot infer a type parameter from a conditional position (`T extends X ? ... : T`) when the default resolves first. With two generics, each has its own inference site in the `action?` union.
+- The `action?` union includes a broad `((ctx: InlineActionContext<...>) => Promise<unknown>)` member alongside `TInlineAction` to provide contextual typing for inline function parameters (response, store, params, signal) — without this, TypeScript requires explicit `ctx: any` annotation.
 - The `checkActionInputCompat` function still validates reusable actions when `mapInput` is absent
 - Inline actions get full context including `signal` for cancellation; reusable actions already have `signal` via their `run` ctx
