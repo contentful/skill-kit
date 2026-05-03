@@ -332,7 +332,12 @@ export type ExtractBranchTargets<T, TKnownSteps extends string = never> = T exte
   ...BranchEntry[],
 ]
   ? ForwardTargetsOrNever<Exclude<ExtractTo<T[number]>, TKnownSteps>>
-  : never;
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- function next: extract literal return type
+    T extends (...args: any[]) => infer R
+    ? [R] extends [string]
+      ? ForwardTargetsOrNever<Exclude<R, TKnownSteps>>
+      : never
+    : never;
 
 /**
  * Returns the union T if it has 2+ members, otherwise `never`.

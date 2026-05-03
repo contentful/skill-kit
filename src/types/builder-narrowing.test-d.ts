@@ -636,3 +636,40 @@ skill({ name: 'transitive-reconvergence', entry: 'a' })
     response: type({}),
     next: { terminal: true },
   });
+
+// ============================================================
+// 17. Function next: literal return types produce branch targets
+// ============================================================
+// const TNext preserves the function's literal return type.
+// next: ({ response }) => response.ok ? 'left' : 'right'
+// infers as () => "left" | "right", enabling branch extraction.
+
+skill({ name: 'function-next-narrowing', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ ok: 'boolean' }),
+    next: ({ response }) => (response.ok ? 'left' : 'right'),
+  })
+  .step('left', { prompt: 'L', response: type({ lv: 'string' }), next: 'end' })
+  .step('right', { prompt: 'R', response: type({ rv: 'string' }), next: 'end' })
+  .step('end', {
+    prompt: ({ store }) => {
+      // root is guaranteed (before branch)
+      const ok: boolean = store.steps.root.ok;
+      void ok;
+
+      // left and right are branch targets from function return — optional
+      const lv = store.steps.left?.lv;
+      const rv = store.steps.right?.rv;
+      void lv;
+      void rv;
+
+      // @ts-expect-error - left is a branch target, not guaranteed
+      const leftDirect: { lv: string } = store.steps.left;
+      void leftDirect;
+
+      return 'End';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
