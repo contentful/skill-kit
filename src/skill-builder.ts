@@ -16,7 +16,7 @@ import type { DeepPartial, BranchState, GuaranteeState, AddStepGuarantees, AddSt
 
 /**
  * Build-time check that a step's response schema provides the properties
- * required by its action's input schema, when no explicit `action.input`
+ * required by its action's input schema, when no explicit `mapInput`
  * mapper is provided. This prevents a common misconfiguration where the
  * action would receive missing fields at runtime.
  */
@@ -33,7 +33,7 @@ function checkActionInputCompat(stepName: string, outputSchema: type.Any, action
       throw new Error(
         `Step "${stepName}" uses action "${actionDef.name}" without an input mapper, ` +
           `but the step output is missing properties required by the action input: [${missing.join(', ')}]. ` +
-          `Add an action.input mapper to transform the step output.`,
+          `Add an action.mapInput mapper to transform the step output.`,
       );
     }
   } catch (err) {
@@ -95,7 +95,7 @@ type ExtractStoreWrites<T> = T extends void ? {} : Omit<T, 'step'>;
  *
  * @template TParams — The skill's input parameters type, inferred from the
  *   `params` ArkType schema in the skill config. Passed to every step's `prompt`,
- *   `save`, and `action.input` callbacks as `ctx.params`.
+ *   `save`, and `action.mapInput` callbacks as `ctx.params`.
  *
  * @template TSteps — An intersection of `{ [stepName]: resultType }` entries,
  *   one per `.step()` call. This is the "step result map" — it tracks what type
@@ -224,7 +224,7 @@ export class SkillBuilder<
    * can't read your own result from the store. After `.step()` returns, Name
    * gets added to the guarantee set for subsequent steps.
    *
-   * The same self-exclusion does NOT apply to `action.input` — that callback
+   * The same self-exclusion does NOT apply to `action.mapInput` — that callback
    * uses `never` for guaranteed steps because the action runs after the response
    * is validated but before save, so it only has access to the response and
    * the store's current state without any guarantee about which steps ran.
@@ -254,7 +254,8 @@ export class SkillBuilder<
   step<
     Name extends string,
     TOutput extends type.Any,
-    A extends ActionDefinition<any, any> | undefined = undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    A extends ActionDefinition<any, any> | ((...args: any[]) => Promise<unknown>) | undefined = undefined,
     TSaveReturn extends ({ step?: unknown } & DeepPartial<TStores>) | void = void,
     TResultValue = TSaveReturn extends { step: infer S }
       ? S
@@ -305,13 +306,15 @@ export class SkillBuilder<
           action?: A extends ActionDefinition<any, any>
             ? {
                 run: A;
-                input?: (ctx: {
+                mapInput?: (ctx: {
                   response: TOutput['infer'];
                   store: StoreAccessor<TSteps, never, TStores, TGuarantees['storeWrites']>;
                   params: TParams;
                 }) => unknown;
               }
-            : undefined;
+            : A extends (...args: any[]) => Promise<unknown>
+              ? A
+              : undefined;
         })
       | StepDefinition,
   ): SkillBuilder<
@@ -325,7 +328,7 @@ export class SkillBuilder<
       this.steps[name] = configOrDef;
     } else {
       const config = configOrDef as StepConfig;
-      if (config.action && !config.action.input && config.response) {
+      if (config.action && typeof config.action !== 'function' && !config.action.mapInput && config.response) {
         checkActionInputCompat(name, config.response, config.action.run);
       }
       this.steps[name] = createStep(config);

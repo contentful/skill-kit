@@ -21,7 +21,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
     response: type({ issue: 'string' }),
     action: {
       run: scanAction,
-      input: ({ response }) => ({ path: response.issue }),
+      mapInput: ({ response }) => ({ path: response.issue }),
     },
     next: 'report',
   })

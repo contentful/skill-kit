@@ -3,6 +3,7 @@
 ## Scope
 
 **In:**
+
 - `action` field on `StepConfig` becomes a discriminated union: inline function or reusable object
 - Rename `action.input` → `action.mapInput` on the reusable form
 - Type inference for inline action return type flows to `actionResult` in `save` / `TResultValue`
@@ -12,6 +13,7 @@
 - Update docs: SPEC.md, docs/api.md, docs/architecture.md, README.md, docs-site
 
 **Out:**
+
 - Input/output schema validation on inline actions (by design)
 - Input compatibility check (`checkActionInputCompat`) for inline actions (not applicable)
 
@@ -56,13 +58,13 @@ User-requested design (verbatim from conversation):
 Current: `A extends ActionDefinition<any, infer TOut> ? TOut['infer'] : undefined`
 
 New: two-form conditional:
+
 ```typescript
-export type InferActionResult<A> =
-  A extends (...args: any[]) => Promise<infer R>
-    ? R
-    : A extends ActionDefinition<any, infer TOut>
-      ? TOut['infer']
-      : undefined;
+export type InferActionResult<A> = A extends (...args: any[]) => Promise<infer R>
+  ? R
+  : A extends ActionDefinition<any, infer TOut>
+    ? TOut['infer']
+    : undefined;
 ```
 
 #### `BaseStepFields.action` union type (`src/types.ts`)
@@ -94,6 +96,7 @@ New: `A extends ActionDefinition<any, any> | ((...args: any[]) => Promise<unknow
 The `TResultValue` conditional already handles the inline case via `InferActionResult<A>` — once `InferActionResult` is updated, it falls through correctly.
 
 The `action?` field in the `configOrDef` object also needs to accept the inline function form:
+
 ```typescript
 action?: A extends ActionDefinition<any, any>
   ? { run: A; mapInput?: (...) => unknown }
@@ -105,12 +108,14 @@ action?: A extends ActionDefinition<any, any>
 #### `checkActionInputCompat` guard — reusable form only
 
 The guard `if (config.action && !config.action.input && config.response)` must change to:
+
 - Only run when action is the reusable object form
 - Check `!config.action.mapInput` instead of `!config.action.input`
 
 ### Engine changes (`src/runtime/engine.ts`)
 
 In `advance()`, action execution branch:
+
 ```typescript
 if (typeof stepDef.config.action === 'function') {
   actionResult = await stepDef.config.action({
@@ -135,6 +140,7 @@ Replay path is unchanged — it never re-runs actions.
 ### Rename `input` → `mapInput`
 
 All files with `action: { run, input }`:
+
 - `src/runtime/engine.ts` (destructuring)
 - `src/runtime/engine.test.ts` (test cases using `input:`)
 - `src/skill-builder.ts` (type definition + compat guard)

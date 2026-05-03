@@ -157,7 +157,12 @@ export type SystemBuilder = {
 // --- Type helpers ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type InferActionResult<A> = A extends ActionDefinition<any, infer TOut> ? TOut['infer'] : undefined;
+export type InferActionResult<A> = A extends (...args: any[]) => Promise<infer R>
+  ? R
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    A extends ActionDefinition<any, infer TOut>
+    ? TOut['infer']
+    : undefined;
 
 // --- Steps ---
 
@@ -241,7 +246,7 @@ export type NextTarget<
   | { terminal: true };
 
 /**
- * Lifecycle: prompt → model → validate(response) → action.input → action.run → result → next
+ * Lifecycle: prompt → model → validate(response) → action (inline fn or mapInput+run) → save → next
  *
  * When prompt is omitted the engine auto-advances (no LLM round-trip).
  * When response is omitted no schema block is emitted and validation is skipped.
@@ -264,14 +269,21 @@ interface BaseStepFields<
     | TransitionFn<TOutput['infer'], TActionResult, TParams, TSteps, TStores, TStoreWrites>
     | readonly NextBranch<TOutput['infer'], TActionResult, TParams, TSteps, TStores, TStoreWrites>[]
     | { terminal: true };
-  action?: {
-    run: ActionDefinition;
-    input?: (ctx: {
-      response: TOutput['infer'];
-      store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
-      params: Readonly<TParams>;
-    }) => unknown;
-  };
+  action?:
+    | ((ctx: {
+        response: TOutput['infer'];
+        store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
+        params: TParams;
+        signal: AbortSignal;
+      }) => Promise<unknown>)
+    | {
+        run: ActionDefinition;
+        mapInput?: (ctx: {
+          response: TOutput['infer'];
+          store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
+          params: Readonly<TParams>;
+        }) => unknown;
+      };
   maxVisits?: number;
   onMaxVisits?: string;
 }

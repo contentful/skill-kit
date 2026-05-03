@@ -129,7 +129,7 @@ skill({
     response: type({ val: 'string' }),
     action: {
       run: writeFile,
-      input: ({ response }) => ({ content: response.val }),
+      mapInput: ({ response }) => ({ content: response.val }),
     },
     save: ({ actionResult }) => ({
       env: { host: actionResult.path },
@@ -326,7 +326,7 @@ skill({
     response: type({ val: 'string' }),
     action: {
       run: dummyAction,
-      input: ({ response, store }) => {
+      mapInput: ({ response, store }) => {
         const prefix = store.config?.prefix;
         void prefix;
         return { val: response.val };

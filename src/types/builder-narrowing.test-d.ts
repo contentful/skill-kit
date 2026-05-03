@@ -165,7 +165,7 @@ skill({ name: 'action-store', entry: 'find' })
     response: type({ links: 'string[]' }),
     action: {
       run: checkLinks,
-      input: ({ response }) => ({ urls: response.links }),
+      mapInput: ({ response }) => ({ urls: response.links }),
     },
     next: 'report',
   })

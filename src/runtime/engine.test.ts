@@ -326,7 +326,7 @@ test('actionInput mapping decouples step output from action input', async () => 
       response: type({ fileName: 'string', body: 'string' }),
       action: {
         run: writeAction,
-        input: ({ response }) => ({ path: `/out/${response.fileName}`, content: response.body }),
+        mapInput: ({ response }) => ({ path: `/out/${response.fileName}`, content: response.body }),
       },
       next: { terminal: true },
     })
@@ -362,7 +362,7 @@ test('actionInput receives store accessor', async () => {
       response: type({ val: 'string' }),
       action: {
         run: myAction,
-        input: ({ response, store }) => ({
+        mapInput: ({ response, store }) => ({
           prefix: store.steps.setup?.prefix ?? '',
           val: response.val,
         }),
@@ -610,7 +610,7 @@ test('result callback transforms what gets stored', async () => {
       response: type({ links: 'string[]' }),
       action: {
         run: checkLinks,
-        input: ({ response }) => ({ urls: response.links }),
+        mapInput: ({ response }) => ({ urls: response.links }),
       },
       save: ({ response, actionResult }) => ({
         step: {

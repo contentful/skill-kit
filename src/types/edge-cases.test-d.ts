@@ -576,7 +576,7 @@ skill({
     response: type({ url: 'string' }),
     action: {
       run: fetchAction,
-      input: ({ response }) => ({ url: response.url }),
+      mapInput: ({ response }) => ({ url: response.url }),
     },
     save: ({ response, actionResult }) => {
       // response is the step output
