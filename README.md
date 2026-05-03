@@ -231,13 +231,13 @@ No tool names in the XML. The preamble handles the mapping. Same skill, same XML
 Each step follows a fixed lifecycle. Understanding the order matters when using actions and the `save` callback:
 
 ```
-prompt -> model -> validate(response) -> action.input -> action.run -> save -> store -> next
+prompt -> model -> validate(response) -> action.mapInput -> action.run -> save -> store -> next
 ```
 
 1. **prompt** -- the CLI emits the step's prompt and schema to the agent (steps without a prompt auto-advance immediately)
 2. **model** -- the agent reads the prompt, does the work, returns structured output
 3. **validate(response)** -- the CLI validates the output against the step's ArkType schema (skipped for response-less steps)
-4. **action.input** -- if the step has an action, `action.input` transforms the validated response into action input
+4. **action.mapInput** -- if the step has an action, `action.mapInput` transforms the validated response into action input
 5. **action.run** -- the action executes CLI-side (file writes, API calls, etc.)
 6. **save** -- the `save` callback returns `{ step?, ...subStoreWrites }`. The `step` property controls what gets stored as the step result (defaults to action output or response). Additional keys are deep-merged into the corresponding sub-stores.
 7. **store** -- the step result is appended to `store.steps`, and sub-store writes are merged into their top-level store properties
@@ -418,7 +418,7 @@ skill-kit check <skill.ts>                          # Lint for portability issue
   next: 'step-name' | NextBranch[] | ((ctx) => 'step-name') | terminal,
   action?: {
     run: ActionDefinition,                                     // the action to execute
-    input?: (ctx: { response; store; params }) => unknown,     // transform response to action input
+    mapInput?: (ctx: { response; store; params }) => unknown,  // transform response to action input
   },
   save?: (ctx: { response; actionResult; store; params }) => { step?: unknown; [subStore: string]: unknown } | void,
   maxVisits?: number,
@@ -426,7 +426,7 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 }
 ```
 
-**Step lifecycle:** `prompt` -> `model` -> `validate(response)` -> `action.input` -> `action.run` -> `save` -> `store` -> `next`
+**Step lifecycle:** `prompt` -> `model` -> `validate(response)` -> `action.mapInput` -> `action.run` -> `save` -> `store` -> `next`
 
 `PromptContext` fields available in dynamic prompts:
 

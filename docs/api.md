@@ -95,7 +95,7 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   next: string | NextBranch[] | TransitionFn | { terminal: true },  // required
   action?: {
     run: ActionDefinition,
-    input?: (ctx: { response; store; params }) => unknown,
+    mapInput?: (ctx: { response; store; params }) => unknown,
   },
   save?: (ctx: { response; actionResult; store; params }) => { step?; ...storeWrites },
   maxVisits?: number,
@@ -907,7 +907,7 @@ Attach to a step via the `action` field:
   response: type({ reasoning: 'string', profile: ProfileSchema }),
   action: {
     run: writeProfile,
-    input: ({ response }) => ({ profile: response.profile }),
+    mapInput: ({ response }) => ({ profile: response.profile }),
   },
   save: ({ response, actionResult }) => ({
     step: { profile: response.profile, savedPath: actionResult.path },
@@ -916,11 +916,14 @@ Attach to a step via the `action` field:
 })
 ```
 
-- `action.input` transforms step response into action input (runs before action)
+- `action.mapInput` transforms step response into action input (runs before action)
 - The `save` callback controls what gets stored (runs after action, receives `{ response, actionResult, store, params }`)
 - `next` receives action result for conditional routing
 
-Step lifecycle with action: `prompt -> model -> validate(response) -> action.input -> action.run -> save -> store -> next`
+Step lifecycle with action:
+
+- Reusable: `prompt -> model -> validate(response) -> action.mapInput -> action.run -> save -> store -> next`
+- Inline: `prompt -> model -> validate(response) -> action(ctx) -> save -> store -> next`
 
 ### `action()` config (ActionDefinition)
 
@@ -933,12 +936,37 @@ Step lifecycle with action: `prompt -> model -> validate(response) -> action.inp
 
 ### Step `action` field config
 
-| Field   | Type                                            | Required | Description                                                        |
-| ------- | ----------------------------------------------- | -------- | ------------------------------------------------------------------ |
-| `run`   | `ActionDefinition`                              | yes      | The action to execute                                              |
-| `input` | `(ctx: { response; store; params }) => unknown` | no       | Transform step response into action input (default: pass response) |
+| Field      | Type                                            | Required | Description                                                        |
+| ---------- | ----------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `run`      | `ActionDefinition`                              | yes      | The action to execute                                              |
+| `mapInput` | `(ctx: { response; store; params }) => unknown` | no       | Transform step response into action input (default: pass response) |
 
-The `run` function on the `ActionDefinition` receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated response is parsed as action input; use `action.input` to customize.
+The `run` function on the `ActionDefinition` receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated response is parsed as action input; use `action.mapInput` to customize.
+
+### Inline action (function form)
+
+When an action is a one-off side effect, pass an async function directly instead of creating an `ActionDefinition`:
+
+```typescript
+.step('fetch', {
+  response: type({ url: 'string' }),
+  action: async ({ response, store, params, signal }) => {
+    const data = await fetch(response.url);
+    return { status: data.status };
+  },
+  save: ({ actionResult }) => ({ step: { status: actionResult.status } }),
+  next: 'report',
+})
+```
+
+| Context field | Description                              |
+| ------------- | ---------------------------------------- |
+| `response`    | The step's validated model response      |
+| `store`       | Store accessor for reading prior results |
+| `params`      | The skill's params                       |
+| `signal`      | AbortSignal for cancellation             |
+
+The return type is inferred and flows into `actionResult` in `save` and `next`. No input/output schemas or name required. The discriminant: `typeof action === 'function'` indicates inline, an object with `run` indicates reusable.
 
 ---
 
