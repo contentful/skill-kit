@@ -74,22 +74,18 @@ interface InlineActionContext<TOutput, TSteps, TStores, TStoreWrites, TParams> {
 }
 
 /**
- * Extracts the action result type from any valid action config shape:
- * - Inline fn: `(ctx) => Promise<R>` → `R`
- * - ActionDefinition directly: `ActionDefinition<_, TOut>` → `TOut['infer']`
- * - Reusable config object: `{ run: ActionDefinition<_, TOut> }` → `TOut['infer']`
- * - Absent: `undefined` → `undefined`
+ * Derives the action result type from the generic parameter.
+ *
+ * The builder infers TReusableAction as the ActionDefinition from `{ run: T }`,
+ * so this helper receives the definition directly — not the config object.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ExtractActionResult<TAction> = TAction extends (...args: any[]) => Promise<infer R>
+type ExtractActionResult<T> = T extends (...args: any[]) => Promise<infer R>
   ? R
   : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    TAction extends { run: ActionDefinition<any, infer TOut> }
+    T extends ActionDefinition<any, infer TOut>
     ? TOut['infer']
-    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      TAction extends ActionDefinition<any, infer TOut>
-      ? TOut['infer']
-      : undefined;
+    : undefined;
 
 /**
  * Fluent builder for defining a skill's step graph with full type safety.
