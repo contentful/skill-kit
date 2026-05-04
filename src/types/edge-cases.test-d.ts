@@ -660,6 +660,8 @@ void (0 as unknown as _g2w);
 void (0 as unknown as _fb1);
 void (0 as unknown as _ac1);
 void (0 as unknown as MethodNameView);
+void (0 as unknown as _mg1);
+void (0 as unknown as _mg2);
 
 // ============================================================
 // 23. Inline action: function form accepted, result flows to save
@@ -763,3 +765,660 @@ skill({ name: 'no-action-undefined', entry: 'a' }).step('a', {
   },
   next: { terminal: true },
 });
+
+// ============================================================
+// 28. Nested branch reconvergence: all nested paths converge
+// ============================================================
+// root → [left, merge]
+// left → [merge, mid]   (guaranteed, re-branches merge alongside mid)
+// mid → merge
+// merge is on ALL paths → guaranteed
+
+skill({ name: 'nested-convergence', entry: 'root' })
+  .step('root', {
+    response: type({ ok: 'boolean' }),
+    next: ({ response }) => (response.ok ? 'left' : 'merge'),
+  })
+  .step('left', {
+    response: type({ choice: 'string' }),
+    next: ({ response }) => (response.choice === 'a' ? 'merge' : 'mid'),
+  })
+  .step('mid', { response: type({ v: 'string' }), next: 'merge' })
+  .step('merge', {
+    prompt: ({ store }) => {
+      // merge is guaranteed — on all paths
+      const ok: boolean = store.steps.root.ok;
+      void ok;
+      // left is a branch target (optional)
+      const choice = store.steps.left?.choice;
+      void choice;
+      return 'Merge';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 29. Partial nested convergence must NOT promote
+// ============================================================
+// root → [left, target]
+// left → [target, mid]  (re-branches target alongside mid)
+// mid → end              (does NOT route to target!)
+// target is NOT on all paths — mid goes to end, not target
+
+skill({ name: 'partial-nested-no-promote', entry: 'root' })
+  .step('root', {
+    response: type({ ok: 'boolean' }),
+    next: ({ response }) => (response.ok ? 'left' : 'target'),
+  })
+  .step('left', {
+    response: type({ choice: 'string' }),
+    next: ({ response }) => (response.choice === 'a' ? 'target' : 'mid'),
+  })
+  .step('mid', { response: type({ v: 'string' }), next: 'end' })
+  .step('target', {
+    prompt: ({ store }) => {
+      // target is NOT guaranteed — mid doesn't route to it
+      // root is still guaranteed (before the branch)
+      const ok: boolean = store.steps.root.ok;
+      void ok;
+      // left is optional (branch target)
+      const choice = store.steps.left?.choice;
+      void choice;
+      return 'Target';
+    },
+    response: type({}),
+    next: 'end',
+  })
+  .step('end', {
+    prompt: ({ store }) => {
+      // target is optional — assigning to non-optional type errors
+      // @ts-expect-error - target is not guaranteed
+      const t: {} = store.steps.target;
+      void t;
+      return 'End';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+// ============================================================
+// 30. Diamond with nested diamond: outer and inner converge at same step
+// ============================================================
+// root → [a, d]
+// a → [b, c] (nested branch)
+// b → d, c → d (inner branches converge at d)
+//
+// d is a branch target from root's branch (group root).
+// Its sibling is a. a does NOT route to d via string next (a branches).
+// So ShouldPromote<d> = false (not all root-siblings route to d).
+//
+// Even though b and c both route to d, they are in group a, not group root.
+// Their edges (b->d, c->d) don't satisfy d's promotion requirement
+// (which needs a->d from the root group).
+//
+// Additionally, b and c are branched, so GuaranteedRouteTarget doesn't fire.
+// Result: d remains optional. This is a known limitation of flat-group
+// reconvergence — nested convergence across group boundaries isn't detected.
+
+skill({ name: 'diamond-nested-diamond', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ choice: 'string' }),
+    next: [{ to: 'a', when: ({ response }) => response.choice === 'a' }, { to: 'd' }],
+  })
+  .step('a', {
+    prompt: 'A',
+    response: type({ av: 'string' }),
+    next: [{ to: 'b', when: ({ response }) => response.av === 'b' }, { to: 'c' }],
+  })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'd' })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'd' })
+  .step('d', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const choice: string = store.steps.root.choice;
+      void choice;
+
+      // d is NOT promoted — nested convergence across groups isn't detected.
+      // a, b, c are all optional branch targets.
+      const av = store.steps.a?.av;
+      const bv = store.steps.b?.bv;
+      const cv = store.steps.c?.cv;
+      void av;
+      void bv;
+      void cv;
+
+      // @ts-expect-error - d is a branch target from root, not guaranteed
+      const dSelf: { dv: string } = store.steps.d;
+      void dSelf;
+
+      return 'D';
+    },
+    response: type({ dv: 'string' }),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 31. Three-way branch with inner reconvergence at merge
+// ============================================================
+// root → [a, b, c]
+// a → merge (string next)
+// b → merge (string next)
+// c → merge (string next)
+// All three siblings route to merge → merge is promoted.
+//
+// This is straightforward sibling reconvergence: ShouldPromote checks
+// that all siblings of merge (a, b, c — all from root group) route to it.
+
+skill({ name: 'three-way-full-reconverge', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ choice: 'string' }),
+    next: [
+      { to: 'a', when: ({ response }) => response.choice === 'a' },
+      { to: 'b', when: ({ response }) => response.choice === 'b' },
+      { to: 'c' },
+    ],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'merge' })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'merge' })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'merge' })
+  .step('merge', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const choice: string = store.steps.root.choice;
+      void choice;
+
+      // merge IS promoted — all three siblings route to it
+      // a, b, c are still optional branch targets
+      const av = store.steps.a?.av;
+      const bv = store.steps.b?.bv;
+      const cv = store.steps.c?.cv;
+      void av;
+      void bv;
+      void cv;
+
+      return 'Merge';
+    },
+    response: type({ merged: 'boolean' }),
+    next: 'final',
+  })
+  .step('final', {
+    prompt: ({ store }) => {
+      // merge is guaranteed (promoted), root is guaranteed
+      const choice: string = store.steps.root.choice;
+      const merged: boolean = store.steps.merge.merged;
+      void choice;
+      void merged;
+
+      return 'Final';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 32. Chained guaranteed intermediaries: transitive to same target
+// ============================================================
+// root → [a, f]
+// a → b (string next, a is branched so b enters via guaranteed routing? no)
+// b → c (string next)
+// c → f (string next — c is guaranteed, f is branched → GuaranteedRouteTarget fires)
+//
+// Step-by-step trace:
+// - root branches to [a, f]. TBranched = {a, f}. Groups = {a: root, f: root}.
+// - a is branched. next: 'b'. b is NOT branched → no edge. b is not a branch target.
+// - b is NOT branched (not in TBranched). It's guaranteed. next: 'c'. c is not branched.
+// - c is NOT branched. Guaranteed. next: 'f'. f IS branched.
+//   GuaranteedRouteTarget<'c', 'f', TBranched> → 'f' (c is not branched, f is branched)
+//   → f is REMOVED from TBranched.
+// - f is defined. It's no longer in TBranched → guaranteed.
+
+skill({ name: 'chained-guaranteed-intermediaries', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ v: 'string' }),
+    next: [{ to: 'a', when: ({ response }) => response.v === 'a' }, { to: 'f' }],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'b' })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'c' })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'f' })
+  .step('f', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const v: string = store.steps.root.v;
+      void v;
+
+      // f is promoted via GuaranteedRouteTarget (c is guaranteed, routes to f)
+      // b, c are guaranteed (linear successors of a, but not branched)
+      const bv: string = store.steps.b.bv;
+      const cv: string = store.steps.c.cv;
+      void bv;
+      void cv;
+
+      // a is still a branch target — optional
+      const av = store.steps.a?.av;
+      void av;
+
+      return 'F';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 33. Dead-end sibling prevents promotion
+// ============================================================
+// root → [a, target]
+// a → [target, dead]
+// dead → {terminal: true} (dead end — never reaches target)
+//
+// target is in root group. Sibling is a. a does NOT route to target
+// via string next (a branches to [target, dead]).
+// ExtractBranchEdge only fires for string next, not branch arrays.
+// So no a->target edge. target is NOT promoted.
+//
+// The dead path confirms the system works: even when most paths
+// converge, a single dead-end branch prevents guarantee promotion.
+
+skill({ name: 'dead-end-sibling', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ choice: 'string' }),
+    next: [{ to: 'a', when: ({ response }) => response.choice === 'a' }, { to: 'target' }],
+  })
+  .step('a', {
+    prompt: 'A',
+    response: type({ av: 'string' }),
+    next: [{ to: 'target', when: ({ response }) => response.av === 'go' }, { to: 'dead' }],
+  })
+  .step('dead', {
+    prompt: 'Dead end',
+    response: type({ final: 'boolean' }),
+    next: { terminal: true },
+  })
+  .step('target', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const choice: string = store.steps.root.choice;
+      void choice;
+
+      // target is NOT promoted — a doesn't route via string next
+      // a and dead are optional
+      const av = store.steps.a?.av;
+      const dead = store.steps.dead?.final;
+      void av;
+      void dead;
+
+      return 'Target';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 34. Mixed reconvergence: one sibling routes directly, another
+//     routes transitively through guaranteed intermediary
+// ============================================================
+// root → [a, b, merge]
+// a → merge (sibling edge: a->merge)
+// b → mid (b is branched, mid is NOT branched)
+// mid → merge (mid is guaranteed, merge is branched → GuaranteedRouteTarget)
+//
+// Two mechanisms combine:
+// 1. a→merge records a sibling edge
+// 2. mid→merge fires GuaranteedRouteTarget, removing merge from TBranched
+//
+// Since merge is removed from TBranched before it's defined, it's guaranteed.
+// The key insight: GuaranteedRouteTarget fires when mid (guaranteed) is added
+// with string next pointing to merge (branched). merge is removed from branched.
+
+skill({ name: 'mixed-reconvergence', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ path: 'string' }),
+    next: [
+      { to: 'a', when: ({ response }) => response.path === 'a' },
+      { to: 'b', when: ({ response }) => response.path === 'b' },
+      { to: 'merge' },
+    ],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'merge' })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'mid' })
+  .step('mid', { prompt: 'Mid', response: type({ mv: 'string' }), next: 'merge' })
+  .step('merge', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const path: string = store.steps.root.path;
+      void path;
+
+      // merge IS promoted: mid (guaranteed) routes to merge → GuaranteedRouteTarget
+      // removes merge from TBranched before merge is defined.
+
+      // mid is guaranteed (not in any branch group)
+      const mv: string = store.steps.mid.mv;
+      void mv;
+
+      // a, b are branch targets — optional
+      const av = store.steps.a?.av;
+      const bv = store.steps.b?.bv;
+      void av;
+      void bv;
+
+      return 'Merge';
+    },
+    response: type({ result: 'string' }),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 35. Store writes through reconverged merge point
+// ============================================================
+// gather → [path-a, path-b]
+// path-a → merge, path-b → merge (merge promoted)
+// merge writes to sub-store → writes are guaranteed downstream
+//
+// This tests that promoted steps' save() writes flow into
+// GuaranteeState.storeWrites via AddStepGuarantees.
+
+skill({
+  name: 'store-writes-through-reconvergence',
+  entry: 'gather',
+  stores: {
+    results: type({ summary: 'string', score: 'number' }),
+  },
+})
+  .step('gather', {
+    prompt: 'Gather',
+    response: type({ input: 'string' }),
+    next: [{ to: 'path-a', when: ({ response }) => response.input === 'a' }, { to: 'path-b' }],
+  })
+  .step('path-a', { prompt: 'A', response: type({ av: 'string' }), next: 'merge' })
+  .step('path-b', { prompt: 'B', response: type({ bv: 'string' }), next: 'merge' })
+  .step('merge', {
+    prompt: 'Merge',
+    response: type({ summary: 'string' }),
+    save: ({ response }) => ({
+      step: { processed: true },
+      results: { summary: response.summary, score: 42 },
+    }),
+    next: 'report',
+  })
+  .step('report', {
+    prompt: ({ store }) => {
+      // merge is promoted (both siblings route to it) → its save writes are guaranteed
+      const processed: boolean = store.steps.merge.processed;
+      void processed;
+
+      // Sub-store writes from merge are guaranteed
+      const summary: string = store.results.summary;
+      const score: number = store.results.score;
+      void summary;
+      void score;
+
+      // gather is guaranteed, its step result is input
+      const input: string = store.steps.gather.input;
+      void input;
+
+      // path-a, path-b are still optional
+      const av = store.steps['path-a']?.av;
+      const bv = store.steps['path-b']?.bv;
+      void av;
+      void bv;
+
+      return 'Report';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 36. NEGATIVE: non-promoted branch target's store writes stay optional
+// ============================================================
+// root → [a, b]
+// a writes to sub-store, b does NOT route to merge
+// a's writes must remain optional because a is a branch target
+
+skill({
+  name: 'branch-writes-optional',
+  entry: 'root',
+  stores: {
+    config: type({ mode: 'string' }),
+  },
+})
+  .step('root', {
+    prompt: 'Root',
+    response: type({ path: 'string' }),
+    next: [{ to: 'a', when: ({ response }) => response.path === 'a' }, { to: 'b' }],
+  })
+  .step('a', {
+    prompt: 'A',
+    response: type({}),
+    save: () => ({ config: { mode: 'alpha' } }),
+    next: 'end',
+  })
+  .step('b', {
+    prompt: 'B',
+    response: type({}),
+    next: 'end',
+  })
+  .step('end', {
+    prompt: ({ store }) => {
+      // a is a branch target — its sub-store writes are NOT guaranteed
+      // config.mode requires optional chaining
+      const mode = store.config?.mode;
+      void mode;
+
+      return 'End';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 37. Double branch-merge: sequential reconvergence with sub-stores
+// ============================================================
+// root → [a, b], a → m1, b → m1 (m1 promoted)
+// m1 → [c, d], c → m2, d → m2 (m2 promoted)
+// Each merge point writes to a different sub-store.
+// Both should be guaranteed at the final step.
+
+skill({
+  name: 'double-branch-merge-stores',
+  entry: 'root',
+  stores: {
+    first: type({ merged: 'boolean' }),
+    second: type({ merged: 'boolean' }),
+  },
+})
+  .step('root', {
+    prompt: 'Root',
+    response: type({ choice: 'string' }),
+    next: [{ to: 'a', when: ({ response }) => response.choice === 'a' }, { to: 'b' }],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'm1' })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'm1' })
+  .step('m1', {
+    prompt: 'M1',
+    response: type({ pick: 'string' }),
+    save: () => ({ first: { merged: true } }),
+    next: [{ to: 'c', when: ({ response }) => response.pick === 'c' }, { to: 'd' }],
+  })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'm2' })
+  .step('d', { prompt: 'D', response: type({ dv: 'string' }), next: 'm2' })
+  .step('m2', {
+    prompt: 'M2',
+    response: type({}),
+    save: () => ({ second: { merged: true } }),
+    next: 'final',
+  })
+  .step('final', {
+    prompt: ({ store }) => {
+      // root, m1, m2 are all guaranteed
+      const choice: string = store.steps.root.choice;
+      const pick: string = store.steps.m1.pick;
+      void choice;
+      void pick;
+
+      // Both sub-store writes are guaranteed (from m1 and m2, both promoted)
+      const firstMerged: boolean = store.first.merged;
+      const secondMerged: boolean = store.second.merged;
+      void firstMerged;
+      void secondMerged;
+
+      // Branch targets from both levels are optional
+      const av = store.steps.a?.av;
+      const bv = store.steps.b?.bv;
+      const cv = store.steps.c?.cv;
+      const dv = store.steps.d?.dv;
+      void av;
+      void bv;
+      void cv;
+      void dv;
+
+      return 'Final';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 38. Transitive chain reconvergence with sub-store writes
+// ============================================================
+// root → [a, d], a → b → c → d
+// c is guaranteed and routes to d → d is promoted via GuaranteedRouteTarget.
+// b and c both write to sub-store. Their writes are guaranteed at d.
+
+skill({
+  name: 'transitive-chain-stores',
+  entry: 'root',
+  stores: {
+    progress: type({ step1: 'boolean', step2: 'boolean' }),
+  },
+})
+  .step('root', {
+    prompt: 'Root',
+    response: type({ v: 'string' }),
+    next: [{ to: 'a', when: ({ response }) => response.v === 'a' }, { to: 'd' }],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'b' })
+  .step('b', {
+    prompt: 'B',
+    response: type({}),
+    save: () => ({ progress: { step1: true } }),
+    next: 'c',
+  })
+  .step('c', {
+    prompt: 'C',
+    response: type({}),
+    save: () => ({ progress: { step2: true } }),
+    next: 'd',
+  })
+  .step('d', {
+    prompt: ({ store }) => {
+      // root is guaranteed. d is promoted (c is guaranteed, routes to d).
+      const v: string = store.steps.root.v;
+      void v;
+
+      // b and c are guaranteed (linear, not branched)
+      // Their sub-store writes are guaranteed
+      const step1: boolean = store.progress.step1;
+      const step2: boolean = store.progress.step2;
+      void step1;
+      void step2;
+
+      // a is a branch target — optional
+      const av = store.steps.a?.av;
+      void av;
+
+      return 'D';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 39. Type-level: ShouldPromote with edges from mixed groups
+// ============================================================
+// Verify that ShouldPromote correctly scopes to same-group siblings.
+// target is in group1, source edges come from group2 steps — must not promote.
+
+type MixedGroupBranch = BranchState<
+  'x' | 'y' | 'target' | 'p' | 'q',
+  { x: 'root'; y: 'root'; target: 'root'; p: 'other'; q: 'other' },
+  'p->target' | 'q->target'
+>;
+// target's siblings (same group 'root') are x and y.
+// p→target and q→target are from group 'other' — they don't count.
+// Neither x nor y has routed to target → not promoted.
+type _mg1 = Expect<Equal<ShouldPromote<'target', MixedGroupBranch>, false>>;
+
+// Now add the correct sibling edges
+type MixedGroupFixed = BranchState<
+  'x' | 'y' | 'target' | 'p' | 'q',
+  { x: 'root'; y: 'root'; target: 'root'; p: 'other'; q: 'other' },
+  'x->target' | 'y->target' | 'p->target'
+>;
+// x and y (siblings) both route to target → promoted
+type _mg2 = Expect<Equal<ShouldPromote<'target', MixedGroupFixed>, true>>;
+
+// ============================================================
+// 40. Four-way branch where non-target merge step is guaranteed
+// ============================================================
+// root → [a, b, c, d]
+// a → merge, b → merge, c → merge, d → end
+//
+// merge is NOT in TBranched — it was never a branch target from a
+// branch array. It only appears as a string-next destination. Since
+// it's not branched, it's guaranteed by default.
+//
+// d routes to end, not merge. But merge is guaranteed because string
+// next targets are never added to TBranched — only branch array
+// forward targets are.
+
+skill({ name: 'four-way-merge-guaranteed', entry: 'root' })
+  .step('root', {
+    prompt: 'Root',
+    response: type({ pick: 'string' }),
+    next: [
+      { to: 'a', when: ({ response }) => response.pick === 'a' },
+      { to: 'b', when: ({ response }) => response.pick === 'b' },
+      { to: 'c', when: ({ response }) => response.pick === 'c' },
+      { to: 'd' },
+    ],
+  })
+  .step('a', { prompt: 'A', response: type({ av: 'string' }), next: 'merge' })
+  .step('b', { prompt: 'B', response: type({ bv: 'string' }), next: 'merge' })
+  .step('c', { prompt: 'C', response: type({ cv: 'string' }), next: 'merge' })
+  .step('d', { prompt: 'D', response: type({ dv: 'string' }), next: 'end' })
+  .step('merge', {
+    prompt: 'Merge',
+    response: type({ mv: 'string' }),
+    next: 'end',
+  })
+  .step('end', {
+    prompt: ({ store }) => {
+      // root is guaranteed
+      const pick: string = store.steps.root.pick;
+      void pick;
+
+      // merge IS guaranteed — it was never in TBranched (string-next
+      // targets are not branched, only branch-array forward targets are)
+      const mv: string = store.steps.merge.mv;
+      void mv;
+
+      // a, b, c, d are all branch targets from root's branch array — optional
+      const av = store.steps.a?.av;
+      const bv = store.steps.b?.bv;
+      const cv = store.steps.c?.cv;
+      const dv = store.steps.d?.dv;
+      void av;
+      void bv;
+      void cv;
+      void dv;
+
+      return 'End';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });

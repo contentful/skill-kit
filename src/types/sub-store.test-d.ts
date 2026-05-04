@@ -645,3 +645,80 @@ void (0 as unknown as _vws3);
 void (0 as unknown as _vns1);
 void (0 as unknown as _is1);
 void (0 as unknown as _is2);
+
+// ============================================================
+// Nested branching reconvergence repro
+// ============================================================
+skill({
+  name: 'nested-branch-reconvergence',
+  entry: 'explore',
+  stores: { diagnosis: type({ status: 'string' }) },
+})
+  .step('explore', { response: type({ x: 'string' }), next: 'scan-creds' })
+  .step('scan-creds', { response: type({ found: 'boolean' }), next: 'confirm-creds' })
+  .step('confirm-creds', {
+    response: type({ hasCreds: 'boolean' }),
+    next: ({ response }) => (response.hasCreds ? 'apply-creds' : 'review'),
+  })
+  .step('apply-creds', { next: 'check-api' })
+  .step('check-api', { response: type({ apiOk: 'boolean' }), next: 'triage' })
+  .step('triage', {
+    response: type({ choice: "'inspect' | 'skip'" }),
+    next: ({ response }) => (response.choice === 'skip' ? 'review' : 'choose-entry'),
+  })
+  .step('choose-entry', {
+    response: type({ skip: 'boolean' }),
+    next: ({ response }) => (response.skip ? 'review' : 'run-inspection'),
+  })
+  .step('run-inspection', { response: type({ result: 'string' }), next: 'review' })
+  .step('review', {
+    response: type({ overallStatus: 'string' }),
+    save: ({ response }) => ({ diagnosis: { status: response.overallStatus } }),
+    next: 'report',
+  })
+  .step('report', {
+    prompt: ({ store }) => {
+      const val: string = store.diagnosis.status;
+      void val;
+      return 'Report';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// Multi-hop reconvergence: sibling reaches target through chain
+// ============================================================
+// a → (fn) b | d
+// b → c → d (two hops — d is on ALL paths but no direct b→d edge)
+// d writes to 'data' store
+// e should see store.data.value as guaranteed
+
+skill({
+  name: 'multi-hop-reconvergence-store',
+  entry: 'a',
+  stores: { data: type({ value: 'string' }) },
+})
+  .step('a', {
+    prompt: 'choose',
+    response: type({ x: 'boolean' }),
+    next: ({ response }) => (response.x ? 'b' : 'd'),
+  })
+  .step('b', { next: 'c' })
+  .step('c', { next: 'd' })
+  .step('d', {
+    response: type({ value: 'string' }),
+    save: ({ response }) => ({ data: { value: response.value } }),
+    next: 'e',
+  })
+  .step('e', {
+    prompt: ({ store }) => {
+      // d is guaranteed (on all paths: a→d directly, a→b→c→d)
+      // d writes data — should be guaranteed here
+      const val: string = store.data.value;
+      void val;
+      return 'E step';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
