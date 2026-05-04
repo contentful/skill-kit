@@ -13,5 +13,14 @@
   "rules": {
     "no-console": "off"
   },
-  "ignorePatterns": ["docs-site"]
+  "overrides": [
+    {
+      "files": ["*.test-d.ts"],
+      "rules": {
+        "no-unused-vars": "off",
+        "no-unused-expressions": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["docs-site", ".agents", ".claude/skills"]
 }
