@@ -451,19 +451,29 @@ type ExtractTo<T> = T extends { readonly to: infer S extends string } ? S : neve
  *   came from the 'choose' step.
  *
  * - `edges`: union of `"source->target"` template literal strings recording
- *   when a branched step routes to another branched step via string `next`.
+ *   when a branched step routes to another branched step via its `next`.
  *   Example: `'path-a->merge' | 'path-b->merge'` — both siblings route to 'merge'.
  *   These edges power reconvergence detection.
+ *
+ * - `cobranches`: union of `"target~cobranch"` template literal strings recording
+ *   when a guaranteed (non-branched) step re-branches an already-branched target
+ *   alongside new targets. Used for nested branch reconvergence: if all cobranch
+ *   targets eventually route to the target, the target is reachable on all paths
+ *   through the guaranteed intermediary.
+ *   Example: guaranteed step 'triage' branches to `[review, choose-entry]` where
+ *   'review' is already branched → `'review~choose-entry'`.
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export type BranchState<
   TBranched extends string = never,
   TGroups extends Record<string, string> = {},
   TEdges extends string = never,
+  TCobranches extends string = never,
 > = {
   branched: TBranched;
   groups: TGroups;
   edges: TEdges;
+  cobranches: TCobranches;
 };
 
 /**
@@ -552,29 +562,71 @@ type SiblingsOf<Name extends string, TGroups extends Record<string, string>> = N
   : never;
 
 /**
+ * Extract cobranch targets for a specific rebranched target.
+ *
+ * When a guaranteed step branches to `[already-branched, new-target]`,
+ * a cobranch entry `"already-branched~new-target"` is recorded. This type
+ * extracts all `new-target` values for a given `already-branched` Name.
+ *
+ * Example: ExtractCobranch<'review', 'review~choose-entry' | 'review~other'>
+ *   → 'choose-entry' | 'other'
+ */
+type ExtractCobranch<Name extends string, TCobranches extends string> = TCobranches extends `${Name}~${infer CoBranch}`
+  ? CoBranch
+  : never;
+
+/**
+ * Check if ALL members of Sources have routing edges to Target.
+ *
+ * Returns `true` when every source step has recorded an edge to Target,
+ * `false` otherwise. Used by cobranch promotion to verify that all
+ * alternative paths through a guaranteed intermediary converge to the target.
+ */
+type AllRouteToTarget<Sources extends string, Target extends string, TEdges extends string> = [Sources] extends [never]
+  ? false
+  : [Exclude<Sources, RoutingSources<Target, TEdges>>] extends [never]
+    ? true
+    : false;
+
+/**
+ * Returns all Siblings when cobranch evidence proves that all paths through
+ * a guaranteed intermediary converge to Name.
+ *
+ * When a guaranteed step G branches to `[Name, C1, C2, ...]`, cobranch entries
+ * `"Name~C1"`, `"Name~C2"` etc. are recorded. If ALL cobranch targets (C1, C2, ...)
+ * have routing edges to Name, then every path through G reaches Name. Since G is
+ * guaranteed (on all paths), this means Name is also on all paths — so all of
+ * Name's siblings from its original branch group are "covered".
+ *
+ * Returns the full Siblings union when cobranch evidence is sufficient (allowing
+ * them to be subtracted from the uncovered set in ShouldPromote), or `never` if not.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CoveredSiblings<Name extends string, Siblings extends string, TBranches extends BranchState<any, any, any, any>> =
+  ExtractCobranch<Name, TBranches['cobranches']> extends infer CoBranched extends string
+    ? [CoBranched] extends [never]
+      ? never
+      : AllRouteToTarget<CoBranched, Name, TBranches['edges']> extends true
+        ? Siblings
+        : never
+    : never;
+
+/**
  * Determines if a branched step should be promoted to guaranteed.
  *
  * Returns `true` when ALL sibling branch targets (from the same branch group,
- * excluding Name itself) have recorded a routing edge to Name.
+ * excluding Name itself) are accounted for — either by direct routing edges
+ * to Name, or by cobranch coverage from a guaranteed intermediary.
  *
  * **Algorithm:**
  * 1. Check Name is in a branch group (is it a key in TGroups?). If not → false.
  * 2. Find siblings: all targets from the same branch point, excluding Name itself.
  * 3. If there are no siblings (Name is alone in its group) → false.
- *    This shouldn't happen in practice (branch groups always have 2+ targets).
- * 4. Subtract siblings that have routed to Name (via RoutingSources).
- * 5. If no siblings remain (all have routed) → true (promote). Otherwise → false.
- *
- * Example: ShouldPromote<'merge', BranchState<'left' | 'right' | 'merge',
- *   { left: 'root', right: 'root', merge: ??? }, 'left->merge' | 'right->merge'>>
- *   Note: 'merge' needs to be in groups for this to work. In practice, 'merge' is
- *   added to groups when it first appears as a branch target from a sibling's routing.
- *
- * A simpler real example:
- *   ShouldPromote<'b', BranchState<'a' | 'b', { a: 'root', b: 'root' }, 'a->b'>>
- *   → Siblings of 'b' (excluding 'b') = 'a'
- *   → RoutingSources of 'b' = 'a' (from edge 'a->b')
- *   → Exclude<'a', 'a'> = never → all siblings accounted for → true
+ * 4. Subtract siblings accounted for by:
+ *    a. Direct routing edges (RoutingSources) — sibling→Name edge exists
+ *    b. Cobranch coverage (CoveredSiblings) — a guaranteed intermediary's nested
+ *       branches all converge to Name, proving all paths through it reach Name
+ * 5. If no siblings remain → true (promote). Otherwise → false.
  *
  * Uses `[T] extends [never]` (tuple-wrapped) for never checks throughout,
  * to avoid the distributive conditional pitfall described in the IsUnion comment.
@@ -582,12 +634,14 @@ type SiblingsOf<Name extends string, TGroups extends Record<string, string>> = N
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ShouldPromote<
   Name extends string,
-  TBranches extends BranchState<any, any, any>,
+  TBranches extends BranchState<any, any, any, any>,
 > = Name extends keyof TBranches['groups']
   ? Exclude<SiblingsOf<Name, TBranches['groups']>, Name> extends infer Siblings extends string
     ? [Siblings] extends [never]
       ? false
-      : [Exclude<Siblings, RoutingSources<Name, TBranches['edges']>>] extends [never]
+      : [
+            Exclude<Siblings, RoutingSources<Name, TBranches['edges']> | CoveredSiblings<Name, Siblings, TBranches>>,
+          ] extends [never]
         ? true
         : false
     : false
@@ -625,7 +679,7 @@ export type ShouldPromote<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type IsGuaranteed<
   Name extends string,
-  TBranches extends BranchState<any, any, any>,
+  TBranches extends BranchState<any, any, any, any>,
 > = Name extends TBranches['branched'] ? ShouldPromote<Name, TBranches> : true;
 
 /**
@@ -650,7 +704,7 @@ type IsGuaranteed<
 export type AddStepGuarantees<
   TGuarantees extends GuaranteeState<any, any>,
   Name extends string,
-  TBranches extends BranchState<any, any, any>,
+  TBranches extends BranchState<any, any, any, any>,
   TSaveStoreWrites extends Record<string, unknown>,
 > =
   IsGuaranteed<Name, TBranches> extends true
@@ -687,15 +741,16 @@ export type AddStepGuarantees<
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AddStepBranches<
-  TBranches extends BranchState<any, any, any>,
+  TBranches extends BranchState<any, any, any, any>,
   Name extends string,
   TNext,
   TKnownSteps extends string,
 > = BranchState<
   | Exclude<TBranches['branched'], GuaranteedRouteTarget<Name, TNext, TBranches['branched']>>
   | ExtractBranchTargets<TNext, TKnownSteps>,
-  TBranches['groups'] & ExtractBranchGroupEntries<TNext, Name, TKnownSteps>,
-  TBranches['edges'] | ExtractBranchEdge<Name, TNext, TBranches['branched']>
+  TBranches['groups'] & ExtractBranchGroupEntries<TNext, Name, TKnownSteps, TBranches['branched']>,
+  TBranches['edges'] | ExtractBranchEdge<Name, TNext, TBranches['branched']>,
+  TBranches['cobranches'] | ExtractCobranches<Name, TNext, TBranches['branched'], TKnownSteps>
 >;
 
 /**
@@ -723,6 +778,11 @@ type GuaranteedRouteTarget<Name extends string, TNext, TBranched extends string>
  * each target to Origin. If there are no forward targets, returns `{}` (no-op
  * when intersected).
  *
+ * Targets already in `TExistingBranched` are excluded from the mapping. This prevents
+ * group corruption when the same step appears as a branch target from multiple branch
+ * points: without filtering, intersecting `{ review: 'origin-a' } & { review: 'origin-b' }`
+ * collapses review's origin to `never`, breaking `SiblingsOf`.
+ *
  * Uses `[Targets] extends [never]` (tuple-wrapped never check) to handle the
  * case where `ExtractBranchTargets` returned `never`.
  *
@@ -730,26 +790,32 @@ type GuaranteedRouteTarget<Name extends string, TNext, TBranched extends string>
  *   → { a: 'root', b: 'root' }
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-type ExtractBranchGroupEntries<TNext, Origin extends string, TKnownSteps extends string> =
+type ExtractBranchGroupEntries<
+  TNext,
+  Origin extends string,
+  TKnownSteps extends string,
+  TExistingBranched extends string = never,
+> =
   ExtractBranchTargets<TNext, TKnownSteps> extends infer Targets extends string
     ? [Targets] extends [never]
       ? {}
-      : { [K in Targets]: Origin }
+      : { [K in Exclude<Targets, TExistingBranched>]: Origin }
     : {};
 
 /**
  * Records a sibling-to-sibling routing edge for reconvergence detection.
  *
- * Only produces an edge when ALL of these conditions hold:
- * 1. The current step (Name) is itself a branch target (in TBranched)
- * 2. Its `next` is a plain string (not a branch array, terminal, or function)
- * 3. That string target is also in TBranched (another branch target)
+ * Only produces an edge when the current step (Name) is itself a branch target
+ * (in TBranched) and its `next` includes targets that are also in TBranched.
  *
- * This captures the pattern: "branch target A routes to branch target B",
- * which is evidence that B might be on all paths (if all of B's siblings
- * also route to B).
+ * Handles three forms of `next`:
+ * - **String**: `next: 'merge'` → records `"Name->merge"` if merge is branched
+ * - **Function**: `next: () => 'a' | 'b'` → records an edge for each return type
+ *   member that is in TBranched (distributive conditional over the union)
+ * - **Branch array**: `next: [{ to: 'a' }, { to: 'b' }]` → records an edge for
+ *   each `to` value that is in TBranched
  *
- * Uses template literal types to encode the edge as `"Name->TNext"`.
+ * Uses template literal types to encode each edge as `"Name->Target"`.
  *
  * Example: step 'left' (branched) with `next: 'merge'` where 'merge' is also branched:
  *   ExtractBranchEdge<'left', 'merge', 'left' | 'right' | 'merge'>
@@ -758,13 +824,63 @@ type ExtractBranchGroupEntries<TNext, Origin extends string, TKnownSteps extends
  *   ExtractBranchEdge<'root', 'next', 'left' | 'right'>
  *     → never  ('root' is not in TBranched)
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ExtractBranchEdge<Name extends string, TNext, TBranched extends string> = Name extends TBranched
   ? TNext extends string
     ? TNext extends TBranched
       ? `${Name}->${TNext}`
       : never
-    : never
+    : TNext extends (...args: any[]) => infer R
+      ? R extends TBranched
+        ? `${Name}->${R}`
+        : never
+      : TNext extends readonly [BranchEntry, BranchEntry, ...BranchEntry[]]
+        ? ExtractTo<TNext[number]> extends infer Targets extends string
+          ? Targets extends TBranched
+            ? `${Name}->${Targets}`
+            : never
+          : never
+        : never
   : never;
+
+/**
+ * Records cobranch relationships when a guaranteed (non-branched) step
+ * re-branches an already-branched target alongside new targets.
+ *
+ * When a guaranteed intermediary branches to `[already-branched, new1, new2]`,
+ * this records `"already-branched~new1" | "already-branched~new2"`. The cobranch
+ * entries tell `CoveredSiblings` which targets must converge to the re-branched
+ * target for nested branch reconvergence to hold.
+ *
+ * Only fires when Name is NOT branched (guaranteed intermediary). If Name is
+ * itself branched, its branch doesn't prove all-paths reachability.
+ *
+ * Example: guaranteed step 'triage' branches to `[review, choose-entry]`
+ * where 'review' is already in TBranched:
+ *   ExtractCobranches<'triage', fn → 'review' | 'choose-entry', 'review' | ..., ...>
+ *     → 'review~choose-entry'
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ExtractCobranches<
+  Name extends string,
+  TNext,
+  TBranched extends string,
+  TKnownSteps extends string,
+> = Name extends TBranched
+  ? never
+  : ExtractBranchTargets<TNext, TKnownSteps> extends infer AllTargets extends string
+    ? [AllTargets] extends [never]
+      ? never
+      : Extract<AllTargets, TBranched> extends infer Rebranched extends string
+        ? [Rebranched] extends [never]
+          ? never
+          : Exclude<AllTargets, TBranched> extends infer NewTargets extends string
+            ? [NewTargets] extends [never]
+              ? never
+              : `${Rebranched}~${NewTargets}`
+            : never
+        : never
+    : never;
 
 /**
  * Determines what type a step's result has in the store.

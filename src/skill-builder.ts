@@ -162,7 +162,7 @@ export class SkillBuilder<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TGuarantees extends GuaranteeState<any, any> = GuaranteeState,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  TBranches extends BranchState<any, any, any> = BranchState,
+  TBranches extends BranchState<any, any, any, any> = BranchState,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   TStores extends Record<string, unknown> = {},
 > {
