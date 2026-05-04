@@ -263,7 +263,7 @@ export default skill({
     response: type({ summary: 'string' }),
     action: {
       run: saveGameConfig,
-      input: ({ store }) => ({
+      mapInput: ({ store }) => ({
         config: {
           name: store.steps['name-game']?.name ?? '',
           variant: store.steps['choose-variant']?.variant ?? 'classic',

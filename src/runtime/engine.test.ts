@@ -326,7 +326,7 @@ test('actionInput mapping decouples step output from action input', async () => 
       response: type({ fileName: 'string', body: 'string' }),
       action: {
         run: writeAction,
-        input: ({ response }) => ({ path: `/out/${response.fileName}`, content: response.body }),
+        mapInput: ({ response }) => ({ path: `/out/${response.fileName}`, content: response.body }),
       },
       next: { terminal: true },
     })
@@ -362,7 +362,7 @@ test('actionInput receives store accessor', async () => {
       response: type({ val: 'string' }),
       action: {
         run: myAction,
-        input: ({ response, store }) => ({
+        mapInput: ({ response, store }) => ({
           prefix: store.steps.setup?.prefix ?? '',
           val: response.val,
         }),
@@ -610,7 +610,7 @@ test('result callback transforms what gets stored', async () => {
       response: type({ links: 'string[]' }),
       action: {
         run: checkLinks,
-        input: ({ response }) => ({ urls: response.links }),
+        mapInput: ({ response }) => ({ urls: response.links }),
       },
       save: ({ response, actionResult }) => ({
         step: {
@@ -1761,4 +1761,111 @@ test('sub-store named same as step: no collision at runtime', async () => {
   assert.deepEqual(storeStepResult, { processed: 'HELLO' });
   // Sub-store at top level
   assert.deepEqual(storeSubStore, { extra: 'meta' });
+});
+
+// ============================================================
+// Inline action form
+// ============================================================
+
+test('inline action function runs and result is stored', async () => {
+  let receivedCtx: unknown;
+
+  const s = skill({ name: 'inline-action', entry: 'fetch' })
+    .step('fetch', {
+      prompt: 'Fetch data',
+      response: type({ url: 'string' }),
+      action: async (ctx) => {
+        receivedCtx = ctx;
+        return { status: 200, body: 'ok' };
+      },
+      save: ({ actionResult }) => ({ step: { code: (actionResult as { status: number }).status } }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('fetch', { url: 'https://example.com' });
+
+  assert.equal((result as DoneResult).done, true);
+  assert.deepEqual((result as DoneResult).completed?.actionResult, { status: 200, body: 'ok' });
+  // ctx receives response, store, params, signal
+  assert.ok(receivedCtx);
+  assert.deepEqual((receivedCtx as Record<string, unknown>).response, { url: 'https://example.com' });
+  assert.ok((receivedCtx as Record<string, unknown>).store);
+  assert.ok((receivedCtx as Record<string, unknown>).signal instanceof AbortSignal);
+});
+
+test('inline action result flows into save and transitions', async () => {
+  const s = skill({ name: 'inline-transition', entry: 'call' })
+    .step('call', {
+      prompt: 'Call API',
+      response: type({ url: 'string' }),
+      action: async () => ({ status: 200 }),
+      next: ({ actionResult }) => ((actionResult as { status: number }).status === 200 ? 'ok' : 'fail'),
+    })
+    .step('ok', { prompt: 'OK', response: type({}), next: { terminal: true } })
+    .step('fail', { prompt: 'Fail', response: type({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('call', { url: 'https://example.com' });
+  assert.equal((result as PromptResult).step, 'ok');
+});
+
+test('inline action result defaults to store result when no save', async () => {
+  let storedResult: unknown;
+
+  const s = skill({ name: 'inline-store', entry: 'run' })
+    .step('run', {
+      prompt: 'Run',
+      response: type({ input: 'string' }),
+      action: async ({ response }) => ({ processed: response.input.toUpperCase() }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.run;
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('run', { input: 'hello' });
+  await engine.advance('report', {});
+
+  assert.deepEqual(storedResult, { processed: 'HELLO' });
+});
+
+test('inline action receives store from previous steps', async () => {
+  let capturedStore: unknown;
+
+  const s = skill({ name: 'inline-store-ctx', entry: 'setup' })
+    .step('setup', {
+      prompt: 'Setup',
+      response: type({ prefix: 'string' }),
+      next: 'run',
+    })
+    .step('run', {
+      prompt: 'Run',
+      response: type({ val: 'string' }),
+      action: async ({ store }) => {
+        capturedStore = store;
+        return { ok: true };
+      },
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('setup', { prefix: 'pre' });
+  await engine.advance('run', { val: 'test' });
+
+  assert.deepEqual((capturedStore as { steps: { setup: { prefix: string } } }).steps.setup, { prefix: 'pre' });
 });

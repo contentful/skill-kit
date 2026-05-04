@@ -98,7 +98,7 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   next: string | NextBranch[] | TransitionFn | { terminal: true },  // required
   action?: {
     run: ActionDefinition,
-    input?: (ctx: { response; store; params }) => unknown,
+    mapInput?: (ctx: { response; store; params }) => unknown,
   },
   save?: (ctx: { response; actionResult; store; params }) => { step?; ...storeWrites },
   maxVisits?: number,
@@ -930,7 +930,7 @@ When the model's response doesn't match action input exactly:
   response: type({ reasoning: 'string', profile: ProfileSchema }),
   action: {
     run: writeProfile,
-    input: ({ response }) => ({ profile: response.profile }),
+    mapInput: ({ response }) => ({ profile: response.profile }),
   },
   save: ({ response, actionResult }) => ({
     step: { profile: response.profile, savedPath: actionResult.path },
@@ -939,7 +939,7 @@ When the model's response doesn't match action input exactly:
 })
 ```
 
-- `action.input` transforms step response into action input (runs before action)
+- `action.mapInput` transforms step response into action input (runs before action)
 - The `save` callback controls what gets stored (runs after action, receives `{ response, actionResult, store, params }`)
 - `next` receives action result for conditional routing
 
@@ -952,7 +952,7 @@ When the model's response doesn't match action input exactly:
 | `output` | `type.Any`                                                 | yes      | Schema for what the action returns  |
 | `run`    | `(ctx: { input, signal: AbortSignal }) => Promise<output>` | yes      | Async function with typed I/O       |
 
-The `run` function receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated response is parsed as action input; use `action.input` on the step config to customize.
+The `run` function receives input parsed through the `input` schema and an `AbortSignal`. By default, the step's validated response is parsed as action input; use `action.mapInput` on the step config to customize.
 
 ---
 

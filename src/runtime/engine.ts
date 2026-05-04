@@ -126,10 +126,18 @@ export class WorkflowEngine implements SkillEngine {
     }
 
     let actionResult: unknown = undefined;
-    if (stepDef.config.action) {
-      const { run: actionDef, input: inputFn } = stepDef.config.action;
-      const rawActionInput = inputFn
-        ? inputFn({ response, store: this.state.buildAccessor(), params: this.skillParams })
+    if (typeof stepDef.config.action === 'function') {
+      actionResult = await stepDef.config.action({
+        response,
+        store: this.state.buildAccessor(),
+        params: this.skillParams,
+        signal: this.abortController.signal,
+      });
+      actionResult = Object.freeze(actionResult);
+    } else if (stepDef.config.action) {
+      const { run: actionDef, mapInput } = stepDef.config.action;
+      const rawActionInput = mapInput
+        ? mapInput({ response, store: this.state.buildAccessor(), params: this.skillParams })
         : response;
       const actionInput = actionDef.input.assert(rawActionInput);
       actionResult = await actionDef.run({

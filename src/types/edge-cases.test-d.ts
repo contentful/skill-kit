@@ -576,7 +576,7 @@ skill({
     response: type({ url: 'string' }),
     action: {
       run: fetchAction,
-      input: ({ response }) => ({ url: response.url }),
+      mapInput: ({ response }) => ({ url: response.url }),
     },
     save: ({ response, actionResult }) => {
       // response is the step output
@@ -660,3 +660,106 @@ void (0 as unknown as _g2w);
 void (0 as unknown as _fb1);
 void (0 as unknown as _ac1);
 void (0 as unknown as MethodNameView);
+
+// ============================================================
+// 23. Inline action: function form accepted, result flows to save
+// ============================================================
+
+skill({ name: 'inline-action-save', entry: 'a' }).step('a', {
+  prompt: 'Go',
+  response: type({ url: 'string' }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  action: async (ctx: any) => ({ status: 200 }),
+  save: ({ actionResult }) => {
+    const s: number = actionResult.status;
+    void s;
+  },
+  next: { terminal: true },
+});
+
+// ============================================================
+// 24. Inline action: result becomes store step value when no save
+// ============================================================
+
+skill({ name: 'inline-action-store', entry: 'a' })
+  .step('a', {
+    prompt: 'Go',
+    response: type({ url: 'string' }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    action: async (ctx: any) => ({ fetched: true, code: 200 }),
+    next: 'b',
+  })
+  .step('b', {
+    prompt: ({ store }) => {
+      // store.steps.a carries the inline action return type, not the response
+      const fetched: boolean = store.steps.a.fetched;
+      const code: number = store.steps.a.code;
+      void fetched;
+      void code;
+
+      // @ts-expect-error - 'url' is on the response, not the inline action return
+      store.steps.a.url;
+
+      return 'B';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 25. Inline action: save.step overrides store value
+// ============================================================
+
+skill({ name: 'inline-action-save-override', entry: 'a' })
+  .step('a', {
+    prompt: 'Go',
+    response: type({ url: 'string' }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    action: async (ctx: any) => ({ status: 200 }),
+    save: ({ actionResult }) => ({
+      step: { statusText: actionResult.status === 200 ? 'ok' : 'fail' },
+    }),
+    next: 'b',
+  })
+  .step('b', {
+    prompt: ({ store }) => {
+      const text: string = store.steps.a.statusText;
+      void text;
+      return 'B';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 26. Inline action: contextual typing provides response, store, params, signal
+// ============================================================
+
+skill({ name: 'inline-action-ctx', entry: 'a', params: type({ apiKey: 'string' }) }).step('a', {
+  prompt: 'Go',
+  response: type({ url: 'string' }),
+  action: async (ctx) => {
+    const url: string = ctx.response.url;
+    const key: string = ctx.params.apiKey;
+    const sig: AbortSignal = ctx.signal;
+    void url;
+    void key;
+    void sig;
+    return { ok: true };
+  },
+  next: { terminal: true },
+});
+
+// ============================================================
+// 27. No action: actionResult is undefined
+// ============================================================
+
+skill({ name: 'no-action-undefined', entry: 'a' }).step('a', {
+  prompt: 'Go',
+  response: type({ val: 'string' }),
+  save: ({ actionResult }) => {
+    const u: undefined = actionResult;
+    void u;
+  },
+  next: { terminal: true },
+});

@@ -754,7 +754,7 @@ skill({
 
 Steps write to sub-stores via the `save` callback (see below). Sub-store writes are deep-merged — each step can contribute a slice without overwriting the rest.
 
-The store is available in prompt callbacks, `next` callbacks, `save` callbacks, and `action.input` callbacks. It provides typed access to step results and sub-store state based on what the builder has accumulated — no manual annotations needed. There is no `updateState`, no `setState`, no reducers, no manual wiring. Step results flow into the store automatically.
+The store is available in prompt callbacks, `next` callbacks, `save` callbacks, and `action.mapInput` callbacks. It provides typed access to step results and sub-store state based on what the builder has accumulated — no manual annotations needed. There is no `updateState`, no `setState`, no reducers, no manual wiring. Step results flow into the store automatically.
 
 ### The `save` callback
 
@@ -884,14 +884,14 @@ step({
 });
 ```
 
-**Decoupling action input from step response** — when the model's reasoning response doesn't match what the action needs, use `action.input` to transform:
+**Decoupling action input from step response** — when the model's reasoning response doesn't match what the action needs, use `action.mapInput` to transform:
 
 ```typescript
 step({
   response: type({ reasoning: 'string', fileName: 'string', body: 'string' }),
   action: {
     run: writeReport,
-    input: ({ response, store, params }) => ({
+    mapInput: ({ response, store, params }) => ({
       path: `${store.steps['setup']?.outDir ?? '.'}/${response.fileName}`,
       content: response.body,
     }),
@@ -906,11 +906,32 @@ step({
 });
 ```
 
-**`action.input`** receives `{ response, store, params }` — the step's validated response, the store accessor, and the skill params. Use it to transform the model's response into the shape the action expects.
+**Inline actions** — when the action is specific to one step and doesn't need to be reused, pass a function directly instead of an object with `run`:
+
+```typescript
+step({
+  response: type({ url: 'string' }),
+  action: async ({ response, store, params, signal }) => {
+    const data = await fetch(response.url);
+    return { status: data.status };
+  },
+  save: ({ actionResult }) => ({ step: { status: actionResult.status } }),
+  next: 'report',
+});
+```
+
+Inline actions receive the full step context — `{ response, store, params, signal }` — with no schemas, no name, and no input mapping needed. The return type is inferred and flows into `actionResult` in `save`, `next`, and the store. Like reusable actions, inline actions are not re-executed during replay: the persisted `actionResult` is passed directly to `save`.
+
+The discriminant is `typeof action === 'function'` (inline) vs an object with a `run` property (reusable).
+
+**`action.mapInput`** receives `{ response, store, params }` — the step's validated response, the store accessor, and the skill params. Use it to transform the model's response into the shape the action expects. Only applicable to the reusable action form.
 
 **The `save` callback** runs after the action completes (or after response validation if no action exists), receiving `{ response, actionResult, store, params }`. Its return value routes data to the store: the `step` key is stored under `store.steps.<stepName>`, and other keys write to named sub-stores via deep merge. When `save` is omitted, the step-keyed result defaults to the action result (if an action exists) or the response.
 
-The lifecycle of a step with an action: prompt → model → validate(response) → action.input → action.run → save → next.
+The lifecycle of a step with an action depends on the form:
+
+- **Inline action:** prompt → model → validate(response) → action(ctx) → save → next
+- **Reusable action:** prompt → model → validate(response) → action.mapInput → action.run → save → next
 
 Actions accept an `AbortSignal` so long-running operations can be cancelled cleanly when the skill is interrupted.
 

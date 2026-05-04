@@ -129,7 +129,7 @@ skill({
     response: type({ val: 'string' }),
     action: {
       run: writeFile,
-      input: ({ response }) => ({ content: response.val }),
+      mapInput: ({ response }) => ({ content: response.val }),
     },
     save: ({ actionResult }) => ({
       env: { host: actionResult.path },
@@ -326,7 +326,7 @@ skill({
     response: type({ val: 'string' }),
     action: {
       run: dummyAction,
-      input: ({ response, store }) => {
+      mapInput: ({ response, store }) => {
         const prefix = store.config?.prefix;
         void prefix;
         return { val: response.val };
@@ -505,6 +505,127 @@ skill({
       void stagingOk;
 
       return 'Report';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// Inline action: save writes actionResult to sub-store
+// ============================================================
+
+skill({
+  name: 'inline-sub-store',
+  entry: 'a',
+  stores: {
+    env: type({ host: 'string', status: 'number' }),
+  },
+})
+  .step('a', {
+    prompt: 'A',
+    response: type({ url: 'string' }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    action: async (ctx: any) => ({ host: 'api.example.com', status: 200 }),
+    save: ({ actionResult }) => ({
+      step: { fetched: true },
+      env: { host: actionResult.host, status: actionResult.status },
+    }),
+    next: 'b',
+  })
+  .step('b', {
+    prompt: ({ store }) => {
+      // step result is save().step
+      const fetched: boolean = store.steps.a.fetched;
+      void fetched;
+
+      // @ts-expect-error - 'host' is on actionResult, not save().step
+      store.steps.a.host;
+
+      // sub-store written
+      const host = store.env?.host;
+      const status = store.env?.status;
+      void host;
+      void status;
+
+      return 'B';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// Inline action: no save → result defaults to action return, sub-store untouched
+// ============================================================
+
+skill({
+  name: 'inline-no-save',
+  entry: 'a',
+  stores: {
+    env: type({ host: 'string' }),
+  },
+})
+  .step('a', {
+    prompt: 'A',
+    response: type({ url: 'string' }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    action: async (ctx: any) => ({ code: 200, body: 'ok' }),
+    next: 'b',
+  })
+  .step('b', {
+    prompt: ({ store }) => {
+      // step result defaults to inline action return (no save)
+      const code: number = store.steps.a.code;
+      const body: string = store.steps.a.body;
+      void code;
+      void body;
+
+      // @ts-expect-error - 'url' is from response, not action return
+      store.steps.a.url;
+
+      // sub-store not written — still optional
+      const host = store.env?.host;
+      void host;
+
+      return 'B';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// Inline action: only sub-store writes in save → step defaults to action return
+// ============================================================
+
+skill({
+  name: 'inline-sub-store-only',
+  entry: 'a',
+  stores: {
+    results: type({ lastPath: 'string' }),
+  },
+})
+  .step('a', {
+    prompt: 'A',
+    response: type({ val: 'string' }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    action: async (ctx: any) => ({ path: '/tmp/out', bytes: 42 }),
+    save: ({ actionResult }) => ({
+      results: { lastPath: actionResult.path },
+    }),
+    next: 'b',
+  })
+  .step('b', {
+    prompt: ({ store }) => {
+      // No step key in save → defaults to action return
+      const path: string = store.steps.a.path;
+      const bytes: number = store.steps.a.bytes;
+      void path;
+      void bytes;
+
+      // Sub-store written
+      const lastPath = store.results?.lastPath;
+      void lastPath;
+
+      return 'B';
     },
     response: type({}),
     next: { terminal: true },

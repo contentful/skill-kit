@@ -299,7 +299,7 @@ test('step with compatible action input schema does not throw', () => {
   );
 });
 
-test('step with action.input mapper skips compat check', () => {
+test('step with action.mapInput mapper skips compat check', () => {
   const writeAction = action({
     name: 'write',
     input: type({ path: 'string' }),
@@ -314,7 +314,7 @@ test('step with action.input mapper skips compat check', () => {
         response: type({ title: 'string' }),
         action: {
           run: writeAction,
-          input: ({ response }) => ({ path: response.title }),
+          mapInput: ({ response }) => ({ path: response.title }),
         },
         next: { terminal: true },
       })

@@ -407,7 +407,7 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 
 1. **Validate** response against step's ArkType schema. Steps without a `response` schema skip validation.
 2. If invalid: fire `onStepValidationFailed`, return `ValidationErrorResult` with `retry: true`.
-3. **Map action input** via `action.input` (if configured), or use validated response directly.
+3. **Map action input** via `action.mapInput` (if configured), or use validated response directly.
 4. **Execute action** (if configured). Action receives typed input and AbortSignal.
 5. **Compute save** — call the `save` callback (if configured) with `{ response, actionResult, store, params }`. The return value is `{ step?, ...subStoreWrites }`. The `step` property determines what gets stored as the step result (priority: `save().step` > action output > response). Additional keys are deep-merged into the corresponding sub-stores via `applySave()`.
 6. **Freeze** the step result object.
@@ -423,7 +423,7 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 11. If the next step has no prompt, auto-advance through it immediately (no agent round-trip needed).
 12. Return next step's `PromptResult`.
 
-The full lifecycle for a step with an action: prompt -> model -> validate(response) -> action.input -> action.run -> save -> store -> next.
+The full lifecycle for a step with an action: prompt -> model -> validate(response) -> action.mapInput -> action.run -> save -> store -> next.
 
 **Auto-advance for prompt-less steps:** When a step omits `prompt`, the engine skips agent interaction and immediately processes the step. This is useful for computation-only steps that route based on store or params without requiring a model round-trip. The step's `save`, action, and `next` callbacks still execute normally. Multiple prompt-less steps can chain — the engine advances through them until it reaches a step with a prompt or a terminal transition.
 
