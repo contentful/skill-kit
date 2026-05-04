@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="./assets/banner.jpg" alt="@contentful/skill-kit — TypeScript SDK for agent skills: workflow state machines and progressive-disclosure references." width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/banner-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/banner-light.png">
+    <img src="./assets/banner-light.png" alt="@contentful/skill-kit — TypeScript SDK for agent skills: workflow state machines and progressive-disclosure references." width="100%">
+  </picture>
 </p>
 
 <p align="center">
