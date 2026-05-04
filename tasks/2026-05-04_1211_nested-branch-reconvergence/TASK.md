@@ -66,13 +66,17 @@ All constraint sites in `store.ts` and `skill-builder.ts`.
 
 ## Steps
 
-- [ ] Add failing repro test in `sub-store.test-d.ts`
-- [ ] Implement changes 1-6 in `store.ts`
-- [ ] Update `BranchState` constraints in `skill-builder.ts`
-- [ ] Add unit tests for cobranch types in `store.test-d.ts`
-- [ ] Add builder-level edge case tests in `edge-cases.test-d.ts`
-- [ ] Verify all tests pass, lint, format
+- [x] Add failing repro test in `sub-store.test-d.ts`
+- [x] Implement changes 1-6 in `store.ts`
+- [x] Update `BranchState` constraints in `skill-builder.ts`
+- [x] Add unit tests for cobranch types in `store.test-d.ts`
+- [x] Add builder-level edge case tests in `edge-cases.test-d.ts`
+- [x] Verify all tests pass, lint, format
 
 ## Notes
 
-_Running log of decisions made during implementation._
+- Initial plan had `ExtractBranchEdge` extended to handle function-next and branch-array-next in a single edge set. Testing revealed this is unsound: function next is non-deterministic (`'a' | 'b'` means "goes to a OR b"), while string next is deterministic ("always goes to target"). Recording function-next edges in the sibling reconvergence set incorrectly promoted targets in partial-convergence cases.
+
+- Solution: split into two edge sets. `edges` (deterministic, string next only) powers sibling reconvergence in `ShouldPromote`. `anyEdges` (all routing forms) powers cobranch convergence checking in `CoveredSiblings`. `BranchState` grew from 3 to 5 fields (added `anyEdges` and `cobranches`).
+
+- Also added a multi-hop reconvergence test in `sub-store.test-d.ts` (GuaranteedRouteTarget transitive case). This was always working but wasn't tested with sub-store writes.
