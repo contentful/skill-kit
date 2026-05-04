@@ -42,14 +42,13 @@ test('choose setup routes through env check and guide to configure', async () =>
   const result = await runComposite(skill, {
     model: mockModel({
       choose: { choice: 'setup' },
-      'setup/check-env': { acknowledged: true },
       'setup/guide-env': { guided: true },
       'setup/configure': { choice: 'done' },
       'setup/summary': { summary: 'All configured.' },
     }),
   });
 
-  assert.ok(result.path.includes('setup/check-env'));
+  assert.ok(result.path.includes('setup/guide-env'));
   assert.ok(result.path.includes('setup/configure'));
   assert.ok(result.path.includes('setup/summary'));
   assert.equal(result.redirectedTo?.kind, 'subskill');

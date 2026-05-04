@@ -78,7 +78,7 @@ class CompositeSession implements McpSession {
         };
       }
 
-      const params = sub.paramsMap ? sub.paramsMap(redirect.completed.stepOutput, redirect.stash) : {};
+      const params = sub.paramsMap ? sub.paramsMap(redirect.completed.response, redirect.store) : {};
       const subEngine = new SubskillEngine(sub.definition, this.handshake, params, this.refs, subName);
       this.engine = subEngine;
 
@@ -131,7 +131,7 @@ export function createMcpCompositeServer(
       'topic',
       {
         description: `Look up a reference topic. Available: ${topicNames.join(', ')}`,
-        inputSchema: z.object({ name: z.string().describe('Topic name.') }),
+        inputSchema: z.object({ name: z.string() }),
       },
       (args) => {
         const topic = skill.topics?.[args.name];

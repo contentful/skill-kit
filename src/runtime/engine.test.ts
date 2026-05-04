@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
 import { view } from '../view.js';
@@ -11,9 +11,9 @@ const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent
 
 test('engine runs a 3-step linear skill to completion', async () => {
   const s = skill({ name: 'linear', entry: 'a' })
-    .step('a', { prompt: 'Step A', output: z.object({ val: z.string() }), next: 'b' })
-    .step('b', { prompt: 'Step B', output: z.object({ val: z.string() }), next: 'c' })
-    .step('c', { prompt: 'Step C', output: z.object({ val: z.string() }), next: { terminal: true } })
+    .step('a', { prompt: 'Step A', response: type({ val: 'string' }), next: 'b' })
+    .step('b', { prompt: 'Step B', response: type({ val: 'string' }), next: 'c' })
+    .step('c', { prompt: 'Step C', response: type({ val: 'string' }), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -35,11 +35,11 @@ test('engine routes conditionally based on output', async () => {
   const s = skill({ name: 'conditional', entry: 'check' })
     .step('check', {
       prompt: 'Check status',
-      output: z.object({ ok: z.boolean() }),
-      next: ({ stepOutput }) => (stepOutput.ok ? 'done' : 'fix'),
+      response: type({ ok: 'boolean' }),
+      next: ({ response }) => (response.ok ? 'done' : 'fix'),
     })
-    .step('fix', { prompt: 'Fix it', output: z.object({ fixed: z.boolean() }), next: { terminal: true } })
-    .step('done', { prompt: 'All good', output: z.object({}), next: { terminal: true } })
+    .step('fix', { prompt: 'Fix it', response: type({ fixed: 'boolean' }), next: { terminal: true } })
+    .step('done', { prompt: 'All good', response: type({}), next: { terminal: true } })
     .build();
 
   const engine1 = new WorkflowEngine(s, genericHost, {});
@@ -53,9 +53,73 @@ test('engine routes conditionally based on output', async () => {
   assert.equal((r2 as PromptResult).step, 'fix');
 });
 
+test('engine routes via NextBranch array (declarative branching)', async () => {
+  const s = skill({ name: 'branching', entry: 'pick' })
+    .step('pick', {
+      prompt: 'Pick a role',
+      response: type({ role: "'dev' | 'designer' | 'other'" }),
+      next: [
+        { to: 'dev-path', when: ({ response }) => response.role === 'dev' },
+        { to: 'design-path', when: ({ response }) => response.role === 'designer' },
+        { to: 'other-path' },
+      ],
+    })
+    .step('dev-path', { prompt: 'Dev', response: type({}), next: { terminal: true } })
+    .step('design-path', { prompt: 'Design', response: type({}), next: { terminal: true } })
+    .step('other-path', { prompt: 'Other', response: type({}), next: { terminal: true } })
+    .build();
+
+  const e1 = new WorkflowEngine(s, genericHost, {});
+  e1.start();
+  assert.equal(((await e1.advance('pick', { role: 'dev' })) as PromptResult).step, 'dev-path');
+
+  const e2 = new WorkflowEngine(s, genericHost, {});
+  e2.start();
+  assert.equal(((await e2.advance('pick', { role: 'designer' })) as PromptResult).step, 'design-path');
+
+  const e3 = new WorkflowEngine(s, genericHost, {});
+  e3.start();
+  assert.equal(((await e3.advance('pick', { role: 'other' })) as PromptResult).step, 'other-path');
+});
+
+test('NextBranch default (no when) catches unmatched values', async () => {
+  const s = skill({ name: 'default-branch', entry: 'pick' })
+    .step('pick', {
+      prompt: 'Pick',
+      response: type({ val: 'string' }),
+      next: [{ to: 'a', when: ({ response }) => response.val === 'x' }, { to: 'fallback' }],
+    })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+    .step('fallback', { prompt: 'Fallback', response: type({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  assert.equal(((await engine.advance('pick', { val: 'y' })) as PromptResult).step, 'fallback');
+});
+
+test('NextBranch throws when no branch matches and no default', async () => {
+  const s = skill({ name: 'no-default', entry: 'pick' })
+    .step('pick', {
+      prompt: 'Pick',
+      response: type({ val: 'string' }),
+      next: [
+        { to: 'a', when: ({ response }) => response.val === 'x' },
+        { to: 'b', when: ({ response }) => response.val === 'y' },
+      ],
+    })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+    .step('b', { prompt: 'B', response: type({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await assert.rejects(() => engine.advance('pick', { val: 'z' }), /no branch matched/);
+});
+
 test('engine returns validation error for bad output', async () => {
   const s = skill({ name: 'validated', entry: 'a' })
-    .step('a', { prompt: 'Go', output: z.object({ count: z.number() }), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({ count: 'number' }), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -67,8 +131,8 @@ test('engine returns validation error for bad output', async () => {
 });
 
 test('engine validates context schema on construction', () => {
-  const s = skill({ name: 'ctx', entry: 'a', params: z.object({ path: z.string() }) })
-    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+  const s = skill({ name: 'ctx', entry: 'a', params: type({ path: 'string' }) })
+    .step('a', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   assert.throws(() => new WorkflowEngine(s, genericHost, { path: 123 }), /Invalid params/);
@@ -76,8 +140,8 @@ test('engine validates context schema on construction', () => {
 });
 
 test('engine params error includes skill name and field path', () => {
-  const s = skill({ name: 'my-skill', entry: 'a', params: z.object({ target: z.string() }) })
-    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+  const s = skill({ name: 'my-skill', entry: 'a', params: type({ target: 'string' }) })
+    .step('a', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   assert.throws(
@@ -95,12 +159,12 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
   const s = skill({ name: 'bounded', entry: 'loop' })
     .step('loop', {
       prompt: 'Retry',
-      output: z.object({ confidence: z.number() }),
-      next: ({ stepOutput }) => (stepOutput.confidence < 0.7 ? 'loop' : 'report'),
+      response: type({ confidence: 'number' }),
+      next: ({ response }) => (response.confidence < 0.7 ? 'loop' : 'report'),
       maxVisits: 2,
       onMaxVisits: 'report',
     })
-    .step('report', { prompt: 'Report', output: z.object({}), next: { terminal: true } })
+    .step('report', { prompt: 'Report', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -116,14 +180,14 @@ test('engine enforces maxVisits and routes to onMaxVisits', async () => {
 test('engine provides dynamic prompt context', async () => {
   let capturedCtx: unknown = null;
 
-  const s = skill({ name: 'dynamic', entry: 'a', params: z.object({ name: z.string() }) })
-    .step('a', { prompt: 'First', output: z.object({ val: z.number() }), next: 'b' })
+  const s = skill({ name: 'dynamic', entry: 'a', params: type({ name: 'string' }) })
+    .step('a', { prompt: 'First', response: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
         capturedCtx = ctx;
-        return `Previous: ${JSON.stringify(ctx.history.at(-1)?.stepOutput)}`;
+        return `Previous: ${JSON.stringify(ctx.store.steps.history.at(-1)?.response)}`;
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -137,22 +201,21 @@ test('engine provides dynamic prompt context', async () => {
 });
 
 test('engine replays history for single-invocation mode', () => {
-  const s = skill({ name: 'replay', entry: 'a', stash: z.object({ memo: z.string() }) })
+  const s = skill({ name: 'replay', entry: 'a' })
     .step('a', {
       prompt: 'A',
-      output: z.object({ val: z.string() }),
-      updateStash: ({ stepOutput }) => ({ memo: stepOutput.val }),
+      response: type({ val: 'string' }),
       next: 'b',
     })
     .step('b', {
-      prompt: (ctx) => `Stash: ${JSON.stringify(ctx.stash)}`,
-      output: z.object({}),
+      prompt: (ctx) => `Store: ${JSON.stringify(ctx.store.steps.a)}`,
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'a', stepOutput: { val: 'hello' } }]);
+  engine.replayHistory([{ step: 'a', response: { val: 'hello' } }]);
   const prompt = engine.start();
   assert.ok(prompt);
 });
@@ -162,8 +225,8 @@ test('engine runs action after validation, before transition', async () => {
 
   const writeAction = action({
     name: 'test-action',
-    input: z.object({ content: z.string() }),
-    output: z.object({ written: z.boolean() }),
+    input: type({ content: 'string' }),
+    output: type({ written: 'boolean' }),
     run: async ({ input }) => {
       actionRan = true;
       return { written: input.content.length > 0 };
@@ -173,7 +236,7 @@ test('engine runs action after validation, before transition', async () => {
   const s = skill({ name: 'with-action', entry: 'a' })
     .step('a', {
       prompt: 'Write something',
-      output: z.object({ content: z.string() }),
+      response: type({ content: 'string' }),
       action: { run: writeAction },
       next: { terminal: true },
     })
@@ -185,7 +248,7 @@ test('engine runs action after validation, before transition', async () => {
   const result = await engine.advance('a', { content: 'hello' });
   assert.ok(actionRan);
   assert.equal((result as DoneResult).done, true);
-  assert.deepEqual((result as DoneResult).completed?.actionOutput, { written: true });
+  assert.deepEqual((result as DoneResult).completed?.actionResult, { written: true });
 });
 
 test('engine fires observers at lifecycle points', async () => {
@@ -209,7 +272,7 @@ test('engine fires observers at lifecycle points', async () => {
       },
     },
   })
-    .step('a', { prompt: 'A', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -234,7 +297,7 @@ test('throwing observer does not crash the skill', async () => {
       },
     },
   })
-    .step('a', { prompt: 'A', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -249,8 +312,8 @@ test('actionInput mapping decouples step output from action input', async () => 
 
   const writeAction = action({
     name: 'write',
-    input: z.object({ path: z.string(), content: z.string() }),
-    output: z.object({ ok: z.boolean() }),
+    input: type({ path: 'string', content: 'string' }),
+    output: type({ ok: 'boolean' }),
     run: async ({ input }) => {
       receivedInput = input;
       return { ok: true };
@@ -260,10 +323,10 @@ test('actionInput mapping decouples step output from action input', async () => 
   const s = skill({ name: 'mapped', entry: 'a' })
     .step('a', {
       prompt: 'Decide',
-      output: z.object({ fileName: z.string(), body: z.string() }),
+      response: type({ fileName: 'string', body: 'string' }),
       action: {
         run: writeAction,
-        input: ({ stepOutput }) => ({ path: `/out/${stepOutput.fileName}`, content: stepOutput.body }),
+        mapInput: ({ response }) => ({ path: `/out/${response.fileName}`, content: response.body }),
       },
       next: { terminal: true },
     })
@@ -275,32 +338,34 @@ test('actionInput mapping decouples step output from action input', async () => 
   assert.deepEqual(receivedInput, { path: '/out/report.md', content: 'hello' });
 });
 
-test('actionInput receives current stash', async () => {
+test('actionInput receives store accessor', async () => {
   let receivedInput: unknown;
 
   const myAction = action({
     name: 'a',
-    input: z.object({ prefix: z.string(), val: z.string() }),
-    output: z.object({}),
+    input: type({ prefix: 'string', val: 'string' }),
+    output: type({}),
     run: async ({ input }) => {
       receivedInput = input;
       return {};
     },
   });
 
-  const s = skill({ name: 'stash-map', entry: 'setup', stash: z.object({ prefix: z.string() }) })
+  const s = skill({ name: 'store-map', entry: 'setup' })
     .step('setup', {
       prompt: 'Setup',
-      output: z.object({}),
-      updateStash: () => ({ prefix: 'pre' }),
+      response: type({ prefix: 'string' }),
       next: 'a',
     })
     .step('a', {
       prompt: 'Go',
-      output: z.object({ val: z.string() }),
+      response: type({ val: 'string' }),
       action: {
         run: myAction,
-        input: ({ stepOutput, stash }) => ({ prefix: stash.prefix, val: stepOutput.val }),
+        mapInput: ({ response, store }) => ({
+          prefix: store.steps.setup?.prefix ?? '',
+          val: response.val,
+        }),
       },
       next: { terminal: true },
     })
@@ -308,7 +373,7 @@ test('actionInput receives current stash', async () => {
 
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
-  await engine.advance('setup', {});
+  await engine.advance('setup', { prefix: 'pre' });
   await engine.advance('a', { val: 'test' });
   assert.deepEqual(receivedInput, { prefix: 'pre', val: 'test' });
 });
@@ -316,20 +381,20 @@ test('actionInput receives current stash', async () => {
 test('action output is passed to transition function', async () => {
   const apiAction = action({
     name: 'api-call',
-    input: z.object({ url: z.string() }),
-    output: z.object({ status: z.number() }),
+    input: type({ url: 'string' }),
+    output: type({ status: 'number' }),
     run: async () => ({ status: 200 }),
   });
 
   const s = skill({ name: 'action-in-next', entry: 'call' })
     .step('call', {
       prompt: 'Call the API',
-      output: z.object({ url: z.string() }),
+      response: type({ url: 'string' }),
       action: { run: apiAction },
-      next: ({ actionOutput }) => ((actionOutput as { status: number }).status === 200 ? 'success' : 'failure'),
+      next: ({ actionResult }) => ((actionResult as { status: number }).status === 200 ? 'success' : 'failure'),
     })
-    .step('success', { prompt: 'OK', output: z.object({}), next: { terminal: true } })
-    .step('failure', { prompt: 'Fail', output: z.object({}), next: { terminal: true } })
+    .step('success', { prompt: 'OK', response: type({}), next: { terminal: true } })
+    .step('failure', { prompt: 'Fail', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -344,13 +409,13 @@ test('action is undefined in next when no action configured', async () => {
   const s = skill({ name: 'no-action-next', entry: 'a' })
     .step('a', {
       prompt: 'Go',
-      output: z.object({ ok: z.boolean() }),
-      next: ({ actionOutput }) => {
-        capturedAction = actionOutput;
+      response: type({ ok: 'boolean' }),
+      next: ({ actionResult }) => {
+        capturedAction = actionResult;
         return 'b';
       },
     })
-    .step('b', { prompt: 'B', output: z.object({}), next: { terminal: true } })
+    .step('b', { prompt: 'B', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -359,32 +424,31 @@ test('action is undefined in next when no action configured', async () => {
   assert.equal(capturedAction, undefined);
 });
 
-test('afterAction stashes action result', async () => {
-  let capturedStash: unknown;
+test('action result is stored and accessible via store', async () => {
+  let capturedActionResult: unknown;
 
   const apiAction = action({
     name: 'api',
-    input: z.object({ url: z.string() }),
-    output: z.object({ responseCode: z.number() }),
+    input: type({ url: 'string' }),
+    output: type({ responseCode: 'number' }),
     run: async () => ({ responseCode: 201 }),
   });
 
-  const s = skill({ name: 'post-stash', entry: 'call', stash: z.object({ lastCode: z.number() }) })
+  const s = skill({ name: 'post-store', entry: 'call' })
     .step('call', {
       prompt: 'Call API',
-      output: z.object({ url: z.string() }),
-      action: {
-        run: apiAction,
-        updateStash: ({ actionOutput }) => ({ lastCode: actionOutput.responseCode }),
-      },
+      response: type({ url: 'string' }),
+      action: { run: apiAction },
       next: 'report',
     })
     .step('report', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        // Access the action result from the store history
+        const callRecord = ctx.store.steps.history.find((r) => r.step === 'call');
+        capturedActionResult = callRecord?.actionResult;
         return 'Report';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -392,129 +456,125 @@ test('afterAction stashes action result', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('call', { url: 'https://api.example.com' });
-  assert.deepEqual(capturedStash, { lastCode: 201 });
+  assert.deepEqual(capturedActionResult, { responseCode: 201 });
 });
 
-test('afterAction is replayed correctly from history', () => {
-  let capturedStash: unknown;
+test('action result is replayed correctly from history', () => {
+  let capturedActionResult: unknown;
 
   const apiAction = action({
     name: 'api',
-    input: z.object({ url: z.string() }),
-    output: z.object({ code: z.number() }),
+    input: type({ url: 'string' }),
+    output: type({ code: 'number' }),
     run: async () => ({ code: 200 }),
   });
 
-  const s = skill({ name: 'replay-after', entry: 'call', stash: z.object({ code: z.number() }) })
+  const s = skill({ name: 'replay-after', entry: 'call' })
     .step('call', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        const record = ctx.store.steps.history.find((r) => r.step === 'call');
+        capturedActionResult = record?.actionResult;
         return 'Call';
       },
-      output: z.object({ url: z.string() }),
-      action: {
-        run: apiAction,
-        updateStash: ({ actionOutput }) => ({ code: actionOutput.code }),
-      },
+      response: type({ url: 'string' }),
+      action: { run: apiAction },
       next: 'report',
     })
     .step('report', {
       prompt: 'Report',
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
-  // Replay history with action output → afterAction should populate stash
+  // Replay history with action output
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([{ step: 'call', stepOutput: { url: 'https://x.com' }, actionOutput: { code: 404 } }]);
-  // start() builds prompt for entry step 'call', which captures stash
+  engine.replayHistory([{ step: 'call', response: { url: 'https://x.com' }, actionResult: { code: 404 } }]);
+  // start() builds prompt for entry step 'call', which captures action result
   engine.start();
-  assert.deepEqual(capturedStash, { code: 404 });
+  assert.deepEqual(capturedActionResult, { code: 404 });
 });
 
-test('action stash vs step stash: both survive replay into next prompt', async () => {
-  let capturedStash: unknown;
+test('action result and step response survive replay into next prompt', async () => {
+  let capturedData: { fromResult: unknown; fromResponse: unknown; fromAction: unknown } | undefined;
 
   const fetchAction = action({
     name: 'fetch',
-    input: z.object({ url: z.string() }),
-    output: z.object({ spaceId: z.string() }),
+    input: type({ url: 'string' }),
+    output: type({ spaceId: 'string' }),
     run: async () => ({ spaceId: 'never-called' }),
   });
 
   const s = skill({
-    name: 'stash-compare',
+    name: 'store-compare',
     entry: 'explore',
-    stash: z.object({ fromStep: z.string(), fromAction: z.string() }),
   })
     .step('explore', {
       prompt: 'Explore',
-      output: z.object({ url: z.string() }),
-      updateStash: ({ stepOutput }) => ({ fromStep: stepOutput.url }),
-      action: {
-        run: fetchAction,
-        updateStash: ({ actionOutput }) => ({ fromAction: actionOutput.spaceId }),
-      },
+      response: type({ url: 'string' }),
+      action: { run: fetchAction },
       next: 'triage',
     })
     .step('triage', {
       prompt: 'Triage',
-      output: z.object({ decision: z.string() }),
+      response: type({ decision: 'string' }),
       next: 'report',
     })
     .step('report', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        const exploreResult = ctx.store.steps.explore;
+        const exploreRecord = ctx.store.steps.history.find((r) => r.step === 'explore');
+        capturedData = {
+          fromResult: exploreResult?.spaceId,
+          fromResponse: (exploreRecord?.response as { url: string })?.url,
+          fromAction: (exploreRecord?.actionResult as { spaceId: string })?.spaceId,
+        };
         return 'Report';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
-  // Simulate: explore completed (with action), triage being advanced → report prompt built
+  // Simulate: explore completed (with action), triage being advanced -> report prompt built
+  // store.steps['step'] returns the step result (action output when action exists)
   const engine = new WorkflowEngine(s, genericHost, {});
-  engine.replayHistory([
-    { step: 'explore', stepOutput: { url: 'https://x.com' }, actionOutput: { spaceId: 'abc123' } },
-  ]);
+  engine.replayHistory([{ step: 'explore', response: { url: 'https://x.com' }, actionResult: { spaceId: 'abc123' } }]);
   engine.start();
   await engine.advance('triage', { decision: 'go' });
 
-  assert.deepEqual(capturedStash, { fromStep: 'https://x.com', fromAction: 'abc123' });
+  assert.deepEqual(capturedData, { fromResult: 'abc123', fromResponse: 'https://x.com', fromAction: 'abc123' });
 });
 
-test('action stash survives cross-process replay into next step prompt', async () => {
-  let capturedStash: unknown;
+test('action result survives cross-process replay into next step prompt', async () => {
+  let capturedScanResult: unknown;
 
   const fetchAction = action({
     name: 'fetch',
-    input: z.object({ url: z.string() }),
-    output: z.object({ spaceId: z.string() }),
+    input: type({ url: 'string' }),
+    output: type({ spaceId: 'string' }),
     run: async () => ({ spaceId: 'never-called' }),
   });
 
-  const s = skill({ name: 'cross-process', entry: 'explore', stash: z.object({ spaceId: z.string() }) })
+  const s = skill({ name: 'cross-process', entry: 'explore' })
     .step('explore', {
       prompt: 'Explore',
-      output: z.object({ url: z.string() }),
-      action: {
-        run: fetchAction,
-        updateStash: ({ actionOutput }) => ({ spaceId: actionOutput.spaceId }),
-      },
+      response: type({ url: 'string' }),
+      action: { run: fetchAction },
       next: 'triage',
     })
     .step('triage', {
       prompt: 'Triage',
-      output: z.object({ decision: z.string() }),
+      response: type({ decision: 'string' }),
       next: 'report',
     })
     .step('report', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        const record = ctx.store.steps.history.find((r) => r.step === 'explore');
+        capturedScanResult = (record?.actionResult as { spaceId: string })?.spaceId;
         return 'Report';
       },
-      output: z.object({ summary: z.string() }),
+      response: type({ summary: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -522,27 +582,165 @@ test('action stash survives cross-process replay into next step prompt', async (
   // Simulate process 3: explore and triage completed, advancing triage builds report prompt
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.replayHistory([
-    { step: 'explore', stepOutput: { url: 'https://x.com' }, actionOutput: { spaceId: '58j6jt5cfhic' } },
-    { step: 'triage', stepOutput: { decision: 'fix' } },
+    { step: 'explore', response: { url: 'https://x.com' }, actionResult: { spaceId: '58j6jt5cfhic' } },
+    { step: 'triage', response: { decision: 'fix' } },
   ]);
   engine.start();
   const result = await engine.advance('triage', { decision: 'fix' });
 
   assert.equal((result as PromptResult).step, 'report');
-  assert.deepEqual(capturedStash, { spaceId: '58j6jt5cfhic' });
+  assert.equal(capturedScanResult, '58j6jt5cfhic');
 });
 
-test('getStep provides typed history access', async () => {
+test('result callback transforms what gets stored', async () => {
+  const checkLinks = action({
+    name: 'check-links',
+    input: type({ urls: 'string[]' }),
+    output: type({ statuses: type({ url: 'string', ok: 'boolean' }).array() }),
+    run: async ({ input }) => ({
+      statuses: input.urls.map((url: string) => ({ url, ok: url !== 'broken.com' })),
+    }),
+  });
+
+  let storedResult: unknown;
+
+  const s = skill({ name: 'with-result', entry: 'find-links' })
+    .step('find-links', {
+      prompt: 'Find links',
+      response: type({ links: 'string[]' }),
+      action: {
+        run: checkLinks,
+        mapInput: ({ response }) => ({ urls: response.links }),
+      },
+      save: ({ response, actionResult }) => ({
+        step: {
+          totalLinks: response.links.length,
+          broken: (actionResult as { statuses: { url: string; ok: boolean }[] }).statuses
+            .filter((s) => !s.ok)
+            .map((s) => s.url),
+        },
+      }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps['find-links'];
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('find-links', { links: ['good.com', 'broken.com', 'ok.com'] });
+  await engine.advance('report', {});
+
+  assert.deepEqual(storedResult, { totalLinks: 3, broken: ['broken.com'] });
+});
+
+test('result defaults to action output when action exists but no result callback', async () => {
+  const writeFile = action({
+    name: 'write-file',
+    input: type({ content: 'string' }),
+    output: type({ path: 'string', bytes: 'number' }),
+    run: async ({ input }) => ({ path: '/tmp/out.txt', bytes: input.content.length }),
+  });
+
+  let storedResult: unknown;
+
+  const s = skill({ name: 'action-default', entry: 'write' })
+    .step('write', {
+      prompt: 'Write something',
+      response: type({ content: 'string' }),
+      action: { run: writeFile },
+      next: 'done',
+    })
+    .step('done', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.write;
+        return 'Done';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('write', { content: 'hello world' });
+  await engine.advance('done', {});
+
+  assert.deepEqual(storedResult, { path: '/tmp/out.txt', bytes: 11 });
+});
+
+test('result defaults to response when no action and no result callback', async () => {
+  let storedResult: unknown;
+
+  const s = skill({ name: 'response-default', entry: 'greet' })
+    .step('greet', {
+      prompt: 'Say hello',
+      response: type({ name: 'string' }),
+      next: 'done',
+    })
+    .step('done', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.greet;
+        return 'Done';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('greet', { name: 'Alice' });
+  await engine.advance('done', {});
+
+  assert.deepEqual(storedResult, { name: 'Alice' });
+});
+
+test('DAG narrowing: linear predecessors are guaranteed on store', async () => {
+  let capturedName: string | undefined;
+
+  const s = skill({ name: 'linear-narrow', entry: 'greet' })
+    .step('greet', {
+      prompt: 'Say hi',
+      response: type({ name: 'string' }),
+      next: 'profile',
+    })
+    .step('profile', {
+      prompt: ({ store }) => {
+        // greet is a guaranteed predecessor (linear chain) — non-optional access
+        capturedName = store.steps.greet.name;
+        return 'Profile';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('greet', { name: 'Alice' });
+  await engine.advance('profile', {});
+
+  assert.equal(capturedName, 'Alice');
+});
+
+test('store property access provides typed history access', async () => {
   let stepAResult: unknown;
 
   const s = skill({ name: 'get-step', entry: 'a' })
-    .step('a', { prompt: 'A', output: z.object({ val: z.number() }), next: 'b' })
+    .step('a', { prompt: 'A', response: type({ val: 'number' }), next: 'b' })
     .step('b', {
       prompt: (ctx) => {
-        stepAResult = ctx.getStep('a');
+        stepAResult = ctx.store.steps.a;
         return 'B';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -550,19 +748,19 @@ test('getStep provides typed history access', async () => {
   const engine = new WorkflowEngine(s, genericHost, {});
   engine.start();
   await engine.advance('a', { val: 42 });
-  assert.deepEqual(stepAResult, { stepOutput: { val: 42 }, actionOutput: undefined });
+  assert.deepEqual(stepAResult, { val: 42 });
 });
 
-test('getStep returns undefined for missing step', async () => {
+test('store property access returns undefined for missing step', async () => {
   let result: unknown = 'not-set';
 
   const s = skill({ name: 'get-step-missing', entry: 'a' })
     .step('a', {
       prompt: (ctx) => {
-        result = ctx.getStep('nonexistent');
+        result = (ctx.store.steps as unknown as Record<string, unknown>)['nonexistent'];
         return 'A';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -573,12 +771,11 @@ test('getStep returns undefined for missing step', async () => {
 });
 
 test('engine returns RedirectResult when next target is not a local step', async () => {
-  const s = skill({ name: 'redirect-test', entry: 'classify', stash: z.object({ intent: z.string() }) })
+  const s = skill({ name: 'redirect-test', entry: 'classify' })
     .step('classify', {
       prompt: 'Classify',
-      output: z.object({ intent: z.string() }),
-      updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
-      next: ({ stepOutput }) => `subskill:${stepOutput.intent}`,
+      response: type({ intent: 'string' }),
+      next: ({ response }) => `subskill:${response.intent}`,
     })
     .build();
 
@@ -590,18 +787,21 @@ test('engine returns RedirectResult when next target is not a local step', async
   assert.equal(redirect.redirect, 'subskill:doctor');
   assert.deepEqual(redirect.completed, {
     step: 'classify',
-    stepOutput: { intent: 'doctor' },
-    actionOutput: undefined,
+    response: { intent: 'doctor' },
+    actionResult: undefined,
+    result: { intent: 'doctor' },
   });
-  assert.deepEqual(redirect.stash, { intent: 'doctor' });
+  // store is a StoreAccessor
+  assert.ok(redirect.store);
+  assert.equal(typeof redirect.store.steps.ran, 'function');
 });
 
 test('engine returns RedirectResult for topic targets', async () => {
   const s = skill({ name: 'topic-redirect', entry: 'ask' })
     .step('ask', {
       prompt: 'What topic?',
-      output: z.object({ topic: z.string() }),
-      next: ({ stepOutput }) => `topic:${stepOutput.topic}`,
+      response: type({ topic: 'string' }),
+      next: ({ response }) => `topic:${response.topic}`,
     })
     .build();
 
@@ -615,8 +815,8 @@ test('engine returns RedirectResult for topic targets', async () => {
 
 test('engine still routes normally when next target is a local step', async () => {
   const s = skill({ name: 'normal-routing', entry: 'a' })
-    .step('a', { prompt: 'A', output: z.object({}), next: 'b' })
-    .step('b', { prompt: 'B', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'A', response: type({}), next: 'b' })
+    .step('b', { prompt: 'B', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -643,7 +843,7 @@ test('engine assembles array prompt in author order with XML tags', () => {
         }),
         'Do the work.',
       ],
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -668,7 +868,7 @@ test('engine preserves author order — system between acts', () => {
         system`Now be thorough.`,
         'Build everything.',
       ],
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -696,7 +896,7 @@ test('engine renders act segment in prompt array', () => {
         }),
         'Additional context.',
       ],
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -715,9 +915,9 @@ test('engine renders subagent with no-recurse attribute', () => {
     .step('a', {
       prompt: act.subagent({
         prompt: 'Do research.',
-        output: z.object({ result: z.string() }),
+        output: type({ result: 'string' }),
       }),
-      output: z.object({ result: z.string() }),
+      response: type({ result: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -734,10 +934,10 @@ test('engine renders subagent without no-recurse when allowRecursion is true', (
     .step('a', {
       prompt: act.subagent({
         prompt: 'Run the sub-skill.',
-        output: z.object({ result: z.string() }),
+        output: type({ result: 'string' }),
         allowRecursion: true,
       }),
-      output: z.object({ result: z.string() }),
+      response: type({ result: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -753,7 +953,7 @@ test('engine renders view segment as <rendered> tag', () => {
   const s = skill({ name: 'view-test', entry: 'a' })
     .step('a', {
       prompt: [view('# Hello World'), 'Show the card.'],
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -769,7 +969,7 @@ test('engine renders named view segment with name attribute', () => {
   const s = skill({ name: 'named-view-test', entry: 'a' })
     .step('a', {
       prompt: [view('stats', '# Stats'), 'Show the stats.'],
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -784,7 +984,7 @@ test('engine injects skill-level system into preamble', () => {
   const s = skill({ name: 'system-test', entry: 'a', system: 'You are helpful.' })
     .step('a', {
       prompt: 'Do something.',
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -800,7 +1000,7 @@ test('engine injects skill-level system into preamble', () => {
 
 test('isPromptless returns true for steps without prompt', () => {
   const s = skill({ name: 'promptless', entry: 'gate' })
-    .step('gate', { output: z.object({}), next: { terminal: true } })
+    .step('gate', { response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -809,7 +1009,7 @@ test('isPromptless returns true for steps without prompt', () => {
 
 test('isPromptless returns false for steps with prompt', () => {
   const s = skill({ name: 'prompted', entry: 'a' })
-    .step('a', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -817,15 +1017,14 @@ test('isPromptless returns false for steps with prompt', () => {
 });
 
 test('prompt-less step can be advanced with empty output', async () => {
-  const s = skill({ name: 'gate-advance', entry: 'gate', stash: z.object({ routed: z.boolean() }) })
+  const s = skill({ name: 'gate-advance', entry: 'gate' })
     .step('gate', {
-      output: z.object({}),
-      updateStash: () => ({ routed: true }),
+      response: type({}),
       next: 'main',
     })
     .step('main', {
-      prompt: (ctx) => `Routed: ${ctx.stash.routed}`,
-      output: z.object({}),
+      prompt: (ctx) => `Routed: ${ctx.store.steps.ran('gate')}`,
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -860,12 +1059,12 @@ test('output-less step advance succeeds without validation', async () => {
 });
 
 test('prompt-less + output-less step is a pure routing gate', async () => {
-  const s = skill({ name: 'pure-gate', entry: 'gate', params: z.object({ fast: z.boolean() }) })
+  const s = skill({ name: 'pure-gate', entry: 'gate', params: type({ fast: 'boolean' }) })
     .step('gate', {
       next: ({ params }) => (params.fast ? 'quick' : 'full'),
     })
-    .step('quick', { prompt: 'Quick mode', output: z.object({}), next: { terminal: true } })
-    .step('full', { prompt: 'Full mode', output: z.object({}), next: { terminal: true } })
+    .step('quick', { prompt: 'Quick mode', response: type({}), next: { terminal: true } })
+    .step('full', { prompt: 'Full mode', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, { fast: true });
@@ -879,8 +1078,8 @@ test('prompt-less step with action runs action before transitioning', async () =
 
   const checkAction = action({
     name: 'check',
-    input: z.object({}),
-    output: z.object({ ok: z.boolean() }),
+    input: type({}),
+    output: type({ ok: 'boolean' }),
     run: async () => {
       actionRan = true;
       return { ok: true };
@@ -889,11 +1088,11 @@ test('prompt-less step with action runs action before transitioning', async () =
 
   const s = skill({ name: 'gate-action', entry: 'check' })
     .step('check', {
-      output: z.object({}),
+      response: type({}),
       action: { run: checkAction },
       next: 'main',
     })
-    .step('main', { prompt: 'Go', output: z.object({}), next: { terminal: true } })
+    .step('main', { prompt: 'Go', response: type({}), next: { terminal: true } })
     .build();
 
   const engine = new WorkflowEngine(s, genericHost, {});
@@ -904,13 +1103,13 @@ test('prompt-less step with action runs action before transitioning', async () =
 });
 
 test('engine with required params can be reconstructed for advance', async () => {
-  const s = skill({ name: 'param-advance', entry: 'a', params: z.object({ target: z.string() }) })
+  const s = skill({ name: 'param-advance', entry: 'a', params: type({ target: 'string' }) })
     .step('a', {
       prompt: (ctx) => `Target: ${(ctx.params as { target: string }).target}`,
-      output: z.object({ ok: z.boolean() }),
+      response: type({ ok: 'boolean' }),
       next: 'b',
     })
-    .step('b', { prompt: 'Done', output: z.object({}), next: { terminal: true } })
+    .step('b', { prompt: 'Done', response: type({}), next: { terminal: true } })
     .build();
 
   const params = { target: 'https://example.com' };
@@ -920,8 +1119,753 @@ test('engine with required params can be reconstructed for advance', async () =>
   assert.equal((r1 as PromptResult).step, 'b');
 
   const engine2 = new WorkflowEngine(s, genericHost, params);
-  engine2.replayHistory([{ step: 'a', stepOutput: { ok: true } }]);
+  engine2.replayHistory([{ step: 'a', response: { ok: true } }]);
   engine2.start();
   const r2 = await engine2.advance('b', {});
   assert.equal((r2 as DoneResult).done, true);
+});
+
+// ============================================================
+// Sub-store tests
+// ============================================================
+
+test('save writes sub-store data accessible in next step prompt', async () => {
+  let capturedHost: unknown;
+  const s = skill({
+    name: 'sub-store',
+    entry: 'gather',
+    stores: { environment: type({ host: 'string' }) },
+  })
+    .step('gather', {
+      prompt: 'Gather',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ environment: { host: response.host } }),
+      next: 'use',
+    })
+    .step('use', {
+      prompt: (ctx) => {
+        capturedHost = (ctx.store as Record<string, unknown>).environment;
+        return 'Use';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('gather', { host: 'api.example.com' });
+  assert.deepEqual(capturedHost, { host: 'api.example.com' });
+});
+
+test('two steps writing to same sub-store deep-merge', async () => {
+  let capturedEnv: unknown;
+  const s = skill({
+    name: 'merge-stores',
+    entry: 'a',
+    stores: { env: type({ apiA: { host: 'string' }, apiB: { host: 'string' } }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { apiA: { host: response.host } } }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: 'B',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { apiB: { host: response.host } } }),
+      next: 'c',
+    })
+    .step('c', {
+      prompt: (ctx) => {
+        capturedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'C';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { host: 'a.com' });
+  await engine.advance('b', { host: 'b.com' });
+  assert.deepEqual(capturedEnv, { apiA: { host: 'a.com' }, apiB: { host: 'b.com' } });
+});
+
+test('save with both step and sub-store keys', async () => {
+  let capturedStep: unknown;
+  let capturedEnv: unknown;
+  const s = skill({
+    name: 'both',
+    entry: 'a',
+    stores: { env: type({ host: 'string' }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: ({ response }) => ({
+        step: { transformed: response.val.toUpperCase() },
+        env: { host: response.val },
+      }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        capturedStep = ctx.store.steps.a;
+        capturedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  assert.deepEqual(capturedStep, { transformed: 'HELLO' });
+  assert.deepEqual(capturedEnv, { host: 'hello' });
+});
+
+test('replayHistory rebuilds sub-store state from save callbacks', async () => {
+  let capturedEnv: unknown;
+  const s = skill({
+    name: 'replay-stores',
+    entry: 'a',
+    stores: { env: type({ host: 'string' }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { host: response.host } }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        capturedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.replayHistory([{ step: 'a', response: { host: 'replayed.com' } }]);
+  engine.start();
+  // Advance past replayed step a to reach b (where we capture sub-store)
+  const p2 = await engine.advance('a', { host: 'replayed.com' });
+  assert.equal((p2 as PromptResult).step, 'b');
+  assert.deepEqual(capturedEnv, { host: 'replayed.com' });
+});
+
+test('skill without stores — zero regression', async () => {
+  const s = skill({ name: 'no-stores', entry: 'a' })
+    .step('a', { prompt: 'A', response: type({ val: 'string' }), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const done = await engine.advance('a', { val: 'ok' });
+  assert.equal((done as DoneResult).done, true);
+});
+
+// ============================================================
+// Edge case: save returning empty object
+// ============================================================
+
+test('save returning empty object: step result defaults to response', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'empty-save', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: () => ({}),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save returning void (undefined)
+// ============================================================
+
+test('save returning void: step result defaults to response', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'void-save', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: () => {
+        // implicit void return
+      },
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  // When save returns undefined, the destructuring `(saveReturn as Record<string, unknown>) ?? {}`
+  // converts undefined to {} via ??. Then step is undefined, storeWrites is empty.
+  // stepResult = actionResult ?? response = response.
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save returning null (via any cast — runtime hazard)
+// ============================================================
+
+test('save returning null: engine handles gracefully', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'null-save', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      save: (() => null) as any,
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  // null ?? {} = {} (nullish coalescing catches null)
+  // Then destructuring {} -> step=undefined, storeWrites={}
+  // stepResult = response
+  await engine.advance('a', { val: 'hello' });
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save returning extra keys not in stores (undeclared)
+// ============================================================
+
+test('save with undeclared store keys: writes warning to stderr', async () => {
+  const stderrChunks: string[] = [];
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk: string | Uint8Array) => {
+    stderrChunks.push(String(chunk));
+    return true;
+  };
+
+  try {
+    const s = skill({
+      name: 'undeclared-store',
+      entry: 'a',
+      stores: { env: type({ host: 'string' }) },
+    })
+      .step('a', {
+        prompt: 'A',
+        response: type({ val: 'string' }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        save: (() => ({ nope: { x: 1 } })) as any,
+        next: { terminal: true },
+      })
+      .build();
+
+    const engine = new WorkflowEngine(s, genericHost, {});
+    engine.start();
+    const done = await engine.advance('a', { val: 'test' });
+    // Should still complete — warning only, not a crash
+    assert.equal((done as DoneResult).done, true);
+    // Should have written a warning about undeclared store
+    assert.ok(stderrChunks.some((c) => c.includes('undeclared store')));
+  } finally {
+    process.stderr.write = origWrite;
+  }
+});
+
+// ============================================================
+// Edge case: save callback throwing
+// ============================================================
+
+test('save callback throwing: engine propagates the error', async () => {
+  const s = skill({ name: 'save-throw', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      save: (() => {
+        throw new Error('save exploded');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await assert.rejects(() => engine.advance('a', { val: 'hello' }), /save exploded/);
+});
+
+// ============================================================
+// Edge case: store name 'steps' is reserved
+// ============================================================
+
+test('build() with store name "steps" throws at build time', () => {
+  assert.throws(
+    () =>
+      skill({ name: 'bad-store', entry: 'a', stores: { steps: type({ x: 'string' }) } })
+        .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+        .build(),
+    /reserved/,
+  );
+});
+
+// ============================================================
+// Edge case: store name 'step' is also reserved
+// ============================================================
+
+test('build() with store name "step" throws at build time', () => {
+  assert.throws(
+    () =>
+      skill({ name: 'bad-store-step', entry: 'a', stores: { step: type({ x: 'string' }) } })
+        .step('a', { prompt: 'A', response: type({}), next: { terminal: true } })
+        .build(),
+    /reserved/,
+  );
+});
+
+// ============================================================
+// Edge case: empty stores config — no regression
+// ============================================================
+
+test('empty stores config: skill builds and runs fine', async () => {
+  const s = skill({ name: 'empty-stores', entry: 'a', stores: {} })
+    .step('a', { prompt: 'A', response: type({ val: 'string' }), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const done = await engine.advance('a', { val: 'ok' });
+  assert.equal((done as DoneResult).done, true);
+});
+
+// ============================================================
+// Edge case: replay with save — rebuilds sub-store state
+// ============================================================
+
+test('replayHistory rebuilds sub-store from multiple save steps', async () => {
+  let capturedEnv: unknown;
+  const s = skill({
+    name: 'replay-multi-save',
+    entry: 'a',
+    stores: { env: type({ apiA: { host: 'string' }, apiB: { host: 'string' } }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { apiA: { host: response.host } } }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: 'B',
+      response: type({ host: 'string' }),
+      save: ({ response }) => ({ env: { apiB: { host: response.host } } }),
+      next: 'c',
+    })
+    .step('c', {
+      prompt: (ctx) => {
+        capturedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'C';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.replayHistory([
+    { step: 'a', response: { host: 'replayed-a.com' } },
+    { step: 'b', response: { host: 'replayed-b.com' } },
+  ]);
+  engine.start();
+  // Advance past the replayed steps to reach c
+  await engine.advance('b', { host: 'replayed-b.com' });
+  assert.deepEqual(capturedEnv, {
+    apiA: { host: 'replayed-a.com' },
+    apiB: { host: 'replayed-b.com' },
+  });
+});
+
+// ============================================================
+// Edge case: save with step undefined — defaults to response/action
+// ============================================================
+
+test('save with explicit step: undefined defaults to response', async () => {
+  let storedResult: unknown;
+  const s = skill({ name: 'step-undefined', entry: 'a' })
+    .step('a', {
+      prompt: 'A',
+      response: type({ val: 'string' }),
+      save: () => ({ step: undefined }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { val: 'hello' });
+  // step: undefined -> stepValue is undefined -> falls through to response
+  assert.deepEqual(storedResult, { val: 'hello' });
+});
+
+// ============================================================
+// Edge case: save receiving correct store state from predecessors
+// ============================================================
+
+test('save callback receives current store state from predecessors', async () => {
+  let capturedStoreInSave: unknown;
+  const s = skill({
+    name: 'save-reads-store',
+    entry: 'init',
+    stores: { env: type({ host: 'string' }) },
+  })
+    .step('init', {
+      prompt: 'Init',
+      response: type({}),
+      save: () => ({ env: { host: 'initial.com' } }),
+      next: 'update',
+    })
+    .step('update', {
+      prompt: 'Update',
+      response: type({ newHost: 'string' }),
+      save: ({ response, store }) => {
+        capturedStoreInSave = (store as Record<string, unknown>).env;
+        return { env: { host: response.newHost } };
+      },
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('init', {});
+  await engine.advance('update', { newHost: 'updated.com' });
+  // save in update should have seen the store state from init
+  assert.deepEqual(capturedStoreInSave, { host: 'initial.com' });
+});
+
+// ============================================================
+// Edge case: multiple writes to same deep path — last write wins
+// ============================================================
+
+test('three steps writing to same deep path: last write wins', async () => {
+  let capturedHost: unknown;
+  const s = skill({
+    name: 'overwrite-deep',
+    entry: 'a',
+    stores: { env: type({ api: { host: 'string' } }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({}),
+      save: () => ({ env: { api: { host: 'first.com' } } }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: 'B',
+      response: type({}),
+      save: () => ({ env: { api: { host: 'second.com' } } }),
+      next: 'c',
+    })
+    .step('c', {
+      prompt: 'C',
+      response: type({}),
+      save: () => ({ env: { api: { host: 'third.com' } } }),
+      next: 'd',
+    })
+    .step('d', {
+      prompt: (ctx) => {
+        const env = (ctx.store as Record<string, unknown>).env as { api: { host: string } };
+        capturedHost = env.api.host;
+        return 'D';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', {});
+  await engine.advance('b', {});
+  await engine.advance('c', {});
+  assert.equal(capturedHost, 'third.com');
+});
+
+// ============================================================
+// Edge case: save with action output but no response
+// ============================================================
+
+test('promptless step with action and save: actionResult available in save', async () => {
+  let storedResult: unknown;
+
+  const checkAction = action({
+    name: 'check',
+    input: type({}),
+    output: type({ status: 'string' }),
+    run: async () => ({ status: 'healthy' }),
+  });
+
+  const s = skill({ name: 'gate-save', entry: 'check' })
+    .step('check', {
+      response: type({}),
+      action: { run: checkAction },
+      save: ({ actionResult }) => ({
+        step: { health: (actionResult as { status: string }).status },
+      }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.check;
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('check', {});
+  assert.deepEqual(storedResult, { health: 'healthy' });
+});
+
+// ============================================================
+// Edge case: save with only sub-store writes (no step key)
+// ============================================================
+
+test('save with only sub-store writes: step defaults to action output', async () => {
+  let storedResult: unknown;
+  let storedEnv: unknown;
+
+  const writeFile = action({
+    name: 'write',
+    input: type({ content: 'string' }),
+    output: type({ path: 'string', bytes: 'number' }),
+    run: async ({ input }) => ({ path: '/tmp/out', bytes: input.content.length }),
+  });
+
+  const s = skill({
+    name: 'substore-only-save',
+    entry: 'a',
+    stores: { env: type({ lastFile: 'string' }) },
+  })
+    .step('a', {
+      prompt: 'A',
+      response: type({ content: 'string' }),
+      action: { run: writeFile },
+      save: ({ actionResult }) => ({
+        env: { lastFile: (actionResult as { path: string }).path },
+      }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.a;
+        storedEnv = (ctx.store as Record<string, unknown>).env;
+        return 'B';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('a', { content: 'hello' });
+  // No step key in save -> defaults to actionResult
+  assert.deepEqual(storedResult, { path: '/tmp/out', bytes: 5 });
+  assert.deepEqual(storedEnv, { lastFile: '/tmp/out' });
+});
+
+// ============================================================
+// Edge case: save with stores that matches step name
+// ============================================================
+
+test('sub-store named same as step: no collision at runtime', async () => {
+  let storeStepResult: unknown;
+  let storeSubStore: unknown;
+
+  const s = skill({
+    name: 'name-collision',
+    entry: 'gather',
+    stores: { gather: type({ extra: 'string' }) },
+  })
+    .step('gather', {
+      prompt: 'Gather',
+      response: type({ val: 'string' }),
+      save: ({ response }) => ({
+        step: { processed: response.val.toUpperCase() },
+        gather: { extra: 'meta' },
+      }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storeStepResult = ctx.store.steps.gather;
+        storeSubStore = (ctx.store as Record<string, unknown>).gather;
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('gather', { val: 'hello' });
+  // Step result under store.steps
+  assert.deepEqual(storeStepResult, { processed: 'HELLO' });
+  // Sub-store at top level
+  assert.deepEqual(storeSubStore, { extra: 'meta' });
+});
+
+// ============================================================
+// Inline action form
+// ============================================================
+
+test('inline action function runs and result is stored', async () => {
+  let receivedCtx: unknown;
+
+  const s = skill({ name: 'inline-action', entry: 'fetch' })
+    .step('fetch', {
+      prompt: 'Fetch data',
+      response: type({ url: 'string' }),
+      action: async (ctx) => {
+        receivedCtx = ctx;
+        return { status: 200, body: 'ok' };
+      },
+      save: ({ actionResult }) => ({ step: { code: (actionResult as { status: number }).status } }),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('fetch', { url: 'https://example.com' });
+
+  assert.equal((result as DoneResult).done, true);
+  assert.deepEqual((result as DoneResult).completed?.actionResult, { status: 200, body: 'ok' });
+  // ctx receives response, store, params, signal
+  assert.ok(receivedCtx);
+  assert.deepEqual((receivedCtx as Record<string, unknown>).response, { url: 'https://example.com' });
+  assert.ok((receivedCtx as Record<string, unknown>).store);
+  assert.ok((receivedCtx as Record<string, unknown>).signal instanceof AbortSignal);
+});
+
+test('inline action result flows into save and transitions', async () => {
+  const s = skill({ name: 'inline-transition', entry: 'call' })
+    .step('call', {
+      prompt: 'Call API',
+      response: type({ url: 'string' }),
+      action: async () => ({ status: 200 }),
+      next: ({ actionResult }) => ((actionResult as { status: number }).status === 200 ? 'ok' : 'fail'),
+    })
+    .step('ok', { prompt: 'OK', response: type({}), next: { terminal: true } })
+    .step('fail', { prompt: 'Fail', response: type({}), next: { terminal: true } })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  const result = await engine.advance('call', { url: 'https://example.com' });
+  assert.equal((result as PromptResult).step, 'ok');
+});
+
+test('inline action result defaults to store result when no save', async () => {
+  let storedResult: unknown;
+
+  const s = skill({ name: 'inline-store', entry: 'run' })
+    .step('run', {
+      prompt: 'Run',
+      response: type({ input: 'string' }),
+      action: async ({ response }) => ({ processed: response.input.toUpperCase() }),
+      next: 'report',
+    })
+    .step('report', {
+      prompt: (ctx) => {
+        storedResult = ctx.store.steps.run;
+        return 'Report';
+      },
+      response: type({}),
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('run', { input: 'hello' });
+  await engine.advance('report', {});
+
+  assert.deepEqual(storedResult, { processed: 'HELLO' });
+});
+
+test('inline action receives store from previous steps', async () => {
+  let capturedStore: unknown;
+
+  const s = skill({ name: 'inline-store-ctx', entry: 'setup' })
+    .step('setup', {
+      prompt: 'Setup',
+      response: type({ prefix: 'string' }),
+      next: 'run',
+    })
+    .step('run', {
+      prompt: 'Run',
+      response: type({ val: 'string' }),
+      action: async ({ store }) => {
+        capturedStore = store;
+        return { ok: true };
+      },
+      next: { terminal: true },
+    })
+    .build();
+
+  const engine = new WorkflowEngine(s, genericHost, {});
+  engine.start();
+  await engine.advance('setup', { prefix: 'pre' });
+  await engine.advance('run', { val: 'test' });
+
+  assert.deepEqual((capturedStore as { steps: { setup: { prefix: string } } }).steps.setup, { prefix: 'pre' });
 });

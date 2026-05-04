@@ -1,4 +1,4 @@
-export { z } from 'zod';
+export { type } from 'arktype';
 export { skill } from './skill.js';
 export { step } from './step.js';
 export { fragment, prompt, resolveTemplate } from './fragment.js';
@@ -17,6 +17,8 @@ export { ModuleBuilder } from './module.js';
 export { checkSkill } from './lint/index.js';
 export { isPrompt, isDone, isError, isRedirect } from './types.js';
 export type { LintDiagnostic } from './lint/types.js';
+export type { StoreAccessor } from './runtime/state-store.js';
+export type { DeepPartial } from './types/store.js';
 export type {
   SkillBuilderConfig,
   SkillDefinition,
@@ -24,12 +26,13 @@ export type {
   StepDefinition,
   ActionConfig,
   ActionDefinition,
-  InferActionOutput,
+  InferActionResult,
   Fragment,
   Handshake,
   PromptContext,
   PromptFn,
   TransitionFn,
+  NextBranch,
   NextTarget,
   ObserverMap,
   StepResult,

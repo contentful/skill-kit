@@ -6,13 +6,13 @@ import type { SessionHeader, SessionOutputMode, SessionPointer, CliResult } from
 
 const SESSION_ID_LENGTH = 4;
 
-function isStepResultShaped(value: unknown): value is { step: string; stepOutput: unknown; actionOutput?: unknown } {
+function isStepResultShaped(value: unknown): value is { step: string; response: unknown; actionResult?: unknown } {
   return (
     typeof value === 'object' &&
     value !== null &&
     'step' in value &&
     typeof (value as Record<string, unknown>).step === 'string' &&
-    'stepOutput' in value
+    'response' in value
   );
 }
 
@@ -58,9 +58,9 @@ export class SessionFile {
     return content.trimEnd().split('\n').length;
   }
 
-  reconstructHistory(): Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }> {
+  reconstructHistory(): Array<{ step: string; response: unknown; actionResult?: unknown }> {
     const lines = this.readLines();
-    const history: Array<{ step: string; stepOutput: unknown; actionOutput?: unknown }> = [];
+    const history: Array<{ step: string; response: unknown; actionResult?: unknown }> = [];
 
     for (const line of lines) {
       if (line.type === 'prompt' || line.type === 'done') {
@@ -70,8 +70,8 @@ export class SessionFile {
             if (isStepResultShaped(entry)) {
               history.push({
                 step: entry.step,
-                stepOutput: entry.stepOutput,
-                ...(entry.actionOutput !== undefined ? { actionOutput: entry.actionOutput } : {}),
+                response: entry.response,
+                ...(entry.actionResult !== undefined ? { actionResult: entry.actionResult } : {}),
               });
             }
           }
@@ -80,8 +80,8 @@ export class SessionFile {
         if (isStepResultShaped(completed)) {
           history.push({
             step: completed.step,
-            stepOutput: completed.stepOutput,
-            ...(completed.actionOutput !== undefined ? { actionOutput: completed.actionOutput } : {}),
+            response: completed.response,
+            ...(completed.actionResult !== undefined ? { actionResult: completed.actionResult } : {}),
           });
         }
       }

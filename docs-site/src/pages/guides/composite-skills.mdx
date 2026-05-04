@@ -12,40 +12,37 @@ Use composites when you have multiple skills that overlap in references, params,
 Sub-skills are standalone `SkillDefinition`s registered with `.subskill()`:
 
 ```typescript
-import { skill, z } from '@contentful/skill-kit';
+import { skill, type } from '@contentful/skill-kit';
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
 export default skill({
   name: 'contentful-help',
   entry: 'classify',
-  params: z.object({ query: z.string() }),
-  stash: z.object({ intent: z.string(), spaceId: z.string() }),
+  params: type({ query: 'string' }),
 })
   .step('classify', {
     prompt: ({ params }) => `Classify intent: "${params.query}"`,
-    output: z.object({ intent: z.string(), confidence: z.number() }),
-    updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent, spaceId: '' }),
-    next: ({ stepOutput }) => {
-      if (stepOutput.confidence < 0.7) return 'clarify';
-      if (stepOutput.intent === 'doctor') return 'get-space';
-      return `subskill:${stepOutput.intent}`;
+    response: type({ intent: 'string', confidence: 'number' }),
+    next: ({ response }) => {
+      if (response.confidence < 0.7) return 'clarify';
+      if (response.intent === 'doctor') return 'get-space';
+      return `subskill:${response.intent}`;
     },
   })
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID.',
-    output: z.object({ spaceId: z.string() }),
-    updateStash: ({ stepOutput }) => ({ intent: 'doctor', spaceId: stepOutput.spaceId }),
+    response: type({ spaceId: 'string' }),
     next: 'subskill:doctor',
   })
   .subskill('doctor', doctorSkill, {
-    params: (_output, stash) => ({ spaceId: stash.spaceId }),
+    params: (_response, store) => ({ spaceId: store.steps['get-space']?.spaceId ?? '' }),
   })
   .subskill('setup', setupSkill)
   .build();
 ```
 
-Each `.subskill()` registration accepts an optional `params` function that maps the dispatcher's state (step output + stash) to the sub-skill's params.
+Each `.subskill()` registration accepts an optional `params` function that maps the dispatcher's state (step response + store) to the sub-skill's params.
 
 ## Registering topics
 
@@ -86,9 +83,9 @@ All commands go through `scripts/run`. Session mode is recommended:
 ```bash
 # Session mode (recommended)
 scripts/run --params '{"query":"my types are broken"}' --session new
-# → {"sessionId":"abc123","file":"/tmp/skill-kit-abc123.jsonl","line":2}
+# -> {"sessionId":"abc123","file":"/tmp/skill-kit-abc123.jsonl","line":2}
 scripts/run advance --session abc123
-# → 4  (line number to read)
+# -> 4  (line number to read)
 
 # Stateless mode (fallback)
 scripts/run --params '{"query":"my types are broken"}'
@@ -134,7 +131,7 @@ Use `directSubskill: 'doctor'` to test a sub-skill in isolation, bypassing the d
 |             | Modules                   | Sub-skills                   |
 | ----------- | ------------------------- | ---------------------------- |
 | Namespace   | Flattened into parent     | Prefixed: `doctor/diagnose`  |
-| Stash       | Merged with parent        | Isolated per sub-skill       |
+| Store       | Merged with parent        | Isolated per sub-skill       |
 | Params      | Cannot access parent      | Receives mapped params       |
 | Entry point | No independent invocation | CLI subcommand               |
 | Testing     | Within host skill         | Standalone with `runSkill()` |

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from './skill.js';
 import { action } from './action.js';
 
@@ -11,7 +11,7 @@ test('skill().build() creates a frozen SkillDefinition', () => {
   })
     .step('start', {
       prompt: 'Do something.',
-      output: z.object({ done: z.boolean() }),
+      response: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();
@@ -33,7 +33,7 @@ test('skill().build() preserves version and description', () => {
   })
     .step('start', {
       prompt: 'Go.',
-      output: z.object({ ok: z.boolean() }),
+      response: type({ ok: 'boolean' }),
       next: { terminal: true },
     })
     .build();
@@ -46,7 +46,7 @@ test('skill().build() throws on missing name', () => {
   assert.throws(
     () =>
       skill({ name: '', entry: 'start' })
-        .step('start', { prompt: 'x', output: z.object({}), next: { terminal: true } })
+        .step('start', { prompt: 'x', response: type({}), next: { terminal: true } })
         .build(),
     /name is required/,
   );
@@ -56,7 +56,7 @@ test('skill().build() throws on missing entry', () => {
   assert.throws(
     () =>
       skill({ name: 'x', entry: '' })
-        .step('start', { prompt: 'x', output: z.object({}), next: { terminal: true } })
+        .step('start', { prompt: 'x', response: type({}), next: { terminal: true } })
         .build(),
     /entry is required/,
   );
@@ -66,7 +66,7 @@ test('skill().build() throws when entry step not found', () => {
   assert.throws(
     () =>
       skill({ name: 'x', entry: 'missing' })
-        .step('start', { prompt: 'x', output: z.object({}), next: { terminal: true } })
+        .step('start', { prompt: 'x', response: type({}), next: { terminal: true } })
         .build(),
     /entry step "missing" not found/,
   );
@@ -80,7 +80,7 @@ test('params type flows into step prompt callbacks', () => {
   const s = skill({
     name: 'typed',
     entry: 'a',
-    params: z.object({ greeting: z.string() }),
+    params: type({ greeting: 'string' }),
   })
     .step('a', {
       prompt: ({ params }) => {
@@ -88,7 +88,7 @@ test('params type flows into step prompt callbacks', () => {
         void _check;
         return 'hi';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -105,7 +105,7 @@ test('triggers are appended to description', () => {
   })
     .step('start', {
       prompt: 'Go.',
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -122,7 +122,7 @@ test('triggers do not double-period when description ends with period', () => {
   })
     .step('start', {
       prompt: 'Go.',
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -138,7 +138,7 @@ test('triggers without description', () => {
   })
     .step('start', {
       prompt: 'Go.',
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -155,7 +155,7 @@ test('empty triggers array does not modify description', () => {
   })
     .step('start', {
       prompt: 'Go.',
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -163,19 +163,22 @@ test('empty triggers array does not modify description', () => {
   assert.equal(s.description, 'Just a skill');
 });
 
-test('stash type flows into step prompt callbacks', () => {
+test('store accessor is available in step prompt callbacks', () => {
   const s = skill({
-    name: 'stashed',
+    name: 'stored',
     entry: 'a',
-    stash: z.object({ name: z.string() }),
   })
     .step('a', {
-      prompt: ({ stash }) => {
-        const _check: string = stash.name;
-        void _check;
+      prompt: 'First',
+      response: type({ name: 'string' }),
+      next: 'b',
+    })
+    .step('b', {
+      prompt: ({ store }) => {
+        void store.steps.a.name;
         return 'hi';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
@@ -185,11 +188,11 @@ test('stash type flows into step prompt callbacks', () => {
 
 test('.subskill() registers a sub-skill on the definition', () => {
   const child = skill({ name: 'child', entry: 'a' })
-    .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'hi', response: type({}), next: { terminal: true } })
     .build();
 
   const parent = skill({ name: 'parent', entry: 'start' })
-    .step('start', { prompt: 'go', output: z.object({ target: z.string() }), next: 'subskill:child' })
+    .step('start', { prompt: 'go', response: type({ target: 'string' }), next: 'subskill:child' })
     .subskill('child', child, { params: (output) => ({ from: output }) })
     .build();
 
@@ -202,11 +205,11 @@ test('.subskill() registers a sub-skill on the definition', () => {
 
 test('.subskill() without params mapping', () => {
   const child = skill({ name: 'child', entry: 'a' })
-    .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'hi', response: type({}), next: { terminal: true } })
     .build();
 
   const parent = skill({ name: 'parent', entry: 'start' })
-    .step('start', { prompt: 'go', output: z.object({}), next: 'subskill:child' })
+    .step('start', { prompt: 'go', response: type({}), next: 'subskill:child' })
     .subskill('child', child)
     .build();
 
@@ -215,18 +218,18 @@ test('.subskill() without params mapping', () => {
 
 test('.subskill() throws on nested sub-skills', () => {
   const grandchild = skill({ name: 'grandchild', entry: 'a' })
-    .step('a', { prompt: 'hi', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'hi', response: type({}), next: { terminal: true } })
     .build();
 
   const child = skill({ name: 'child', entry: 'a' })
-    .step('a', { prompt: 'hi', output: z.object({}), next: 'subskill:grandchild' })
+    .step('a', { prompt: 'hi', response: type({}), next: 'subskill:grandchild' })
     .subskill('grandchild', grandchild)
     .build();
 
   assert.throws(
     () =>
       skill({ name: 'parent', entry: 'start' })
-        .step('start', { prompt: 'go', output: z.object({}), next: 'subskill:child' })
+        .step('start', { prompt: 'go', response: type({}), next: 'subskill:child' })
         .subskill('child', child),
     /cannot be nested/,
   );
@@ -234,7 +237,7 @@ test('.subskill() throws on nested sub-skills', () => {
 
 test('.topic() registers topics on the definition', () => {
   const s = skill({ name: 'with-topics', entry: 'start' })
-    .step('start', { prompt: 'go', output: z.object({}), next: { terminal: true } })
+    .step('start', { prompt: 'go', response: type({}), next: { terminal: true } })
     .topic('faq', { label: 'FAQ', content: () => 'Answer' })
     .build();
 
@@ -247,7 +250,7 @@ test('.topic() registers topics on the definition', () => {
 
 test('skill without subskills or topics omits those fields', () => {
   const s = skill({ name: 'plain', entry: 'start' })
-    .step('start', { prompt: 'go', output: z.object({}), next: { terminal: true } })
+    .step('start', { prompt: 'go', response: type({}), next: { terminal: true } })
     .build();
 
   assert.equal(s.subskills, undefined);
@@ -257,8 +260,8 @@ test('skill without subskills or topics omits those fields', () => {
 test('step with incompatible action input schema throws at build time', () => {
   const writeAction = action({
     name: 'write',
-    input: z.object({ path: z.string(), content: z.string() }),
-    output: z.object({ ok: z.boolean() }),
+    input: type({ path: 'string', content: 'string' }),
+    output: type({ ok: 'boolean' }),
     run: async () => ({ ok: true }),
   });
 
@@ -267,20 +270,20 @@ test('step with incompatible action input schema throws at build time', () => {
       skill({ name: 'compat-check', entry: 'draft' })
         .step('draft', {
           prompt: 'Draft',
-          output: z.object({ title: z.string(), body: z.string() }),
+          response: type({ title: 'string', body: 'string' }),
           action: { run: writeAction },
           next: { terminal: true },
         })
         .build(),
-    /missing properties.*path.*content/,
+    /missing properties.*(path.*content|content.*path)/,
   );
 });
 
 test('step with compatible action input schema does not throw', () => {
   const writeAction = action({
     name: 'write',
-    input: z.object({ path: z.string() }),
-    output: z.object({ ok: z.boolean() }),
+    input: type({ path: 'string' }),
+    output: type({ ok: 'boolean' }),
     run: async () => ({ ok: true }),
   });
 
@@ -288,7 +291,7 @@ test('step with compatible action input schema does not throw', () => {
     skill({ name: 'compat-ok', entry: 'a' })
       .step('a', {
         prompt: 'Go',
-        output: z.object({ path: z.string(), extra: z.number() }),
+        response: type({ path: 'string', extra: 'number' }),
         action: { run: writeAction },
         next: { terminal: true },
       })
@@ -296,11 +299,11 @@ test('step with compatible action input schema does not throw', () => {
   );
 });
 
-test('step with action.input mapper skips compat check', () => {
+test('step with action.mapInput mapper skips compat check', () => {
   const writeAction = action({
     name: 'write',
-    input: z.object({ path: z.string() }),
-    output: z.object({ ok: z.boolean() }),
+    input: type({ path: 'string' }),
+    output: type({ ok: 'boolean' }),
     run: async () => ({ ok: true }),
   });
 
@@ -308,10 +311,10 @@ test('step with action.input mapper skips compat check', () => {
     skill({ name: 'mapper-skip', entry: 'a' })
       .step('a', {
         prompt: 'Go',
-        output: z.object({ title: z.string() }),
+        response: type({ title: 'string' }),
         action: {
           run: writeAction,
-          input: ({ stepOutput }) => ({ path: stepOutput.title }),
+          mapInput: ({ response }) => ({ path: response.title }),
         },
         next: { terminal: true },
       })
@@ -336,7 +339,7 @@ test('skill().build() preserves frontmatter extension fields', () => {
     disableModelInvocation: true,
     userInvocable: false,
   })
-    .step('start', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('start', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   assert.equal(s.argumentHint, 'hint text');
@@ -355,7 +358,7 @@ test('skill().build() preserves frontmatter extension fields', () => {
 
 test('skill().build() defaults frontmatter extension fields to undefined', () => {
   const s = skill({ name: 'no-fm', entry: 'start' })
-    .step('start', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('start', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   assert.equal(s.argumentHint, undefined);

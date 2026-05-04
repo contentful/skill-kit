@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-5.9%2B-3178c6" alt="TypeScript 5.9+">
   <img src="https://img.shields.io/badge/Node.js-24%2B-339933" alt="Node.js 24+">
-  <img src="https://img.shields.io/badge/Zod-4-3068b7" alt="Zod 4">
+  <img src="https://img.shields.io/badge/ArkType-4-3068b7" alt="ArkType 4">
 </p>
 
 <p align="center">
@@ -16,10 +16,10 @@
 
 A prose skill is a blob of markdown the agent reads all at once. That works until it doesn't — multi-step workflows need branching and validation, and large reference docs need progressive disclosure.
 
-skill-kit gives you two tools. **Workflow skills** are typed state machines — steps with prompts, Zod schemas, and explicit transitions. **Reference skills** are on-demand topic loaders — the agent reads the SKILL.md, then loads detailed content one topic at a time. Both bundle into self-contained packages that agents invoke via Bash.
+skill-kit gives you two tools. **Workflow skills** are typed state machines — steps with prompts, ArkType schemas, and explicit transitions. **Reference skills** are on-demand topic loaders — the agent reads the SKILL.md, then loads detailed content one topic at a time. Both bundle into self-contained packages that agents invoke via Bash.
 
 ```typescript
-import { skill, z, terminal } from '@contentful/skill-kit';
+import { skill, type, terminal } from '@contentful/skill-kit';
 
 export default skill({
   name: 'repo-doctor',
@@ -27,16 +27,17 @@ export default skill({
 })
   .step('diagnose', {
     prompt: 'Inspect the repository. Report health checks for CI, linting, and test coverage.',
-    output: z.object({
-      checks: z.array(
-        z.object({
-          name: z.string(),
-          status: z.enum(['pass', 'fail']),
-          detail: z.string(),
-        }),
-      ),
+    response: type({
+      checks: {
+        name: 'string',
+        status: "'pass' | 'fail'",
+        detail: 'string',
+      }[],
     }),
-    next: ({ stepOutput }) => (stepOutput.checks.some((c) => c.status === 'fail') ? 'remediate' : 'report'),
+    next: [
+      { to: 'remediate', when: ({ response }) => response.checks.some((c) => c.status === 'fail') },
+      { to: 'report' },
+    ],
   })
   .step('remediate', {
     /* fix failing checks */
@@ -59,7 +60,7 @@ pnpm add @contentful/skill-kit
 ### Define a skill
 
 ```typescript
-import { skill, z, terminal } from '@contentful/skill-kit';
+import { skill, type, terminal } from '@contentful/skill-kit';
 
 export default skill({
   name: 'greet',
@@ -67,12 +68,12 @@ export default skill({
 })
   .step('ask', {
     prompt: 'Ask the user for their name.',
-    output: z.object({ name: z.string() }),
+    response: type({ name: 'string' }),
     next: 'welcome',
   })
   .step('welcome', {
-    prompt: ({ getStep }) => `Say hello to ${getStep('ask')?.stepOutput.name}.`,
-    output: z.object({ message: z.string() }),
+    prompt: ({ store }) => `Say hello to ${store.steps.ask.name}.`,
+    response: type({ message: 'string' }),
     next: terminal,
   })
   .build();
@@ -92,7 +93,7 @@ const result = await runSkill(greet, {
 });
 
 // result.path → ['ask', 'welcome']
-// result.output → { message: 'Hello, Alice!' }
+// result.response → { message: 'Hello, Alice!' }
 ```
 
 ### Build a distributable skill
@@ -106,14 +107,14 @@ Output is an [agentskills.io](https://agentskills.io/specification)-compliant di
 
 ```
 skill/
-  SKILL.md               ← Generated. Agents read this.
+  SKILL.md               <- Generated. Agents read this.
   package.json
   scripts/
-    run                  ← Shell wrapper. The public interface.
+    run                  <- Shell wrapper. The public interface.
   bin/
-    greet.mjs            ← Node mode: single bundle (~100-500KB)
-    # — OR for default bun mode: —
-    # greet-darwin-arm64  ← Standalone executables (~50-100MB each)
+    greet.mjs            <- Node mode: single bundle (~100-500KB)
+    # -- OR for default bun mode: --
+    # greet-darwin-arm64  <- Standalone executables (~50-100MB each)
     # greet-linux-x64
 ```
 
@@ -123,7 +124,7 @@ Install it anywhere — `skills add`, `agents-kit install`, or just `git clone`.
 
 ### Workflow skills
 
-Typed state machines with steps, Zod schemas, branching, and cross-step state. The hero example above shows the pattern — `skill()` → `.step()` → `.build()`. Add `params` for immutable input, `stash` for accumulated state, `askUser` for interactive questions, and `action` for side effects. Steps without a `prompt` auto-advance (useful for computation-only routing steps); steps without an `output` schema skip validation. See the [full API reference](./docs/api.md) for all options.
+Typed state machines with steps, ArkType schemas, branching, and the store for cross-step state. The hero example above shows the pattern — `skill()` -> `.step()` -> `.build()`. Add `params` for immutable input, `store` for typed access to prior step results, `askUser` for interactive questions, and `action` for side effects. The store knows your workflow graph — guaranteed steps are non-optional, branch targets require `?.`. Steps without a `prompt` auto-advance (useful for computation-only routing steps); steps without a `response` schema skip validation. See the [full API reference](./docs/api.md) for all options.
 
 ### Reference skills
 
@@ -151,10 +152,10 @@ The generated SKILL.md lists topics. Agents load them on demand:
 
 ```bash
 scripts/run topics                  # list all topics
-scripts/run topic auth              # load a specific topic → plain text to stdout
+scripts/run topic auth              # load a specific topic -> plain text to stdout
 ```
 
-No JSON, no history, no state machine. Just `topic <name>` → text.
+No JSON, no history, no state machine. Just `topic <name>` -> text.
 
 ### Composite skills
 
@@ -164,14 +165,14 @@ When related skills share references and overlap in scope, combine them into a s
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
-skill({ name: 'contentful-help', entry: 'choose', system: 'You are a helpful Contentful support assistant.', ... })
+skill({ name: 'contentful-help', entry: 'choose', system: 'You are a helpful Contentful support assistant.' })
   .step('choose', {
     prompt: act.askUser({ type: 'structured', question: 'What do you need?', options: [...] }),
-    output: z.object({ choice: z.string() }),
-    next: ({ stepOutput }) => `subskill:${stepOutput.choice}`,
+    response: type({ choice: 'string' }),
+    next: ({ response }) => `subskill:${response.choice}`,
   })
   .topic('rate-limits', { label: 'API rate limits', content: ({ refs }) => refs.load('rate-limits.md') })
-  .subskill('doctor', doctorSkill, { params: (_out, stash) => ({ spaceId: stash.spaceId }) })
+  .subskill('doctor', doctorSkill, { params: (_out, store) => ({ spaceId: store.steps.choose.spaceId }) })
   .subskill('setup', setupSkill)
   .build();
 ```
@@ -183,19 +184,19 @@ Sub-skills are standalone `skill().build()` definitions — testable independent
 ## How It Works
 
 ```
-┌─────────┐  scripts/run         ┌─────────────┐
-│         │ ───────────────────► │             │
-│  Agent  │  ◄ JSON: prompt,     │  Skill CLI  │
-│         │    schema            │  (bundled)  │
-│         │                      │             │
-│         │  scripts/run advance │             │
-│         │ ───────────────────► │             │
-│         │  ◄ JSON: next prompt │             │
-│         │       ...or done     │             │
-└─────────┘                      └─────────────┘
++---------+  scripts/run         +-------------+
+|         | --------------------> |             |
+|  Agent  |  < JSON: prompt,     |  Skill CLI  |
+|         |    schema            |  (bundled)  |
+|         |                      |             |
+|         |  scripts/run advance |             |
+|         | --------------------> |             |
+|         |  < JSON: next prompt |             |
+|         |       ...or done     |             |
++---------+                      +-------------+
 ```
 
-The SDK supports three invocation modes. **MCP mode** (preferred) runs the skill as a long-lived MCP stdio server — the agent interacts through `start`/`advance` tool calls with no Bash or file I/O visible to the user. **Session mode** writes protocol data to a JSONL temp file — the agent reads/writes the file instead of parsing verbose JSON from stdout. **Stateless mode** passes the full conversation history via `--history` on every `advance` call. All modes share the same engine, validate against Zod schemas, and return the next step's prompt.
+The SDK supports three invocation modes. **MCP mode** (preferred) runs the skill as a long-lived MCP stdio server — the agent interacts through `start`/`advance` tool calls with no Bash or file I/O visible to the user. **Session mode** writes protocol data to a JSONL temp file — the agent reads/writes the file instead of parsing verbose JSON from stdout. **Stateless mode** passes the full conversation history via `--history` on every `advance` call. All modes share the same engine, validate against ArkType schemas, and return the next step's prompt.
 
 To use MCP mode, configure the skill as an MCP server in your agent host:
 
@@ -227,20 +228,41 @@ No tool names in the XML. The preamble handles the mapping. Same skill, same XML
 
 ### Step Lifecycle
 
-Each step follows a fixed lifecycle. Understanding the order matters when using actions and stash together:
+Each step follows a fixed lifecycle. Understanding the order matters when using actions and the `save` callback:
 
 ```
-prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next
+prompt -> model -> validate(response) -> action.mapInput -> action.run -> save -> store -> next
 ```
 
 1. **prompt** -- the CLI emits the step's prompt and schema to the agent (steps without a prompt auto-advance immediately)
 2. **model** -- the agent reads the prompt, does the work, returns structured output
-3. **validate(stepOutput)** -- the CLI validates the output against the step's Zod schema (skipped for output-less steps)
-4. **action.input** -- if the step has an action, `action.input` transforms the validated output into action input
+3. **validate(response)** -- the CLI validates the output against the step's ArkType schema (skipped for response-less steps)
+4. **action.mapInput** -- if the step has an action, `action.mapInput` transforms the validated response into action input
 5. **action.run** -- the action executes CLI-side (file writes, API calls, etc.)
-6. **action.updateStash** -- `action.updateStash` persists action results to the stash
-7. **updateStash** -- the step-level `updateStash` callback runs, receiving both the step output and action result
+6. **save** -- the `save` callback returns `{ step?, ...subStoreWrites }`. The `step` property controls what gets stored as the step result (defaults to action output or response). Additional keys are deep-merged into the corresponding sub-stores.
+7. **store** -- the step result is appended to `store.steps`, and sub-store writes are merged into their top-level store properties
 8. **next** -- the transition function determines the next step (or terminal)
+
+### The store knows your workflow graph
+
+The store organizes state into two namespaces: `store.steps` for step-keyed results and top-level sub-stores for domain-structured state. Step results flow into `store.steps` automatically. Sub-stores are populated by `save` callbacks that return additional keys alongside the optional `step` property.
+
+The type system tracks which steps are guaranteed (on all paths from entry) vs optional (branch targets), computed automatically from your step declarations:
+
+```typescript
+.step('profile-card', {
+  prompt: ({ store }) => {
+    const name = store.steps.greet.name;              // guaranteed -- non-optional
+    const role = store.steps['ask-role'].role;         // guaranteed -- non-optional
+    const stack = store.steps['ask-stack']?.answer;    // branch target -- optional, use ?.
+    const hobbies = store.steps.all('ask-hobby');      // loop visits -- typed array
+    const env = store.environment;                     // sub-store -- domain state
+    // ...
+  },
+})
+```
+
+Zero boilerplate. No `updateStash`, no manual wiring. Retry loops (backward edges) don't create false branches — the forward path is still guaranteed.
 
 ---
 
@@ -248,7 +270,7 @@ prompt → model → validate(stepOutput) → action.input → action.run → ac
 
 ### get-to-know-you (workflow)
 
-A playful interview that builds a developer trading card. Shows branching, `askUser`, `confirm`, fragments, render helpers, actions, and loop guards.
+A playful interview that builds a developer trading card. Shows declarative branching with `NextBranch[]`, `askUser`, `confirm`, render helpers, actions, loop guards, and the store.
 
 ```typescript
 .step('ask-role', {
@@ -261,14 +283,13 @@ A playful interview that builds a developer trading card. Shows branching, `askU
       { value: 'manager', label: 'Manager' },
     ],
   }),
-  output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
-  next: ({ stepOutput }) => {
-    switch (stepOutput.role) {
-      case 'dev': return 'ask-stack';
-      case 'designer': return 'ask-tools';
-      default: return 'ask-specialty';
-    }
-  },
+  response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
+  next: [
+    { to: 'ask-stack', when: ({ response }) => response.role === 'dev' },
+    { to: 'ask-tools', when: ({ response }) => response.role === 'designer' },
+    { to: 'ask-team-size', when: ({ response }) => response.role === 'manager' },
+    { to: 'ask-specialty' },
+  ],
 })
 ```
 
@@ -306,15 +327,15 @@ A composite skill that dispatches to doctor and setup sub-skills, or resolves FA
 ### Workflow Builder
 
 ```typescript
-import { skill, z, act, view, terminal } from '@contentful/skill-kit';
+import { skill, type, act, view, terminal } from '@contentful/skill-kit';
 
-skill({ name, entry, system?, version?, resolveVersion?, package?, description?, triggers?, params?, stash?, observers?, finalOutput? })
-  .step(name, config)              // inline step — params/stash types inferred
+skill({ name, entry, system?, version?, resolveVersion?, package?, description?, triggers?, params?, observers?, finalOutput? })
+  .step(name, config)              // inline step -- params/store types inferred
   .extend(name, sharedStep, overrides)  // shared step with typed overrides
-  .register(module, { next })      // merge module steps, widen stash type
+  .register(module, { next })      // merge module steps, widen store type
   .subskill(name, skillDef, opts?) // register a sub-skill with params mapping
   .topic(name, { label, content }) // register a reference topic
-  .build()                         // → SkillDefinition
+  .build()                         // -> SkillDefinition
 ```
 
 ### Reference Builder
@@ -322,7 +343,7 @@ skill({ name, entry, system?, version?, resolveVersion?, package?, description?,
 ```typescript
 reference({ name, description, version?, resolveVersion?, package? })
   .topic(name, { label, content: (ctx) => string })  // content receives { refs }
-  .build()                                            // → ReferenceDefinition
+  .build()                                            // -> ReferenceDefinition
 ```
 
 ### Primitives
@@ -343,7 +364,7 @@ Use `view()` to inject pre-rendered content into prompts:
 ```typescript
 import { view } from '@contentful/skill-kit';
 
-prompt: ({ stash }) => [view('Trading Card', renderedCard), 'Present the card verbatim.'],
+prompt: ({ store }) => [view('Trading Card', renderedCard), 'Present the card verbatim.'],
 ```
 
 Use `terminal` as a shorthand for `{ terminal: true }`:
@@ -357,9 +378,9 @@ next: terminal,
 Prompt functions receive `act` and `system` via `PromptContext` for composable prompt vocabulary:
 
 ```typescript
-prompt: ({ stash, act, system }) => [
+prompt: ({ store, act, system }) => [
   system`You are a game dev mentor.`,
-  act.checklist({ create: stash.tasks.map(t => ({ title: t, status: 'pending' })) }),
+  act.checklist({ create: store.steps.all('task').map(t => ({ title: t.name, status: 'pending' })) }),
   prompt`Build the game. Update the checklist as you go.`,
 ],
 ```
@@ -383,7 +404,7 @@ skill-kit build <entry.ts> -o <dir>                # Bundle skill (default: bun 
 skill-kit build <entry.ts> -o <dir> --mode node    # Lightweight Node.js bundle
 skill-kit build ... --targets linux-arm64           # Override platform targets (bun mode)
 skill-kit build ... --single                        # Current platform only (bun mode, fast)
-skill-kit run <skill.ts> --params '{}' --host ...   # Dev mode — run without building
+skill-kit run <skill.ts> --params '{}' --host ...   # Dev mode -- run without building
 skill-kit check <skill.ts>                          # Lint for portability issues
 ```
 
@@ -393,34 +414,31 @@ skill-kit check <skill.ts>                          # Lint for portability issue
 ```typescript
 {
   prompt?: string | PromptPiece | PromptPiece[] | PromptFn,  // accepts segments (ActSegment, ViewSegment, etc.) directly; omit for auto-advance steps
-  output?: z.ZodType,                                         // omit for steps that skip validation
-  next: 'step-name' | ((ctx) => 'step-name') | terminal,
+  response?: type.Any,                                        // omit for steps that skip validation; requires prompt
+  next: 'step-name' | NextBranch[] | ((ctx) => 'step-name') | terminal,
   action?: {
     run: ActionDefinition,                                     // the action to execute
-    input?: (ctx: { stepOutput; stash }) => unknown,           // transform step output to action input
-    updateStash?: (ctx: { actionOutput }) => Partial<TStash>,  // stash action results
+    mapInput?: (ctx: { response; store; params }) => unknown,  // transform response to action input
   },
-  updateStash?: (ctx: { stepOutput; actionOutput? }) => Partial<TStash>,
+  save?: (ctx: { response; actionResult; store; params }) => { step?: unknown; [subStore: string]: unknown } | void,
   maxVisits?: number,
   onMaxVisits?: string,
 }
 ```
 
-**Step lifecycle:** `prompt` -> `model` -> `validate(stepOutput)` -> `action.input` -> `action.run` -> `action.updateStash` -> `updateStash` -> `next`
+**Step lifecycle:** `prompt` -> `model` -> `validate(response)` -> `action.mapInput` -> `action.run` -> `save` -> `store` -> `next`
 
 `PromptContext` fields available in dynamic prompts:
 
-| Field      | Description                                                       |
-| ---------- | ----------------------------------------------------------------- |
-| `history`  | All prior step results                                            |
-| `getStep`  | Typed accessor: `getStep<T>('name')?.stepOutput`                  |
-| `params`   | Global skill params (typed from `skill({ params: ... })`)         |
-| `refs`     | Lazy loader for `references/` files                               |
-| `attempts` | How many times this step has been visited                         |
-| `host`     | Current host info                                                 |
-| `stash`    | Accumulated stash data (typed from `skill({ stash: ... })`)       |
-| `act`      | Primitive directive builders (`askUser`, `confirm`, `plan`, etc.) |
-| `system`   | System segment tag/function for persona/frame                     |
+| Field      | Description                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `store`    | Typed accessor with `store.steps.*` for step results and top-level sub-stores for domain state |
+| `params`   | Global skill params (typed from `skill({ params: ... })`)                                      |
+| `refs`     | Lazy loader for `references/` files                                                            |
+| `attempts` | How many times this step has been visited                                                      |
+| `host`     | Current host info                                                                              |
+| `act`      | Primitive directive builders (`askUser`, `confirm`, `plan`, etc.)                              |
+| `system`   | System segment tag/function for persona/frame                                                  |
 
 </details>
 
@@ -428,8 +446,10 @@ For modules, fragments, actions, render helpers, observers, and lint rules, see 
 
 ## Key Decisions
 
-- **Builder pattern.** `skill()` returns a builder. `.step()` callbacks get typed params/stash via contextual inference — no annotations.
-- **Schemas are Zod.** One validator, native TS types. No pluggable schema systems.
+- **Builder pattern.** `skill()` returns a builder. `.step()` callbacks get typed params and store via contextual inference — no annotations.
+- **Schemas are ArkType.** One validator, native TS types. String-based type expressions: `type({ name: 'string' })`.
+- **The store knows your graph.** Step results live under `store.steps` with DAG-based typing — guaranteed predecessors are non-optional (`store.steps.greet.name`), branch targets require `?.` (`store.steps['ask-stack']?.answer`). Top-level sub-stores hold domain state populated by `save` callbacks.
+- **Declarative branching.** `next: [{ to: 'a', when: ... }, { to: 'b' }]` — pattern-match style transitions. The type system extracts targets and computes guaranteed vs optional.
 - **XML output format.** Primitives render as XML tags (`<ask-user>`, `<plan>`, `<checklist>`, etc.). The preamble maps tags to host-specific tools via a markdown table.
 - **Single invocation.** No persistent processes. Each call reconstructs from history.
 - **Three skill patterns, one build pipeline.** Workflow skills for state machines, reference skills for progressive disclosure, and composite skills that combine sub-skills and topics under a single dispatcher. All build to the same agentskills.io directory structure.

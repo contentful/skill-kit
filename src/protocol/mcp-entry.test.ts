@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from './mcp-entry.js';
-import { skill, z } from '../index.js';
+import { skill, type } from '../index.js';
 import type { ReferenceLoader } from '../types.js';
 
 const NOOP_REFS: ReferenceLoader = { load: () => '', asset: (p: string) => p };
@@ -12,7 +12,7 @@ function simpleSkill() {
   return skill({ name: 'test-skill', entry: 'greet' })
     .step('greet', {
       prompt: 'Say hello.',
-      output: z.object({ message: z.string() }),
+      response: type({ message: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -22,12 +22,12 @@ function multiStepSkill() {
   return skill({ name: 'multi', entry: 'greet' })
     .step('greet', {
       prompt: 'Say hello.',
-      output: z.object({ message: z.string() }),
+      response: type({ message: 'string' }),
       next: 'ask',
     })
     .step('ask', {
       prompt: 'Ask a question.',
-      output: z.object({ answer: z.string() }),
+      response: type({ answer: 'string' }),
       next: { terminal: true },
     })
     .build();

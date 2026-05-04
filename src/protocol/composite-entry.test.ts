@@ -262,7 +262,7 @@ test('composite session: full lifecycle dispatcher → subskill (file mode)', as
   assert.equal(triagePrompt.type, 'prompt');
   assert.equal(triagePrompt.step, 'doctor/triage');
 
-  // Advance doctor/triage → transitions to doctor/report (prompt needs stash from diagnose action)
+  // Advance doctor/triage → transitions to doctor/report (prompt needs action result from diagnose via store)
   appendFileSync(
     pointer.file,
     JSON.stringify({ type: 'output', step: 'doctor/triage', output: { priority: 'high' } }) + '\n',
@@ -289,7 +289,7 @@ test('composite session: full lifecycle dispatcher → subskill (file mode)', as
   assert.deepEqual(doneLine.finalOutput, { summary: 'all good' });
 });
 
-test('composite session: subskill action stash survives across advances', async () => {
+test('composite session: subskill action result survives across advances via store', async () => {
   const dir = createTempDir();
 
   // Start dispatcher
@@ -303,7 +303,7 @@ test('composite session: subskill action stash survives across advances', async 
   );
   await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
 
-  // Advance doctor/diagnose — action runs, stash populated, transitions to doctor/triage
+  // Advance doctor/diagnose — action runs, result stored, transitions to doctor/triage
   appendFileSync(
     pointer.file,
     JSON.stringify({ type: 'output', step: 'doctor/diagnose', output: { issue: '/src' } }) + '\n',
@@ -311,8 +311,8 @@ test('composite session: subskill action stash survives across advances', async 
   await run('advance', '--session', pointer.sessionId, '--session-dir', dir);
 
   // Advance doctor/triage — THIS is the cross-process replay:
-  // Engine replays diagnose from history, must restore action stash,
-  // then builds doctor/report prompt which reads stash.scanResult
+  // Engine replays diagnose from history, must restore action result in store,
+  // then builds doctor/report prompt which reads the action result via store
   appendFileSync(
     pointer.file,
     JSON.stringify({ type: 'output', step: 'doctor/triage', output: { priority: 'high' } }) + '\n',
@@ -325,7 +325,7 @@ test('composite session: subskill action stash survives across advances', async 
   assert.equal(reportLine.step, 'doctor/report');
   assert.ok(
     (reportLine.prompt as string).includes('scanned:/src'),
-    `report prompt should contain action stash value from diagnose, got: ${reportLine.prompt}`,
+    `report prompt should contain action result value from diagnose, got: ${reportLine.prompt}`,
   );
 });
 

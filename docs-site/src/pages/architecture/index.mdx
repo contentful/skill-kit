@@ -76,7 +76,7 @@ scripts/run advance \
   --step diagnose \
   --output '{"checks":[{"name":"ci","status":"fail","detail":"no config"}]}' \
   --params '{"path":"."}' \
-  --history '[{"step":"diagnose","stepOutput":{...}}]' \
+  --history '[{"step":"diagnose","response":{...}}]' \
   --host claude-code
 ```
 
@@ -114,7 +114,7 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 | `--params`      | On `start`   | JSON string validated against the skill's params schema                                                                                                                |
 | `--step`        | On `advance` | Name of the step being submitted. Not needed with `--session` in file mode                                                                                             |
 | `--output`      | On `advance` | JSON string — the agent's response. Not needed with `--session` in file mode                                                                                           |
-| `--history`     | On `advance` | JSON array of `{ step, stepOutput, actionOutput? }`. Not needed with `--session`                                                                                       |
+| `--history`     | On `advance` | JSON array of `{ step, response, actionResult? }`. Not needed with `--session`                                                                                         |
 | `--host`        | Optional     | Host identifier: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`, `generic`                                        |
 | `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). Only needed on `start` — session mode stores tools in the header |
 | `--subagent`    | Optional     | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge)                                                    |
@@ -126,7 +126,7 @@ The agent retries with corrected output. The `retry: true` flag tells the agent 
 
 No persistent processes, no stdin piping, no subprocess lifecycle management. The agent makes sequential Bash calls and parses JSON — a pattern every agent host supports today. Statelessness also enables horizontal scaling, resumable workflows, and retry/redo logic without session corruption.
 
-History replay is cheap. The engine reconstructs state (stash, visit counts) from history data without re-executing actions or observers.
+History replay is cheap. The engine reconstructs state (store, visit counts) from history data without re-executing actions or observers. Session mode uses the same replay mechanism — it just reads history from the file instead of CLI args.
 
 ---
 
@@ -161,7 +161,7 @@ The generated SKILL.md includes MCP instructions first, with CLI as a labeled fa
 
 The skill CLI cannot call tools. It cannot invoke MCP methods. It cannot cause the host to render UI. Only the model can do those things, and only in response to prose it reads.
 
-When the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can do is return XML that the preamble has mapped to that tool. The model reads the XML tag, consults the preamble's tag-to-tool table, calls the tool, and passes the answer back on the next invocation. The answer shape is still enforced by the step's Zod schema.
+When the SDK wants the model to use `AskUserQuestion` on Claude Code, all it can do is return XML that the preamble has mapped to that tool. The model reads the XML tag, consults the preamble's tag-to-tool table, calls the tool, and passes the answer back on the next invocation. The answer shape is still enforced by the step's ArkType schema.
 
 Everything in the host-aware system is downstream of this constraint. Primitives render XML tags; the preamble maps each tag to the host's tools. The "capability system" is a lookup table that picks which tool to advertise per tag.
 
@@ -377,7 +377,7 @@ import { main } from '@contentful/skill-kit/cli';
 main(skill);
 ```
 
-**Bun mode:** `bun build --compile` bundles everything — the SDK, Zod, the skill code — into a single self-contained executable. The SDK itself has no Bun runtime dependency; Bun is used only as a build tool.
+**Bun mode:** `bun build --compile` bundles everything — the SDK, ArkType, the skill code — into a single self-contained executable. The SDK itself has no Bun runtime dependency; Bun is used only as a build tool.
 
 **Node mode:** esbuild bundles the same tree into a single `.mjs` file. All dependencies are inlined; only Node.js built-ins are external.
 
@@ -389,36 +389,39 @@ The `WorkflowEngine` (`src/runtime/engine.ts`) is the core state machine.
 
 ### Lifecycle
 
-**Constructor** — Takes a `SkillDefinition`, `Handshake`, params, and optional `ReferenceLoader`. Initializes the stash store and tool resolver.
+**Constructor** — Takes a `SkillDefinition`, `Handshake`, params, and optional `ReferenceLoader`. Initializes the state store.
 
-**`start()`** — Validates the skill structure (parent sentinels resolved, cycle guards present). Generates the preamble. Fires `onStepStart`. Returns the first step's `PromptResult`.
+**`start()`** — Validates the skill structure (parent sentinels resolved, cycle guards present). Generates the preamble. Fires `onStepStart`. Returns the first step's `PromptResult`. If the entry step has no prompt, it auto-advances through the step lifecycle without agent interaction (useful for computation-only routing steps).
 
 **`advance(stepName, rawOutput)`** — The main loop:
 
-1. **Validate** output against step's Zod schema via `safeParse()`.
+1. **Validate** response against step's ArkType schema. Steps without a `response` schema skip validation.
 2. If invalid: fire `onStepValidationFailed`, return `ValidationErrorResult` with `retry: true`.
-3. **action.input** — if the step has `action.input`, transform the output into action input.
-4. **action.run** — execute the action (if configured). Action receives typed input and AbortSignal. Result recorded in history.
-5. **action.updateStash** — if the step has `action.updateStash`, merge action results into the stash.
-6. **Merge stash** via the step's `updateStash()` callback (if present). Receives `{ stepOutput, actionOutput? }`. Shallow merge into accumulator.
-7. **Freeze** the output object.
-8. **Append** to history.
-9. Fire `onStepComplete`.
-10. **Resolve next step:**
-    - `{ terminal: true }` — fire `onSkillComplete`, return `DoneResult`.
-    - Function — call with `{ stepOutput, attempts }`, get step name.
-    - `'self'` — rewrite to current step name.
-    - Apply `maxVisits` / `onMaxVisits` throttle.
-11. Fire `onTransition`.
+3. **Map action input** via `action.mapInput` (if configured), or use validated response directly.
+4. **Execute action** (if configured). Action receives typed input and AbortSignal.
+5. **Compute save** — call the `save` callback (if configured) with `{ response, actionResult, store, params }`. The return value is `{ step?, ...subStoreWrites }`. The `step` property determines what gets stored as the step result (priority: `save().step` > action output > response). Additional keys are deep-merged into the corresponding sub-stores via `applySave()`.
+6. **Freeze** the step result object.
+7. **Append** the step result to `store.steps`. Deep-merge any sub-store writes into their top-level store properties.
+8. Fire `onStepComplete`.
+9. **Resolve next step:**
+   - `{ terminal: true }` / `terminal` — fire `onSkillComplete`, return `DoneResult`.
+   - `NextBranch[]` — evaluate branches in order, first match wins.
+   - Function — call with `{ response, actionResult, attempts, params, store }`, get step name.
+   - `'self'` — rewrite to current step name.
+   - Apply `maxVisits` / `onMaxVisits` throttle.
+10. Fire `onTransition`.
+11. If the next step has no prompt, auto-advance through it immediately (no agent round-trip needed).
 12. Return next step's `PromptResult`.
 
 ### History replay
 
-`replayHistory(history)` reconstructs engine state from a previous execution. It validates each entry's stepOutput against the step schema and re-merges stash, but does not re-execute actions or fire observers. This is how the stateless protocol works — each `advance` call replays the full history to rebuild state before processing the new step.
+`replayHistory(history)` reconstructs engine state from a previous execution. It validates each entry's response against the step schema and re-executes `save` callbacks to rebuild both step results and sub-store state, but does not re-execute actions or fire observers. This is how the stateless protocol works — each `advance` call replays the full history to rebuild state before processing the new step.
 
-### StashStore
+### StateStore
 
-Merge-only accumulator. Each `updateStash()` callback returns a partial stash object that's shallow-merged (`Object.assign`) into the current state. Values are frozen after merge. No deletions, no deep merges.
+Append-only store with two namespaces. Step results live under `store.steps` — each step appends a `StepResult` record containing the step name, response, actionResult, and computed result. The `steps` namespace provides a typed accessor (`StepsView`) via a `Proxy` that maps property access to step-name lookups. Guaranteed steps (on all paths from entry) are non-optional; branch targets require `?.`. Methods like `steps.all(step)` and `steps.ran(step)` provide loop and existence queries. Values are frozen after append.
+
+Top-level sub-stores hold domain-structured state populated by `save` callbacks. When a `save` callback returns keys beyond `step`, those are deep-merged into the corresponding sub-store properties via `applySave()`. Multiple steps can write to the same sub-store — writes accumulate via deep merge, allowing incremental state building across the workflow.
 
 ### Observer dispatch
 
@@ -428,7 +431,7 @@ Observers fire sequentially and are awaited (they can be async), but failures ar
 
 When a composite skill's step returns a `next` target that doesn't exist in the local step map (e.g., `'subskill:doctor'`), the engine returns a `RedirectResult` instead of throwing. The composite entry point (`compositeMain`) intercepts this:
 
-1. **`subskill:X`** — looks up the sub-skill registration, calls `paramsMap(output, stash)` to produce params, creates a new `WorkflowEngine` for the sub-skill, and returns its first `PromptResult` with the step name prefixed (`doctor/diagnose`).
+1. **`subskill:X`** — looks up the sub-skill registration, calls `paramsMap(response, store)` to produce params, creates a new `WorkflowEngine` for the sub-skill, and returns its first `PromptResult` with the step name prefixed (`doctor/diagnose`).
 2. **`topic:X`** — loads the topic content via `ReferenceLoader` and returns a `DoneResult`.
 
 On subsequent `advance` calls, the composite entry checks whether the step name contains `/`. If it does, it routes to the corresponding sub-skill engine (with history filtered and unprefixed). The engines themselves are unaware of the composite layer — each operates on its own `SkillDefinition` with unprefixed step names.
@@ -457,7 +460,7 @@ interface LintDiagnostic {
 
 **`no-host-tool-names`** (error) — Steps must not reference host tool names directly (e.g., `AskUserQuestion`, `apply_patch`, `TodoWrite`) in prompts without guarding behind `host.toolsAvailable.includes('ToolName')`. Scans both string prompts and function `.toString()` output. The guard pattern exempts the reference.
 
-**`primitive-schema-mismatch`** (error/warning) — For steps with `askUser` structured type: errors if option values are missing from the output Zod enum, warns if the enum has values not present in the options list.
+**`primitive-schema-mismatch`** (error/warning) — For steps with `askUser` structured type: errors if option values are missing from the output ArkType enum, warns if the enum has values not present in the options list.
 
 **`orphan-references`** (warning) — Files in the `references/` directory that aren't mentioned in any step prompt. May indicate dead content.
 
@@ -477,7 +480,7 @@ For composite skills, `checkSkill` recursively lints each registered sub-skill. 
 
 These are non-negotiable choices with specific rationale. For the full list, see [SPEC.md §13](https://github.com/contentful/skill-kit/blob/main/SPEC.md#13-what-the-sdk-is-opinionated-about).
 
-**State is append-only.** Prior step outputs are never mutated. The stash accumulates via shallow merge; history is a linear append. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
+**State is append-only.** Prior step results are never mutated. The store is append-only — each step appends its result. This enables history replay — the engine can reconstruct state from data without re-executing side effects.
 
 **Cycles have implicit bounds.** The cycle guard validator detects potential cycles and applies a default runtime limit (10 visits). Explicit `maxVisits` + `onMaxVisits` provides control over the fallback behavior. Unguarded cycles are a lint warning, not a load-time error — the runtime safety net prevents infinite loops.
 
@@ -485,6 +488,6 @@ These are non-negotiable choices with specific rationale. For the full list, see
 
 **Steps are named string keys.** The state machine is inspectable as data. Transitions reference step names as strings, not closures. This makes the workflow diffable, serializable, and debuggable.
 
-**Schemas are Zod.** One validator, one source of truth, native TypeScript types. No pluggable schema systems. The SDK re-exports `z` so skills don't need a separate Zod dependency.
+**Schemas are ArkType.** One validator, one source of truth, native TypeScript types. No pluggable schema systems. The SDK re-exports `type` so skills don't need a separate ArkType dependency.
 
 **Prose stays prose.** The SDK structures when prose is shown and what contract it satisfies. It never replaces prose with code. Nodes contain freely-written instructions; transitions between nodes are typed and explicit.

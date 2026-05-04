@@ -1,34 +1,34 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
 import type { ModuleDefinition, StepConfig, StepDefinition } from './types.js';
 import { step as createStep } from './step.js';
 
-export interface ModuleConfig<TModuleStash extends z.ZodType = z.ZodType> {
+export interface ModuleConfig {
   name: string;
   entry: string;
-  stash: TModuleStash;
 }
 
-export class ModuleBuilder<TStashSchema extends z.ZodType> {
-  private readonly config: ModuleConfig<TStashSchema>;
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export class ModuleBuilder<TModuleSteps extends Record<string, unknown> = {}> {
+  private readonly config: ModuleConfig;
   private readonly steps: Record<string, StepDefinition> = {};
 
-  constructor(config: ModuleConfig<TStashSchema>) {
+  constructor(config: ModuleConfig) {
     this.config = config;
   }
 
-  step<TOutput extends z.ZodType>(
-    name: string,
-    configOrDef: StepConfig<TOutput, unknown, z.infer<TStashSchema>> | StepDefinition,
-  ): ModuleBuilder<TStashSchema> {
+  step<Name extends string, TOutput extends type.Any>(
+    name: Name,
+    configOrDef: StepConfig<TOutput> | StepDefinition,
+  ): ModuleBuilder<TModuleSteps & { [K in Name]: TOutput['infer'] }> {
     if ('kind' in configOrDef && configOrDef.kind === 'step') {
       this.steps[name] = configOrDef;
     } else {
       this.steps[name] = createStep(configOrDef as StepConfig);
     }
-    return this;
+    return this as unknown as ModuleBuilder<TModuleSteps & { [K in Name]: TOutput['infer'] }>;
   }
 
-  build(): ModuleDefinition<TStashSchema> {
+  build(): ModuleDefinition<TModuleSteps> {
     const { name, entry } = this.config;
 
     if (!name) throw new Error('module: name is required');
@@ -40,14 +40,11 @@ export class ModuleBuilder<TStashSchema extends z.ZodType> {
       kind: 'module' as const,
       name,
       entry,
-      stash: this.config.stash,
       steps: { ...this.steps },
-    }) as ModuleDefinition<TStashSchema>;
+    }) as ModuleDefinition<TModuleSteps>;
   }
 }
 
-export function module<TModuleStash extends z.ZodType>(
-  config: ModuleConfig<TModuleStash>,
-): ModuleBuilder<TModuleStash> {
-  return new ModuleBuilder<TModuleStash>(config);
+export function module(config: ModuleConfig): ModuleBuilder {
+  return new ModuleBuilder(config);
 }

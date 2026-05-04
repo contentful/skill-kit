@@ -1,4 +1,5 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
+import type { StoreAccessor } from './runtime/state-store.js';
 
 // --- Host ---
 
@@ -24,19 +25,19 @@ export interface ReferenceLoader {
 
 // --- Actions ---
 
-export interface ActionConfig<TInput extends z.ZodType = z.ZodType, TOutput extends z.ZodType = z.ZodType> {
+export interface ActionConfig<TInput extends type.Any = type.Any, TOutput extends type.Any = type.Any> {
   name: string;
   input: TInput;
   output: TOutput;
-  run: (ctx: { input: z.infer<TInput>; signal: AbortSignal }) => Promise<z.infer<TOutput>>;
+  run: (ctx: { input: TInput['infer']; signal: AbortSignal }) => Promise<TOutput['infer']>;
 }
 
-export interface ActionDefinition<TInput extends z.ZodType = z.ZodType, TOutput extends z.ZodType = z.ZodType> {
+export interface ActionDefinition<TInput extends type.Any = type.Any, TOutput extends type.Any = type.Any> {
   readonly kind: 'action';
   readonly name: string;
   readonly input: TInput;
   readonly output: TOutput;
-  readonly run: (ctx: { input: z.infer<TInput>; signal: AbortSignal }) => Promise<z.infer<TOutput>>;
+  readonly run: (ctx: { input: TInput['infer']; signal: AbortSignal }) => Promise<TOutput['infer']>;
 }
 
 // --- Primitives ---
@@ -86,7 +87,7 @@ export interface ChecklistConfig {
 export interface SubagentConfig {
   readonly kind: 'subagent';
   prompt: string;
-  output: z.ZodType;
+  output: type.Any;
   allowRecursion?: boolean;
 }
 
@@ -144,7 +145,7 @@ export interface ActBuilder {
   confirm(input: { message: string; destructive?: boolean; defaultAnswer?: 'yes' | 'no' }): ActSegment;
   plan(input: { summary: string; steps: string[] }): ActSegment;
   checklist(input: { create: Array<{ title: string; status: string }> }): ActSegment;
-  subagent(input: { prompt: string; output: z.ZodType; allowRecursion?: boolean }): ActSegment;
+  subagent(input: { prompt: string; output: type.Any; allowRecursion?: boolean }): ActSegment;
   survey(questions: SurveyQuestion[]): ActSegment;
 }
 
@@ -156,106 +157,186 @@ export type SystemBuilder = {
 // --- Type helpers ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type InferActionOutput<A> = A extends ActionDefinition<any, infer TOut> ? z.infer<TOut> : undefined;
+export type InferActionResult<A> = A extends (...args: any[]) => Promise<infer R>
+  ? R
+  : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    A extends ActionDefinition<any, infer TOut>
+    ? TOut['infer']
+    : undefined;
 
 // --- Steps ---
 
 export interface StepResult<TOutput = unknown> {
   readonly step: string;
-  readonly stepOutput: TOutput;
-  readonly actionOutput?: unknown;
+  readonly response: TOutput;
+  readonly actionResult?: unknown;
+  readonly result: unknown;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
 export interface PromptContext<
   TParams = any,
-  TStash = any,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TGuaranteed extends keyof TSteps = never,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > {
-  history: readonly StepResult[];
-  getStep: {
-    <K extends string & keyof TSteps>(stepName: K): { stepOutput: TSteps[K]; actionOutput: unknown } | undefined;
-    (stepName: string): { stepOutput: unknown; actionOutput: unknown } | undefined;
-  };
+  store: StoreAccessor<TSteps, TGuaranteed, TStores, TStoreWrites>;
   params: TParams;
   refs: ReferenceLoader;
   attempts: number;
   host: Handshake;
-  stash: Readonly<TStash>;
   act: ActBuilder;
   system: SystemBuilder;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PromptFn<TParams = any, TStash = any, TSteps extends Record<string, unknown> = Record<string, unknown>> = (
-  ctx: PromptContext<TParams, TStash, TSteps>,
-) => PromptReturn;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
+export type PromptFn<
+  TParams = any,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TGuaranteed extends keyof TSteps = never,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> = (ctx: PromptContext<TParams, TSteps, TGuaranteed, TStores, TStoreWrites>) => PromptReturn;
 
-export type TransitionFn<TOutput = unknown, TActionOutput = unknown, TParams = unknown, TStash = unknown> = (ctx: {
-  stepOutput: TOutput;
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type TransitionFn<
+  TOutput = unknown,
+  TActionResult = unknown,
+  TParams = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> = (ctx: {
+  response: TOutput;
   attempts: number;
-  actionOutput: TActionOutput;
+  actionResult: TActionResult;
   params: Readonly<TParams>;
-  stash: Readonly<TStash>;
+  store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
 }) => string;
 
-export type NextTarget<TOutput = unknown, TActionOutput = unknown, TParams = unknown, TStash = unknown> =
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface NextBranch<
+  TOutput = unknown,
+  TActionResult = unknown,
+  TParams = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> {
+  to: string;
+  when?: (ctx: {
+    response: TOutput;
+    actionResult: TActionResult;
+    params: Readonly<TParams>;
+    store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
+    attempts: number;
+  }) => boolean;
+}
+
+export type NextTarget<
+  TOutput = unknown,
+  TActionResult = unknown,
+  TParams = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+> =
   | string
-  | TransitionFn<TOutput, TActionOutput, TParams, TStash>
+  | TransitionFn<TOutput, TActionResult, TParams, TSteps>
+  | readonly NextBranch<TOutput, TActionResult, TParams, TSteps>[]
   | { terminal: true };
 
 /**
- * Lifecycle: prompt → model → validate(stepOutput) → action.input → action.run → action.updateStash → updateStash → next
+ * Lifecycle: prompt → model → validate(response) → action (inline fn or mapInput+run) → save → next
  *
  * When prompt is omitted the engine auto-advances (no LLM round-trip).
- * When output is omitted no schema block is emitted and validation is skipped.
+ * When response is omitted no schema block is emitted and validation is skipped.
+ * When result is omitted, the step result defaults to the action output (if action exists) or the response.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface StepConfig<
-  TOutput extends z.ZodType = z.ZodType,
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
+interface BaseStepFields<
+  TOutput extends type.Any = type.Any,
   TParams = any,
-  TStash = any,
-  TActionOutput = unknown,
+  TActionResult = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
 > {
-  prompt?: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TStash, TSteps>;
-  output?: TOutput;
-  next: string | TransitionFn<z.infer<TOutput>, TActionOutput, TParams, TStash> | { terminal: true };
-  action?: {
-    run: ActionDefinition;
-    input?: (ctx: { stepOutput: z.infer<TOutput>; stash: Readonly<TStash>; params: Readonly<TParams> }) => unknown;
-    updateStash?: (ctx: { actionOutput: TActionOutput }) => Partial<TStash>;
-  };
-  updateStash?: (ctx: {
-    stepOutput: z.infer<TOutput>;
-    actionOutput: TActionOutput;
-    stash: Readonly<TStash>;
-    params: Readonly<TParams>;
-  }) => Partial<TStash>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  save?: (ctx: { response: any; actionResult: any; store: any; params: any }) => { step?: unknown } | void;
+  next:
+    | string
+    | TransitionFn<TOutput['infer'], TActionResult, TParams, TSteps, TStores, TStoreWrites>
+    | readonly NextBranch<TOutput['infer'], TActionResult, TParams, TSteps, TStores, TStoreWrites>[]
+    | { terminal: true };
+  action?:
+    | ((ctx: {
+        response: TOutput['infer'];
+        store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
+        params: TParams;
+        signal: AbortSignal;
+      }) => Promise<unknown>)
+    | {
+        run: ActionDefinition;
+        mapInput?: (ctx: {
+          response: TOutput['infer'];
+          store: StoreAccessor<TSteps, never, TStores, TStoreWrites>;
+          params: Readonly<TParams>;
+        }) => unknown;
+      };
   maxVisits?: number;
   onMaxVisits?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
+interface PromptStepFields<
+  TOutput extends type.Any = type.Any,
+  TParams = any,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TGuaranteed extends keyof TSteps = never,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> {
+  prompt: string | PromptPiece | PromptPiece[] | PromptFn<TParams, TSteps, TGuaranteed, TStores, TStoreWrites>;
+  response?: TOutput;
+}
+
+interface PromptlessStepFields {
+  prompt?: never;
+  response?: never;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type
+export type StepConfig<
+  TOutput extends type.Any = type.Any,
+  TParams = any,
+  TActionResult = unknown,
+  TSteps extends Record<string, unknown> = Record<string, unknown>,
+  TGuaranteed extends keyof TSteps = never,
+  TStores extends Record<string, unknown> = {},
+  TStoreWrites extends Record<string, unknown> = {},
+> = BaseStepFields<TOutput, TParams, TActionResult, TSteps, TStores, TStoreWrites> &
+  (PromptStepFields<TOutput, TParams, TSteps, TGuaranteed, TStores, TStoreWrites> | PromptlessStepFields);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface StepDefinition<
-  TOutput extends z.ZodType = z.ZodType,
+  TOutput extends type.Any = type.Any,
   TParams = any,
-  TStash = any,
-  TActionOutput = unknown,
+  TActionResult = unknown,
   TSteps extends Record<string, unknown> = Record<string, unknown>,
 > {
   readonly kind: 'step';
-  readonly config: StepConfig<TOutput, TParams, TStash, TActionOutput, TSteps>;
+  readonly config: StepConfig<TOutput, TParams, TActionResult, TSteps>;
   extend(
-    overrides: Partial<StepConfig<TOutput, TParams, TStash, TActionOutput, TSteps>>,
-  ): StepDefinition<TOutput, TParams, TStash, TActionOutput, TSteps>;
+    overrides: Partial<StepConfig<TOutput, TParams, TActionResult, TSteps>>,
+  ): StepDefinition<TOutput, TParams, TActionResult, TSteps>;
 }
 
 // --- Observers ---
 
 export interface ObserverMap {
   onStepStart?: (ctx: { step: string; params: unknown }) => void | Promise<void>;
-  onStepComplete?: (ctx: { step: string; stepOutput: unknown; durationMs: number }) => void | Promise<void>;
+  onStepComplete?: (ctx: { step: string; response: unknown; durationMs: number }) => void | Promise<void>;
   onStepValidationFailed?: (ctx: {
     step: string;
     raw: unknown;
@@ -280,16 +361,16 @@ export type VersionStrategy = { version?: string; resolveVersion?: never } | { v
 
 // --- Skill Builder Config (input to skill()) ---
 
-export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> = {
+export type SkillBuilderConfig<TParams extends type.Any = type.Any> = {
   name: string;
   description?: string;
   triggers?: string[];
   entry: string;
   system?: string;
   params?: TParams;
-  stash?: TStash;
+  stores?: Record<string, type.Any>;
   observers?: ObserverMap;
-  finalOutput?: z.ZodType;
+  finalOutput?: type.Any;
   skillMd?: string | ((skill: SkillDefinition) => string);
   package?: PackageConfig;
   argumentHint?: string;
@@ -308,7 +389,7 @@ export type SkillBuilderConfig<TParams extends z.ZodType = z.ZodType, TStash ext
 
 // --- Skill Definition (output of .build()) ---
 
-export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash extends z.ZodType = z.ZodType> {
+export interface SkillDefinition<TParams extends type.Any = type.Any> {
   readonly kind: 'skill';
   readonly name: string;
   readonly version: string;
@@ -317,10 +398,10 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
   readonly entry: string;
   readonly system: string | undefined;
   readonly params: TParams | undefined;
-  readonly stash: TStash | undefined;
+  readonly stores?: Readonly<Record<string, type.Any>>;
   readonly steps: Readonly<Record<string, StepDefinition>>;
   readonly observers: ObserverMap | undefined;
-  readonly finalOutput: z.ZodType | undefined;
+  readonly finalOutput: type.Any | undefined;
   readonly skillMd: string | ((skill: SkillDefinition) => string) | undefined;
   readonly package: PackageConfig | undefined;
   readonly argumentHint: string | undefined;
@@ -341,12 +422,12 @@ export interface SkillDefinition<TParams extends z.ZodType = z.ZodType, TStash e
 
 // --- Module Definition (output of module().build()) ---
 
-export interface ModuleDefinition<TModuleStash extends z.ZodType = z.ZodType> {
+export interface ModuleDefinition<TModuleSteps extends Record<string, unknown> = Record<string, unknown>> {
   readonly kind: 'module';
   readonly name: string;
   readonly entry: string;
-  readonly stash: TModuleStash;
   readonly steps: Record<string, StepDefinition>;
+  readonly _stepTypes?: TModuleSteps;
 }
 
 // --- Reference Definition ---
@@ -400,7 +481,7 @@ export interface ReferenceDefinition {
 
 export interface SubskillRegistration {
   readonly definition: SkillDefinition;
-  readonly paramsMap?: (stepOutput: unknown, stash: unknown) => unknown;
+  paramsMap?(response: unknown, store: StoreAccessor): unknown;
 }
 
 export type Buildable = SkillDefinition | ReferenceDefinition;
@@ -437,7 +518,7 @@ export interface RedirectResult {
   readonly kind: 'redirect';
   redirect: string;
   completed: StepResult;
-  stash: unknown;
+  store: StoreAccessor;
 }
 
 export type CliResult = PromptResult | DoneResult | ValidationErrorResult | RedirectResult;
@@ -490,8 +571,9 @@ export interface SessionPointer {
 export interface SkillRunResult {
   path: string[];
   outputs: Record<string, unknown>;
-  stepOutput: unknown;
+  response: unknown;
   history: readonly StepResult[];
+  store: StoreAccessor;
 }
 
 export interface ModelAdapter {

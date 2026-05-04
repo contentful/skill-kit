@@ -14,7 +14,8 @@ export interface CycleGuardResult {
   defaultMaxVisits: number;
 }
 
-export function validateCycleGuards(steps: Readonly<Record<string, StepDefinition>>): CycleGuardResult {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function validateCycleGuards(steps: Readonly<Record<string, StepDefinition<any>>>): CycleGuardResult {
   const stepNames = Object.keys(steps);
   const graph = buildGraph(steps, stepNames);
   const cycles = findCycles(graph, stepNames);
@@ -37,7 +38,10 @@ export function validateCycleGuards(steps: Readonly<Record<string, StepDefinitio
   return { stepsInCycles, defaultMaxVisits: DEFAULT_MAX_VISITS };
 }
 
-function buildGraph(steps: Readonly<Record<string, StepDefinition>>, stepNames: string[]): Map<string, Set<string>> {
+function buildGraph(
+  steps: Readonly<Record<string, StepDefinition<any>>>,
+  stepNames: string[],
+): Map<string, Set<string>> {
   const graph = new Map<string, Set<string>>();
 
   for (const name of stepNames) {
@@ -50,6 +54,10 @@ function buildGraph(steps: Readonly<Record<string, StepDefinition>>, stepNames: 
 
     if (typeof next === 'string') {
       if (next in steps) targets.add(next);
+    } else if (Array.isArray(next)) {
+      for (const branch of next) {
+        if (branch.to in steps) targets.add(branch.to);
+      }
     } else if (typeof next === 'function') {
       // Conservative: assume all steps are reachable from a function transition
       for (const target of stepNames) {

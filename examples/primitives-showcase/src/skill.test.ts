@@ -59,7 +59,7 @@ test('confirm-publish declined → ask-changes loop', async () => {
   assert.equal(result.path.filter((s) => s === 'confirm-publish').length, 2);
 });
 
-test('stash accumulates across steps', async () => {
+test('store accumulates data across steps', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'gather-preferences': { theme: 'performance', framework: 'svelte' },
@@ -71,5 +71,5 @@ test('stash accumulates across steps', async () => {
     }),
   });
 
-  assert.deepEqual(result.stepOutput, { summary: 'All done.' });
+  assert.deepEqual(result.response, { summary: 'All done.' });
 });

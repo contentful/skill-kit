@@ -20,10 +20,7 @@ export function registerWorkflowTools(server: McpServer, options: WorkflowToolsO
     {
       description: `Start a new ${skillName} workflow session. Returns the first step prompt.`,
       inputSchema: z.object({
-        params: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe('Skill parameters. Omit if the skill takes no params.'),
+        params: z.record(z.string(), z.unknown()).optional(),
       }),
     },
     (args) => toToolResult(onStart(args.params ?? {})),
@@ -34,9 +31,9 @@ export function registerWorkflowTools(server: McpServer, options: WorkflowToolsO
     {
       description: `Submit step output for the current ${skillName} workflow step and get the next prompt.`,
       inputSchema: z.object({
-        session: z.string().describe('Session ID returned by the start tool.'),
-        step: z.string().describe('The step name being completed.'),
-        output: z.record(z.string(), z.unknown()).describe('JSON output matching the step schema.'),
+        session: z.string(),
+        step: z.string(),
+        output: z.record(z.string(), z.unknown()),
       }),
     },
     async (args) => toToolResult(await sessions.advance(args.session, args.step, args.output)),

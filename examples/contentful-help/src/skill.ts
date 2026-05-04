@@ -1,4 +1,4 @@
-import { skill, z, act } from '@contentful/skill-kit';
+import { skill, type, act } from '@contentful/skill-kit';
 import doctorSkill from './subskills/doctor.js';
 import setupSkill from './subskills/setup.js';
 
@@ -10,7 +10,6 @@ export default skill({
   argumentHint: '[doctor|setup]',
   disableModelInvocation: true,
   entry: 'choose',
-  stash: z.object({ intent: z.string(), spaceId: z.string() }),
 })
   .step('choose', {
     prompt: act.askUser({
@@ -22,26 +21,24 @@ export default skill({
         { value: 'faq', label: 'Quick question', description: 'Look up reference information' },
       ],
     }),
-    output: z.object({ choice: z.enum(['doctor', 'setup', 'faq']) }),
-    updateStash: ({ stepOutput }) => ({ intent: stepOutput.choice, spaceId: '' }),
-    next: ({ stepOutput }) => {
-      if (stepOutput.choice === 'faq') return 'ask-topic';
-      if (stepOutput.choice === 'doctor') return 'get-space';
-      return `subskill:${stepOutput.choice}`;
-    },
+    response: type({ choice: "'doctor' | 'setup' | 'faq'" }),
+    next: [
+      { to: 'ask-topic', when: ({ response }) => response.choice === 'faq' },
+      { to: 'get-space', when: ({ response }) => response.choice === 'doctor' },
+      { to: 'subskill:setup' },
+    ],
   })
 
   .step('get-space', {
     prompt: 'Ask the user for their Contentful space ID, or detect it from CONTENTFUL_SPACE_ID in the environment.',
-    output: z.object({ spaceId: z.string() }),
-    updateStash: ({ stepOutput }) => ({ intent: 'doctor', spaceId: stepOutput.spaceId }),
+    response: type({ spaceId: 'string' }),
     next: 'subskill:doctor',
   })
 
   .step('ask-topic', {
     prompt: act.askUser({ type: 'open', question: 'What would you like to know about?' }),
-    output: z.object({ topicName: z.string() }),
-    next: ({ stepOutput }) => `topic:${stepOutput.topicName}`,
+    response: type({ topicName: 'string' }),
+    next: ({ response }) => `topic:${response.topicName}`,
   })
 
   .topic('rate-limits', {
@@ -54,7 +51,7 @@ export default skill({
   })
 
   .subskill('doctor', doctorSkill, {
-    params: (_output, stash) => ({ spaceId: (stash as { spaceId: string }).spaceId }),
+    params: (_output, store) => ({ spaceId: store.steps['get-space']?.spaceId ?? '' }),
   })
   .subskill('setup', setupSkill)
 

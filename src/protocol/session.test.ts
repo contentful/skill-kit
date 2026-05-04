@@ -115,20 +115,20 @@ test('SessionFile.reconstructHistory builds history from completed fields', () =
     step: 'ask',
     prompt: 'What?',
     schema: {},
-    completed: { step: 'greet', stepOutput: { message: 'hi' } },
+    completed: { step: 'greet', response: { message: 'hi' } },
   });
   session.append({ type: 'output', step: 'ask', output: { answer: 'stuff' } });
   session.append({
     type: 'done',
     done: true,
     finalOutput: { result: 'ok' },
-    completed: { step: 'ask', stepOutput: { answer: 'stuff' }, actionOutput: { status: 200 } },
+    completed: { step: 'ask', response: { answer: 'stuff' }, actionResult: { status: 200 } },
   });
 
   const history = session.reconstructHistory();
   assert.equal(history.length, 2);
-  assert.deepEqual(history[0], { step: 'greet', stepOutput: { message: 'hi' } });
-  assert.deepEqual(history[1], { step: 'ask', stepOutput: { answer: 'stuff' }, actionOutput: { status: 200 } });
+  assert.deepEqual(history[0], { step: 'greet', response: { message: 'hi' } });
+  assert.deepEqual(history[1], { step: 'ask', response: { answer: 'stuff' }, actionResult: { status: 200 } });
 });
 
 test('SessionFile.reconstructHistory returns empty for fresh session', () => {
@@ -162,7 +162,7 @@ test('SessionFile.readLastOutput finds the last output line', () => {
     step: 'ask',
     prompt: 'What?',
     schema: {},
-    completed: { step: 'greet', stepOutput: { message: 'hi' } },
+    completed: { step: 'greet', response: { message: 'hi' } },
   });
   session.append({ type: 'output', step: 'ask', output: { answer: 'stuff' } });
 

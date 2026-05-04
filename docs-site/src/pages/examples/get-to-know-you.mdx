@@ -24,50 +24,30 @@ The skill runs through a multi-step interview:
 
 ## Key patterns
 
-### Fragments for reusable tone
+### System-level persona
 
-The skill defines a `playfulTone` fragment that gets embedded into multiple step prompts, keeping the interview style consistent without repeating the instructions:
+The skill declares a `system` string that sets the tone for the entire workflow:
 
 ```typescript
-const playfulTone = fragment(
-  'playful-tone',
-  `Keep it light and fun. Use casual language. Throw in the occasional
-   joke or pun if it fits. You're a friendly interviewer, not a form.`,
-);
+system:
+  "Keep it light and fun. Use casual language. Throw in the occasional joke or pun if it fits. You're a friendly interviewer, not a form.",
 ```
 
-Fragments are interpolated into the `prompt` tagged template literal. The tag auto-dedents, so you can indent naturally in code:
+### Params
+
+The skill declares immutable params (a greeting string with a default):
 
 ```typescript
-prompt: ({ params }) =>
-  prompt`
-    ${playfulTone}
-
-    ${params.greeting} You're about to interview the user
-    to build their developer trading card. Start by asking their name.
-  `,
-```
-
-### Context and stash
-
-The skill declares both immutable params (a greeting string with a default) and mutable stash (name, role, and latest hobby accumulated across steps):
-
-```typescript
-params: z.object({
-  greeting: z.string().default('Hey there!'),
-}),
-stash: z.object({
-  name: z.string(),
-  role: z.string(),
-  latestHobby: z.string(),
+params: type({
+  greeting: 'string = "Hey there!"',
 }),
 ```
 
-Each step merges into the stash via its `updateStash` callback. Types flow automatically — `stash.name` in a later prompt is typed as `string` without annotations.
+Params are typed everywhere — `params.greeting` in the first step's prompt is typed as `string` without annotations.
 
-### Structured askUser with branching
+### Structured askUser with declarative branching
 
-The `ask-role` step uses `act.askUser` with structured options. The SDK generates host-appropriate XML (mapped to `AskUserQuestion` on Claude Code, a prose option list elsewhere). The step then branches dynamically based on the role:
+The `ask-role` step uses `act.askUser` with structured options. The SDK generates host-appropriate XML (mapped to `AskUserQuestion` on Claude Code, a prose option list elsewhere). Declarative branching routes based on the role:
 
 ```typescript
 .step('ask-role', {
@@ -81,48 +61,38 @@ The `ask-role` step uses `act.askUser` with structured options. The SDK generate
       { value: 'other', label: 'Something else', description: 'I defy your categories' },
     ],
   }),
-  output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
-  updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
-  next: ({ stepOutput }) => {
-    switch (stepOutput.role) {
-      case 'dev':      return 'ask-stack';
-      case 'designer': return 'ask-tools';
-      case 'manager':  return 'ask-team-size';
-      default:         return 'ask-specialty';
-    }
-  },
+  response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
+  next: [
+    { to: 'ask-stack', when: ({ response }) => response.role === 'dev' },
+    { to: 'ask-tools', when: ({ response }) => response.role === 'designer' },
+    { to: 'ask-team-size', when: ({ response }) => response.role === 'manager' },
+    { to: 'ask-specialty' },
+  ],
 })
 ```
 
-### Shared steps with `.extend()`
+Because the SDK can read the branch targets at compile time, it knows that `store['ask-stack']` is optional (only developers take that path) while `store['ask-role']` is guaranteed (every path goes through it).
 
-All four role-specific follow-up steps share the same shape: open-ended question, string answer, move on. Rather than duplicating the config, a standalone step defines the base:
+### The store in action
 
-```typescript
-const openQuestionStep = step({
-  output: z.object({ answer: z.string() }),
-  next: '__parent__',
-});
-```
-
-Each variant extends it with specific prompt using `act.askUser` from PromptContext:
+The `ask-stack` step reads from the store with full type safety. `store.greet.name` is non-optional because `greet` is guaranteed to have run:
 
 ```typescript
-.extend('ask-stack', openQuestionStep, {
-  prompt: ({ stash, act }) => [
-    act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-    prompt`
-      ${playfulTone}
-
-      ${stash.name} is a developer — nice!
-      Ask what their go-to tech stack is. Languages, frameworks, the works.
-    `,
-  ],
+.step('ask-stack', {
+  prompt: ({ store }) => {
+    const name = store.greet.name;  // guaranteed -- no ?. needed
+    return [
+      prompt`
+        ${name} is a developer -- nice!
+        Ask what their go-to tech stack is.
+      `,
+      act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+    ];
+  },
+  response: type({ answer: 'string' }),
   next: 'ask-hobby',
 })
 ```
-
-The `__parent__` sentinel in the base step is overridden by each extension's concrete `next`.
 
 ### Loop guards on hobby collection
 
@@ -131,18 +101,20 @@ The `ask-hobby` step can loop back to itself when the user wants to add more hob
 ```typescript
 .step('ask-hobby', {
   // ...
-  output: z.object({
-    hobby: z.string(),
-    wantsMore: z.boolean(),
+  response: type({
+    hobby: 'string',
+    wantsMore: 'boolean',
   }),
-  updateStash: ({ stepOutput }) => ({ latestHobby: stepOutput.hobby }),
   maxVisits: 2,
   onMaxVisits: 'confirm-profile',
-  next: ({ stepOutput }) => (stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+  next: [
+    { to: 'ask-hobby', when: ({ response }) => response.wantsMore },
+    { to: 'confirm-profile' },
+  ],
 })
 ```
 
-After 2 visits, the skill automatically redirects to `confirm-profile` instead of looping again. Without `maxVisits`, the cycle guard lint rule would flag this as an error.
+After 2 visits, the skill automatically redirects to `confirm-profile` instead of looping again. The backward edge (`ask-hobby` -> `ask-hobby`) doesn't create a false branch — the forward path to `confirm-profile` is still guaranteed.
 
 ### Confirm with bounce-back
 
@@ -152,55 +124,41 @@ The `confirm-profile` step uses the `act.confirm` primitive. If the user decline
 .step('confirm-profile', {
   prompt: act.confirm({
     message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
-    destructive: false,
     defaultAnswer: 'yes',
   }),
-  output: z.object({ approved: z.boolean() }),
-  next: ({ stepOutput }) => (stepOutput.approved ? 'profile-card' : 'ask-hobby'),
+  response: type({ approved: 'boolean' }),
+  next: [
+    { to: 'profile-card', when: ({ response }) => response.approved },
+    { to: 'ask-hobby' },
+  ],
   maxVisits: 3,
   onMaxVisits: 'profile-card',
 })
 ```
 
-### Render helpers for the trading card
+### Graph-aware store in the final step
 
-The terminal `profile-card` step uses the `render` utilities in its prompt to compose the card from accumulated data. It pulls from stash, history, and even `refs.load()` for fun facts:
+The terminal `profile-card` step demonstrates the full power of the store's graph awareness:
 
 ```typescript
-prompt: ({ history, getStep, refs, stash }) => {
-  const name = stash.name ?? 'Mystery Person';
-  const role = stash.role ?? 'Enigma';
+prompt: ({ store, refs }) => {
+  const name = store.greet.name;              // guaranteed -- non-optional
+  const role = store['ask-role'].role;         // guaranteed -- non-optional
 
   const specialty =
-    getStep('ask-stack')?.stepOutput.answer ??
-    getStep('ask-tools')?.stepOutput.answer ??
-    // ... fallbacks for each role path
+    store['ask-stack']?.answer ??              // branch target -- optional, use ?.
+    store['ask-tools']?.answer ??              // branch target -- optional
+    store['ask-team-size']?.answer ??          // branch target -- optional
+    store['ask-specialty']?.answer ??          // branch target -- optional
+    'Classified';
 
-  const hobbies = history
-    .filter((s) => s.step === 'ask-hobby')
-    .map((s) => (s.stepOutput as { hobby: string }).hobby);
+  const hobbies = store.all('ask-hobby').map((v) => v.hobby);  // loop visits
 
-  const stats = render.kv({
-    Name: name,
-    Role: roleLabels[role] ?? role,
-    Specialty: specialty,
-  });
-
-  const hobbyList = render.checklist(
-    hobbies.map((h) => ({ text: h, done: true })),
-  );
-
-  return [
-    render.section(`${name}'s Trading Card`, stats),
-    '',
-    render.section('Hobbies & Interests', hobbyList || '(none listed)'),
-    '',
-    `> *${funFact}*`,
-  ].join('\n');
+  // ... render the card with render.kv, render.checklist, render.section
 },
 ```
 
-This demonstrates `render.kv`, `render.checklist`, `render.section`, `getStep` for typed history access, and `refs.load` for loading bundled reference files.
+`store.greet.name` and `store['ask-role'].role` are non-optional because every workflow path goes through those steps. The branch-specific steps (`ask-stack`, `ask-tools`, etc.) require `?.` because only one of them runs. `store.all('ask-hobby')` returns a typed array of all loop visits. TypeScript enforces all of this at compile time.
 
 ### Actions for side effects
 
@@ -209,8 +167,8 @@ The skill defines a `writeProfile` action that writes the profile to disk. It is
 ```typescript
 const writeProfile = action({
   name: 'write-profile',
-  input: z.object({ profile: ProfileSchema }),
-  output: z.object({ path: z.string() }),
+  input: type({ profile: ProfileSchema }),
+  output: type({ path: 'string' }),
   run: async ({ input }) => {
     const path = `/tmp/profile-${Date.now()}.json`;
     // write the file...
@@ -299,8 +257,8 @@ model: mockModel({
     { hobby: 'Cooking', wantsMore: false },
   ],
   'confirm-profile': [
-    { approved: false },   // first visit — bounce back
-    { approved: true },    // second visit — proceed
+    { approved: false },   // first visit -- bounce back
+    { approved: true },    // second visit -- proceed
   ],
   // ...
 }),

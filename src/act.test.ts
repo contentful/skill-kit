@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { act } from './act.js';
 
 test('act.askUser() wraps structured config in ActSegment', () => {
@@ -45,7 +45,7 @@ test('act.checklist() wraps ChecklistConfig', () => {
 test('act.subagent() wraps SubagentConfig', () => {
   const seg = act.subagent({
     prompt: 'Research CVEs',
-    output: z.object({ findings: z.array(z.string()) }),
+    output: type({ findings: 'string[]' }),
   });
   assert.equal(seg.kind, 'act');
   assert.equal(seg.primitive.kind, 'subagent');

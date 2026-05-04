@@ -44,7 +44,7 @@ function printHelp(skillName: string): void {
     '  --params       JSON string. Validated against skill params schema. (start, and advance without session)',
     '  --step         Name of the step whose output is being submitted. (advance only)',
     '  --output       JSON string. The agent response for the step. (advance only)',
-    '  --history      JSON array of {step, stepOutput, actionOutput?} objects. (advance only)',
+    '  --history      JSON array of {step, response, actionResult?} objects. (advance only)',
     '  --host         Host identifier for tool resolution. Default: generic.',
     '  --tools        Comma-separated list of available tools (merged with host registry).',
     '  --subagent     Indicates a subagent with a genuine tool subset (no registry merge).',

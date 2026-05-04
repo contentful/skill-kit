@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { skill } from '../skill.js';
 import { action } from '../action.js';
 import { SubskillEngine } from './subskill-engine.js';
@@ -10,25 +10,27 @@ const genericHost: Handshake = { host: 'generic', toolsAvailable: [], isSubagent
 
 const scanAction = action({
   name: 'scan',
-  input: z.object({ path: z.string() }),
-  output: z.object({ found: z.string() }),
+  input: type({ path: 'string' }),
+  output: type({ found: 'string' }),
   run: async ({ input }) => ({ found: `scanned:${input.path}` }),
 });
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({ scanResult: z.string() }) })
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
   .step('diagnose', {
     prompt: 'Diagnose.',
-    output: z.object({ issue: z.string() }),
+    response: type({ issue: 'string' }),
     action: {
       run: scanAction,
-      input: ({ stepOutput }) => ({ path: stepOutput.issue }),
-      updateStash: ({ actionOutput }) => ({ scanResult: actionOutput.found }),
+      mapInput: ({ response }) => ({ path: response.issue }),
     },
     next: 'report',
   })
   .step('report', {
-    prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
-    output: z.object({ summary: z.string() }),
+    prompt: (ctx) => {
+      const record = ctx.store.steps.history.find((r) => r.step === 'diagnose');
+      return `Report: scanResult=${JSON.stringify((record?.actionResult as { found: string })?.found)}`;
+    },
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -79,40 +81,39 @@ test('SubskillEngine.advance qualifies done result completed step', async () => 
 });
 
 test('SubskillEngine.replayHistory filters and unqualifies entries', async () => {
-  let capturedStash: unknown;
+  let capturedStoreValue: unknown;
 
-  const stashSkill = skill({ name: 'doc', entry: 'a', stash: z.object({ val: z.string() }) })
+  const storeSkill = skill({ name: 'doc', entry: 'a' })
     .step('a', {
       prompt: 'A',
-      output: z.object({ v: z.string() }),
-      updateStash: ({ stepOutput }) => ({ val: stepOutput.v }),
+      response: type({ v: 'string' }),
       next: 'b',
     })
     .step('b', {
       prompt: 'B',
-      output: z.object({ x: z.string() }),
+      response: type({ x: 'string' }),
       next: 'c',
     })
     .step('c', {
       prompt: (ctx) => {
-        capturedStash = ctx.stash;
+        capturedStoreValue = ctx.store.steps.a;
         return 'C';
       },
-      output: z.object({}),
+      response: type({}),
       next: { terminal: true },
     })
     .build();
 
-  const sub = new SubskillEngine(stashSkill, genericHost, {}, { load: () => '', asset: (p) => p }, 'doc');
+  const sub = new SubskillEngine(storeSkill, genericHost, {}, { load: () => '', asset: (p) => p }, 'doc');
   // Mixed history: dispatcher entry, this subskill entry, another subskill entry
   sub.replayHistory([
-    { step: 'classify', stepOutput: { intent: 'doc' } },
-    { step: 'doc/a', stepOutput: { v: 'hello' } },
-    { step: 'other/x', stepOutput: {} },
+    { step: 'classify', response: { intent: 'doc' } },
+    { step: 'doc/a', response: { v: 'hello' } },
+    { step: 'other/x', response: {} },
   ]);
   sub.startForReplay();
-  // Advance b → builds c prompt which captures stash
+  // Advance b -> builds c prompt which captures store
   const result = await sub.advance('doc/b', { x: 'ok' });
   assert.equal((result as PromptResult).step, 'doc/c');
-  assert.deepEqual(capturedStash, { val: 'hello' });
+  assert.deepEqual(capturedStoreValue, { v: 'hello' });
 });

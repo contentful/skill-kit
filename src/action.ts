@@ -1,7 +1,7 @@
-import type { z } from 'zod';
+import type { type } from 'arktype';
 import type { ActionConfig, ActionDefinition } from './types.js';
 
-export function action<TInput extends z.ZodType, TOutput extends z.ZodType>(
+export function action<TInput extends type.Any, TOutput extends type.Any>(
   config: ActionConfig<TInput, TOutput>,
 ): ActionDefinition<TInput, TOutput> {
   if (!config.name) throw new Error('action: name is required');

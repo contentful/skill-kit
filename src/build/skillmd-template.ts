@@ -44,10 +44,10 @@ function exampleValue(prop: Record<string, unknown>, name: string): unknown {
 }
 
 function extractParamInfo(params: unknown): ParamInfo | null {
-  if (!params || typeof params !== 'object' || !('toJSONSchema' in params)) return null;
+  if (!params || !('toJsonSchema' in (params as object))) return null;
 
   try {
-    const schema = (params as { toJSONSchema: () => Record<string, unknown> }).toJSONSchema() as Record<
+    const schema = (params as { toJsonSchema: () => Record<string, unknown> }).toJsonSchema() as Record<
       string,
       unknown
     >;

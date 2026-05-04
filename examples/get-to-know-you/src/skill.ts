@@ -1,34 +1,27 @@
-import { skill, step, z, action, prompt, render, act, view } from '@contentful/skill-kit';
+import { skill, type, action, prompt, render, act, view } from '@contentful/skill-kit';
 
 // --- Schemas ---
 
-const ProfileSchema = z.object({
-  name: z.string(),
-  role: z.string(),
-  specialty: z.string(),
-  hobbies: z.array(z.string()),
-  funFact: z.string(),
+const ProfileSchema = type({
+  name: 'string',
+  role: 'string',
+  specialty: 'string',
+  hobbies: 'string[]',
+  funFact: 'string',
 });
 
 // --- Action: write profile to disk ---
 
 const writeProfile = action({
   name: 'write-profile',
-  input: z.object({ profile: ProfileSchema }),
-  output: z.object({ path: z.string() }),
+  input: type({ profile: ProfileSchema }),
+  output: type({ path: 'string' }),
   run: async ({ input }) => {
     const path = `/tmp/profile-${Date.now()}.json`;
     process.stderr.write(`[get-to-know-you] Would write profile to ${path}\n`);
     void input;
     return { path };
   },
-});
-
-// --- Reusable open-ended question step ---
-
-const openQuestionStep = step({
-  output: z.object({ answer: z.string() }),
-  next: '__parent__',
 });
 
 // --- Skill ---
@@ -45,18 +38,12 @@ export default skill({
   system:
     "Keep it light and fun. Use casual language. Throw in the occasional joke or pun if it fits. You're a friendly interviewer, not a form.",
 
-  params: z.object({
-    greeting: z.string().default('Hey there!'),
+  params: type({
+    greeting: 'string = "Hey there!"',
   }),
 
-  stash: z.object({
-    name: z.string(),
-    role: z.string(),
-    latestHobby: z.string(),
-  }),
-
-  finalOutput: z.object({
-    card: z.string(),
+  finalOutput: type({
+    card: 'string',
     profile: ProfileSchema,
   }),
 
@@ -71,8 +58,7 @@ export default skill({
       ${params.greeting} You're about to interview the user to build their developer trading card.
       Start by asking their name. Be warm and enthusiastic — first impressions matter!
     `,
-    output: z.object({ name: z.string() }),
-    updateStash: ({ stepOutput }) => ({ name: stepOutput.name }),
+    response: type({ name: 'string' }),
     next: 'ask-role',
   })
 
@@ -87,55 +73,55 @@ export default skill({
         { value: 'other', label: 'Something else', description: 'I defy your categories' },
       ],
     }),
-    output: z.object({ role: z.enum(['dev', 'designer', 'manager', 'other']) }),
-    updateStash: ({ stepOutput }) => ({ role: stepOutput.role }),
-    next: ({ stepOutput }) => {
-      switch (stepOutput.role) {
-        case 'dev':
-          return 'ask-stack';
-        case 'designer':
-          return 'ask-tools';
-        case 'manager':
-          return 'ask-team-size';
-        default:
-          return 'ask-specialty';
-      }
-    },
+    response: type({ role: "'dev' | 'designer' | 'manager' | 'other'" }),
+    next: [
+      { to: 'ask-stack', when: ({ response }) => response.role === 'dev' },
+      { to: 'ask-tools', when: ({ response }) => response.role === 'designer' },
+      { to: 'ask-team-size', when: ({ response }) => response.role === 'manager' },
+      { to: 'ask-specialty' },
+    ],
   })
 
-  .extend('ask-stack', openQuestionStep, {
-    prompt: ({ stash }) => [
-      prompt`
-        ${stash.name} is a developer — nice!
-        Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
-        "TypeScript + Bun + Zod" is a personality.
-      `,
-      act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
-    ],
+  .step('ask-stack', {
+    prompt: ({ store }) => {
+      const name = store.steps.greet.name;
+      return [
+        prompt`
+          ${name} is a developer — nice!
+          Ask what their go-to tech stack is. Get specific — "JavaScript" is boring,
+          "TypeScript + Bun + Zod" is a personality.
+        `,
+        act.askUser({ type: 'open', question: "What's your go-to tech stack?" }),
+      ];
+    },
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
-  .extend('ask-tools', openQuestionStep, {
+  .step('ask-tools', {
     prompt: [
       'A designer! Ask what tools they live in. Figma? Sketch? CSS-in-the-raw?',
       act.askUser({ type: 'open', question: 'What design tools do you live in?' }),
     ],
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
-  .extend('ask-team-size', openQuestionStep, {
+  .step('ask-team-size', {
     prompt: [
       'A manager! Ask about their team — how big, what they work on.',
       act.askUser({ type: 'open', question: 'Tell me about your team.' }),
     ],
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
-  .extend('ask-specialty', openQuestionStep, {
+  .step('ask-specialty', {
     prompt: [
       'Someone who defies categories — intriguing. Dare them to describe what they do in one sentence.',
       act.askUser({ type: 'open', question: 'Describe what you do in one sentence.' }),
     ],
+    response: type({ answer: 'string' }),
     next: 'ask-hobby',
   })
 
@@ -146,14 +132,13 @@ export default skill({
         : 'Ask if they have another hobby they want on their card, or if they are done.',
       act.askUser({ type: 'open', question: 'What are your hobbies or side projects?' }),
     ],
-    output: z.object({
-      hobby: z.string(),
-      wantsMore: z.boolean(),
+    response: type({
+      hobby: 'string',
+      wantsMore: 'boolean',
     }),
-    updateStash: ({ stepOutput }) => ({ latestHobby: stepOutput.hobby }),
     maxVisits: 2,
     onMaxVisits: 'confirm-profile',
-    next: ({ stepOutput }) => (stepOutput.wantsMore ? 'ask-hobby' : 'confirm-profile'),
+    next: [{ to: 'ask-hobby', when: ({ response }) => response.wantsMore }, { to: 'confirm-profile' }],
   })
 
   .step('confirm-profile', {
@@ -161,27 +146,25 @@ export default skill({
       message: 'Got enough for a great trading card! Ready to see it, or want to add one more hobby?',
       defaultAnswer: 'yes',
     }),
-    output: z.object({ approved: z.boolean() }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'profile-card' : 'ask-hobby'),
+    response: type({ approved: 'boolean' }),
+    next: [{ to: 'profile-card', when: ({ response }) => response.approved }, { to: 'ask-hobby' }],
     maxVisits: 3,
     onMaxVisits: 'profile-card',
   })
 
   .step('profile-card', {
-    prompt: ({ history, getStep, refs, stash }) => {
-      const name = stash.name ?? 'Mystery Person';
-      const role = stash.role ?? 'Enigma';
+    prompt: ({ store, refs }) => {
+      const name = store.steps.greet.name;
+      const role = store.steps['ask-role'].role;
 
       const specialty =
-        getStep('ask-stack')?.stepOutput.answer ??
-        getStep('ask-tools')?.stepOutput.answer ??
-        getStep('ask-team-size')?.stepOutput.answer ??
-        getStep('ask-specialty')?.stepOutput.answer ??
+        store.steps['ask-stack']?.answer ??
+        store.steps['ask-tools']?.answer ??
+        store.steps['ask-team-size']?.answer ??
+        store.steps['ask-specialty']?.answer ??
         'Classified';
 
-      const hobbies = history
-        .filter((s) => s.step === 'ask-hobby')
-        .map((s) => (s.stepOutput as { hobby: string }).hobby);
+      const hobbies = store.steps.all('ask-hobby').map((v) => v.hobby);
 
       let funFact = '';
       try {
@@ -218,8 +201,8 @@ export default skill({
 
       return [view(card), 'Present the rendered trading card verbatim.'];
     },
-    output: z.object({
-      card: z.string(),
+    response: type({
+      card: 'string',
       profile: ProfileSchema,
     }),
     action: { run: writeProfile },

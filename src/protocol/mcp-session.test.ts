@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { McpSessionMap, type McpSession } from './mcp-session.js';
 import { WorkflowEngine } from '../runtime/engine.js';
 import { autoAdvance } from './auto-advance.js';
-import { skill, z } from '../index.js';
+import { skill, type } from '../index.js';
 import type { Handshake, ReferenceLoader, CliResult } from '../types.js';
 
 const HANDSHAKE: Handshake = { host: 'claude-code', toolsAvailable: [], isSubagent: false };
@@ -13,7 +13,7 @@ function simpleSkill() {
   return skill({ name: 'test', entry: 'greet' })
     .step('greet', {
       prompt: 'Say hello.',
-      output: z.object({ message: z.string() }),
+      response: type({ message: 'string' }),
       next: { terminal: true },
     })
     .build();
@@ -23,12 +23,12 @@ function multiStepSkill() {
   return skill({ name: 'multi', entry: 'greet' })
     .step('greet', {
       prompt: 'Say hello.',
-      output: z.object({ message: z.string() }),
+      response: type({ message: 'string' }),
       next: 'ask',
     })
     .step('ask', {
       prompt: 'Ask a question.',
-      output: z.object({ answer: z.string() }),
+      response: type({ answer: 'string' }),
       next: { terminal: true },
     })
     .build();

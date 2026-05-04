@@ -1,11 +1,11 @@
-import { skill, z, action, prompt, render, act, view, terminal } from '@contentful/skill-kit';
+import { skill, type, action, prompt, render, act, view, terminal } from '@contentful/skill-kit';
 
 // --- Action: save report to disk ---
 
 const saveReport = action({
   name: 'save-report',
-  input: z.object({ title: z.string(), body: z.string() }),
-  output: z.object({ path: z.string(), bytes: z.number() }),
+  input: type({ title: 'string', body: 'string' }),
+  output: type({ path: 'string', bytes: 'number' }),
   run: async ({ input }) => {
     const path = `/tmp/report-${Date.now()}.md`;
     const bytes = Buffer.byteLength(`# ${input.title}\n\n${input.body}`);
@@ -22,14 +22,6 @@ export default skill({
   description: 'Exercises every SDK primitive in a single skill. Used as a reference and integration test.',
   argumentHint: '[theme]',
   entry: 'gather-preferences',
-
-  stash: z.object({
-    theme: z.string(),
-    framework: z.string(),
-    approved: z.boolean(),
-    researchSummary: z.string(),
-    savedPath: z.string(),
-  }),
 })
   // --- survey: batched multi-question ---
   .step('gather-preferences', {
@@ -53,36 +45,42 @@ export default skill({
         ],
       },
     ]),
-    output: z.object({ theme: z.string(), framework: z.string() }),
-    updateStash: ({ stepOutput }) => ({ theme: stepOutput.theme, framework: stepOutput.framework }),
+    response: type({ theme: 'string', framework: 'string' }),
     next: 'research',
   })
 
   // --- subagent: delegated research ---
   .step('research', {
-    prompt: ({ stash }) => [
-      prompt`Research ${stash.theme} best practices for ${stash.framework} projects.`,
-      act.subagent({
-        prompt: `Find 3 key recommendations for ${stash.theme} in ${stash.framework}. Return a concise summary.`,
-        output: z.object({ summary: z.string() }),
-      }),
-    ],
-    output: z.object({ summary: z.string() }),
-    updateStash: ({ stepOutput }) => ({ researchSummary: stepOutput.summary }),
+    prompt: ({ store }) => {
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
+      return [
+        prompt`Research ${theme} best practices for ${framework} projects.`,
+        act.subagent({
+          prompt: `Find 3 key recommendations for ${theme} in ${framework}. Return a concise summary.`,
+          output: type({ summary: 'string' }),
+        }),
+      ];
+    },
+    response: type({ summary: 'string' }),
     next: 'plan-report',
   })
 
   // --- plan: structured approval ---
   .step('plan-report', {
-    prompt: ({ stash }) => [
-      prompt`Based on the research, plan the report structure.`,
-      act.plan({
-        summary: `${stash.theme} report for ${stash.framework}`,
-        steps: ['Executive summary', 'Key findings', 'Recommendations', 'Action items'],
-      }),
-    ],
-    output: z.object({ approved: z.boolean(), modifications: z.string().optional() }),
-    next: ({ stepOutput }) => (stepOutput.approved ? 'write-report' : 'ask-changes'),
+    prompt: ({ store }) => {
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
+      return [
+        prompt`Based on the research, plan the report structure.`,
+        act.plan({
+          summary: `${theme} report for ${framework}`,
+          steps: ['Executive summary', 'Key findings', 'Recommendations', 'Action items'],
+        }),
+      ];
+    },
+    response: type({ approved: 'boolean', 'modifications?': 'string' }),
+    next: [{ to: 'write-report', when: ({ response }) => response.approved }, { to: 'ask-changes' }],
   })
 
   // --- askUser (open): free-form feedback ---
@@ -91,7 +89,7 @@ export default skill({
       'The plan was not approved. Ask what changes are needed.',
       act.askUser({ type: 'open', question: 'What would you like to change about the report plan?' }),
     ],
-    output: z.object({ feedback: z.string() }),
+    response: type({ feedback: 'string' }),
     next: 'plan-report',
     maxVisits: 3,
     onMaxVisits: 'write-report',
@@ -99,27 +97,36 @@ export default skill({
 
   // --- checklist: tracked work items ---
   .step('write-report', {
-    prompt: ({ stash, act, system }) => [
-      system`Write concisely. Each section should be 2-3 sentences.`,
-      act.checklist({
-        create: [
-          { title: 'Executive summary', status: 'pending' },
-          { title: 'Key findings', status: 'pending' },
-          { title: 'Recommendations', status: 'pending' },
-          { title: 'Action items', status: 'pending' },
-        ],
-      }),
-      prompt`
-        Write the ${stash.theme} report for ${stash.framework}.
-        Research summary: ${stash.researchSummary}
-        Complete each checklist item as you write.
-      `,
-    ],
-    output: z.object({ title: z.string(), body: z.string() }),
-    action: {
-      run: saveReport,
-      updateStash: ({ actionOutput }) => ({ savedPath: actionOutput.path }),
+    prompt: ({ store, act, system }) => {
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
+      const researchSummary = store.steps.research?.summary ?? '';
+      return [
+        system`Write concisely. Each section should be 2-3 sentences.`,
+        act.checklist({
+          create: [
+            { title: 'Executive summary', status: 'pending' },
+            { title: 'Key findings', status: 'pending' },
+            { title: 'Recommendations', status: 'pending' },
+            { title: 'Action items', status: 'pending' },
+          ],
+        }),
+        prompt`
+          Write the ${theme} report for ${framework}.
+          Research summary: ${researchSummary}
+          Complete each checklist item as you write.
+        `,
+      ];
     },
+    response: type({ title: 'string', body: 'string' }),
+    action: { run: saveReport },
+    save: ({ response, actionResult }) => ({
+      step: {
+        title: response.title,
+        path: actionResult.path,
+        bytes: actionResult.bytes,
+      },
+    }),
     next: 'confirm-publish',
   })
 
@@ -129,33 +136,38 @@ export default skill({
       'The report has been saved. Ask if the user wants to publish it.',
       act.confirm({ message: 'Publish the report?', destructive: false, defaultAnswer: 'yes' }),
     ],
-    output: z.object({ publish: z.boolean() }),
-    updateStash: ({ stepOutput }) => ({ approved: stepOutput.publish }),
-    next: ({ stepOutput }) => (stepOutput.publish ? 'summary' : 'ask-changes'),
+    response: type({ publish: 'boolean' }),
+    next: [{ to: 'summary', when: ({ response }) => response.publish }, { to: 'ask-changes' }],
   })
 
   // --- view + terminal: pre-rendered card ---
   .step('summary', {
-    prompt: ({ stash }) => [
-      view([
-        render.section(
-          'Report Published',
-          render.kv({
-            Theme: stash.theme,
-            Framework: stash.framework,
-            'Saved to': stash.savedPath,
-          }),
-        ),
-        render.checklist([
-          { text: 'Research', done: true },
-          { text: 'Plan approved', done: true },
-          { text: 'Written', done: true },
-          { text: 'Published', done: stash.approved },
+    prompt: ({ store }) => {
+      const theme = store.steps['gather-preferences']?.theme ?? '';
+      const framework = store.steps['gather-preferences']?.framework ?? '';
+      const savedPath = store.steps['write-report']?.path ?? '';
+      const published = store.steps['confirm-publish']?.publish ?? false;
+      return [
+        view([
+          render.section(
+            'Report Published',
+            render.kv({
+              Theme: theme,
+              Framework: framework,
+              'Saved to': savedPath,
+            }),
+          ),
+          render.checklist([
+            { text: 'Research', done: true },
+            { text: 'Plan approved', done: true },
+            { text: 'Written', done: true },
+            { text: 'Published', done: published },
+          ]),
         ]),
-      ]),
-      'Present the summary card verbatim.',
-    ],
-    output: z.object({ summary: z.string() }),
+        'Present the summary card verbatim.',
+      ];
+    },
+    response: type({ summary: 'string' }),
     next: terminal,
   })
 

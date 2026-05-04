@@ -1,32 +1,34 @@
-import { skill, z, action } from '../../index.js';
+import { skill, type, action } from '../../index.js';
 import { compositeMain } from '../../cli.js';
 
 const scanAction = action({
   name: 'scan',
-  input: z.object({ path: z.string() }),
-  output: z.object({ found: z.string() }),
+  input: type({ path: 'string' }),
+  output: type({ found: 'string' }),
   run: async ({ input }) => ({ found: `scanned:${input.path}` }),
 });
 
-const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({ scanResult: z.string() }) })
+const doctorSkill = skill({ name: 'doctor', entry: 'diagnose' })
   .step('diagnose', {
     prompt: 'Diagnose the issue.',
-    output: z.object({ issue: z.string() }),
+    response: type({ issue: 'string' }),
     action: {
       run: scanAction,
-      input: ({ stepOutput }) => ({ path: stepOutput.issue }),
-      updateStash: ({ actionOutput }) => ({ scanResult: actionOutput.found }),
+      mapInput: ({ response }) => ({ path: response.issue }),
     },
     next: 'triage',
   })
   .step('triage', {
     prompt: 'Triage the findings.',
-    output: z.object({ priority: z.string() }),
+    response: type({ priority: 'string' }),
     next: 'report',
   })
   .step('report', {
-    prompt: (ctx) => `Report: scanResult=${JSON.stringify(ctx.stash.scanResult)}`,
-    output: z.object({ summary: z.string() }),
+    prompt: (ctx) => {
+      const record = ctx.store.steps.history.find((r) => r.step === 'diagnose');
+      return `Report: scanResult=${JSON.stringify((record?.actionResult as { found: string })?.found)}`;
+    },
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
@@ -34,7 +36,7 @@ const doctorSkill = skill({ name: 'doctor', entry: 'diagnose', stash: z.object({
 const setupSkill = skill({ name: 'setup', entry: 'configure' })
   .step('configure', {
     prompt: 'Configure the space.',
-    output: z.object({ done: z.boolean() }),
+    response: type({ done: 'boolean' }),
     next: { terminal: true },
   })
   .build();
@@ -42,21 +44,21 @@ const setupSkill = skill({ name: 'setup', entry: 'configure' })
 const composite = skill({
   name: 'helper',
   entry: 'classify',
-  params: z.object({ query: z.string().default('') }),
-  stash: z.object({ intent: z.string() }),
+  params: type({ query: 'string = ""' }),
 })
   .step('classify', {
     prompt: 'Classify intent.',
-    output: z.object({ intent: z.string() }),
-    updateStash: ({ stepOutput }) => ({ intent: stepOutput.intent }),
-    next: ({ stepOutput }) => {
-      if (stepOutput.intent === 'faq') return 'topic:basics';
-      return `subskill:${stepOutput.intent}`;
+    response: type({ intent: 'string' }),
+    next: ({ response }) => {
+      if (response.intent === 'faq') return 'topic:basics';
+      return `subskill:${response.intent}`;
     },
   })
   .topic('basics', { label: 'Basic FAQ', content: () => 'This is the basics FAQ content.' })
   .subskill('doctor', doctorSkill, {
-    params: (_output: unknown, stash: unknown) => ({ from: (stash as Record<string, unknown>).intent }),
+    params: (_output: unknown, store) => ({
+      from: (store.steps.classify as { intent: string } | undefined)?.intent ?? '',
+    }),
   })
   .subskill('setup', setupSkill)
   .build();

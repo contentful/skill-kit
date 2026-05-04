@@ -30,7 +30,7 @@ export function createMcpReferenceServer(def: ReferenceDefinition, refs: Referen
     {
       description: `Look up a ${def.name} reference topic. Available: ${topicNames.join(', ')}`,
       inputSchema: z.object({
-        name: z.string().describe('Topic name.'),
+        name: z.string(),
       }),
     },
     (args) => {

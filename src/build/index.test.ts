@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { z } from 'zod';
+import { type } from 'arktype';
 import { generateBunWrapper } from './bun-wrapper-template.js';
 import { generateNodeWrapper } from './node-wrapper-template.js';
 import { generateScriptsRun } from './scripts-run-template.js';
@@ -48,7 +48,7 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
   })
     .step('start', {
       prompt: 'Begin the process.',
-      output: z.object({ done: z.boolean() }),
+      response: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();
@@ -66,7 +66,7 @@ test('generateSkillMd produces valid frontmatter and invocation instructions', (
 
 test('generateSkillMd uses empty description when none provided', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -81,7 +81,7 @@ test('generateSkillMd double-quotes YAML description content', () => {
   })
     .step('start', {
       prompt: 'Begin.',
-      output: z.object({ done: z.boolean() }),
+      response: type({ done: 'boolean' }),
       next: { terminal: true },
     })
     .build();
@@ -92,7 +92,7 @@ test('generateSkillMd double-quotes YAML description content', () => {
 
 test('generateSkillMd emits argument-hint in frontmatter', () => {
   const s = skill({ name: 'hinted', entry: 'a', argumentHint: 'Describe the issue to diagnose' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -101,7 +101,7 @@ test('generateSkillMd emits argument-hint in frontmatter', () => {
 
 test('generateSkillMd emits arguments as inline array in frontmatter', () => {
   const s = skill({ name: 'with-args', entry: 'a', arguments: ['issue', 'branch'] })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -110,7 +110,7 @@ test('generateSkillMd emits arguments as inline array in frontmatter', () => {
 
 test('generateSkillMd emits arguments as string in frontmatter', () => {
   const s = skill({ name: 'args-str', entry: 'a', arguments: 'issue branch' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -119,7 +119,7 @@ test('generateSkillMd emits arguments as string in frontmatter', () => {
 
 test('generateSkillMd merges author allowed-tools string with defaults', () => {
   const s = skill({ name: 'tools-str', entry: 'a', allowedTools: 'Write Edit' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -132,7 +132,7 @@ test('generateSkillMd merges author allowed-tools string with defaults', () => {
 
 test('generateSkillMd merges author allowed-tools array with defaults', () => {
   const s = skill({ name: 'tools-arr', entry: 'a', allowedTools: ['Write', 'Edit'] })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -145,7 +145,7 @@ test('generateSkillMd merges author allowed-tools array with defaults', () => {
 
 test('generateSkillMd deduplicates author tools that overlap with defaults', () => {
   const s = skill({ name: 'tools-dup', entry: 'a', allowedTools: ['Read', 'Write'] })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -156,7 +156,7 @@ test('generateSkillMd deduplicates author tools that overlap with defaults', () 
 
 test('generateSkillMd emits paths as string in frontmatter', () => {
   const s = skill({ name: 'paths-str', entry: 'a', paths: '**/*.config.ts' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -165,7 +165,7 @@ test('generateSkillMd emits paths as string in frontmatter', () => {
 
 test('generateSkillMd emits paths array as inline YAML list', () => {
   const s = skill({ name: 'paths-arr', entry: 'a', paths: ['src/**/*.ts', 'tests/**/*.test.ts'] })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -174,7 +174,7 @@ test('generateSkillMd emits paths array as inline YAML list', () => {
 
 test('generateSkillMd emits context in frontmatter', () => {
   const s = skill({ name: 'forked', entry: 'a', context: 'fork' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -183,56 +183,56 @@ test('generateSkillMd emits context in frontmatter', () => {
 
 test('generateSkillMd emits license in frontmatter', () => {
   const s = skill({ name: 'licensed', entry: 'a', license: 'Apache-2.0' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('license: "Apache-2.0"'));
 });
 
 test('generateSkillMd emits compatibility in frontmatter', () => {
   const s = skill({ name: 'compat', entry: 'a', compatibility: 'Requires git and docker' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('compatibility: "Requires git and docker"'));
 });
 
 test('generateSkillMd emits agent in frontmatter', () => {
   const s = skill({ name: 'agented', entry: 'a', agent: 'Explore' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('agent: "Explore"'));
 });
 
 test('generateSkillMd emits model in frontmatter', () => {
   const s = skill({ name: 'modeled', entry: 'a', model: 'sonnet' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('model: "sonnet"'));
 });
 
 test('generateSkillMd emits effort in frontmatter', () => {
   const s = skill({ name: 'effortful', entry: 'a', effort: 'high' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('effort: "high"'));
 });
 
 test('generateSkillMd emits disable-model-invocation in frontmatter', () => {
   const s = skill({ name: 'manual-only', entry: 'a', disableModelInvocation: true })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('disable-model-invocation: true'));
 });
 
 test('generateSkillMd emits user-invocable in frontmatter', () => {
   const s = skill({ name: 'hidden', entry: 'a', userInvocable: false })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
   assert.ok(generateSkillMd(s).includes('user-invocable: false'));
 });
 
 test('generateSkillMd always emits allowed-tools with defaults even when not set', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -241,7 +241,7 @@ test('generateSkillMd always emits allowed-tools with defaults even when not set
 
 test('generateSkillMd omits other frontmatter extension fields when not set', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -278,7 +278,7 @@ test('generateSkillMd emits all frontmatter extension fields together', () => {
     disableModelInvocation: true,
     userInvocable: false,
   })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -383,7 +383,7 @@ test('generateReferenceMd omits other frontmatter extension fields when not set'
 
 test('generateSkillMd with protocol=session omits stateless instructions', () => {
   const s = skill({ name: 'test', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s, 'session');
@@ -393,7 +393,7 @@ test('generateSkillMd with protocol=session omits stateless instructions', () =>
 
 test('generateSkillMd with protocol=stateless omits session instructions', () => {
   const s = skill({ name: 'test', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s, 'stateless');
@@ -403,7 +403,7 @@ test('generateSkillMd with protocol=stateless omits session instructions', () =>
 
 test('generateSkillMd default protocol is session', () => {
   const s = skill({ name: 'test', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -526,11 +526,11 @@ test('generateNodeWrapper produces compositeMain for skill with subskills', () =
 
 test('generateSkillMd includes sub-skills and topics sections', () => {
   const child = skill({ name: 'doctor', description: 'Diagnose issues.', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const s = skill({ name: 'composite', entry: 'start' })
-    .step('start', { prompt: 'Classify.', output: z.object({}), next: 'subskill:doctor' })
+    .step('start', { prompt: 'Classify.', response: type({}), next: 'subskill:doctor' })
     .subskill('doctor', child)
     .topic('faq', { label: 'Frequently asked questions', content: () => 'FAQ content' })
     .build();
@@ -550,11 +550,11 @@ test('generateSkillMd documents params with defaults', () => {
   const s = skill({
     name: 'greeter',
     entry: 'greet',
-    params: z.object({
-      greeting: z.string().default('Hey there!'),
+    params: type({
+      greeting: 'string = "Hey there!"',
     }),
   })
-    .step('greet', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('greet', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -568,12 +568,12 @@ test('generateSkillMd documents required params and uses them in start example',
   const s = skill({
     name: 'doctor',
     entry: 'diagnose',
-    params: z.object({
-      repoPath: z.string(),
-      strictness: z.enum(['lenient', 'normal', 'strict']).default('normal'),
+    params: type({
+      repoPath: 'string',
+      strictness: "'lenient' | 'normal' | 'strict' = 'normal'",
     }),
   })
-    .step('diagnose', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('diagnose', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -585,7 +585,7 @@ test('generateSkillMd documents required params and uses them in start example',
 
 test('generateSkillMd shows no-params message when skill has no params', () => {
   const s = skill({ name: 'minimal', entry: 'a' })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const result = generateSkillMd(s);
@@ -598,13 +598,13 @@ test('generateSkillMd documents sub-skill params', () => {
     name: 'doctor',
     description: 'Diagnose issues.',
     entry: 'a',
-    params: z.object({ spaceId: z.string() }),
+    params: type({ spaceId: 'string' }),
   })
-    .step('a', { prompt: 'Go.', output: z.object({}), next: { terminal: true } })
+    .step('a', { prompt: 'Go.', response: type({}), next: { terminal: true } })
     .build();
 
   const s = skill({ name: 'composite', entry: 'start' })
-    .step('start', { prompt: 'Classify.', output: z.object({}), next: 'subskill:doctor' })
+    .step('start', { prompt: 'Classify.', response: type({}), next: 'subskill:doctor' })
     .subskill('doctor', child)
     .build();
 

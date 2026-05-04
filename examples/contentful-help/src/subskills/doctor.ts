@@ -1,31 +1,33 @@
-import { skill, z, act } from '@contentful/skill-kit';
+import { skill, type, act } from '@contentful/skill-kit';
 
 export default skill({
   name: 'doctor',
   version: '1.0.0',
   description: 'Diagnose and fix common Contentful issues.',
   entry: 'diagnose',
-  params: z.object({ spaceId: z.string().default('') }),
-  stash: z.object({ issues: z.array(z.string()) }),
+  params: type({ spaceId: 'string = ""' }),
 })
   .step('diagnose', {
     prompt: ({ params }) =>
       `Check the Contentful space "${params.spaceId}" for common issues. ` +
       'Look for: missing locales, unpublished entries, broken references, rate limit issues.',
-    output: z.object({
-      issues: z.array(z.string()),
-      healthy: z.boolean(),
+    response: type({
+      issues: 'string[]',
+      healthy: 'boolean',
     }),
-    updateStash: ({ stepOutput }) => ({ issues: stepOutput.issues }),
-    next: ({ stepOutput }) => (stepOutput.healthy ? 'report-clean' : 'suggest-fix'),
+    next: [{ to: 'report-clean', when: ({ response }) => response.healthy }, { to: 'suggest-fix' }],
   })
 
   .step('suggest-fix', {
-    prompt: ({ stash }) =>
-      `Found issues: ${stash.issues.join(', ')}. Suggest fixes for each issue. ` +
-      'Explain what each fix does and any risks.',
-    output: z.object({
-      fixes: z.array(z.object({ issue: z.string(), fix: z.string() })),
+    prompt: ({ store }) => {
+      const issues = store.steps.diagnose?.issues ?? [];
+      return (
+        `Found issues: ${issues.join(', ')}. Suggest fixes for each issue. ` +
+        'Explain what each fix does and any risks.'
+      );
+    },
+    response: type({
+      fixes: type({ issue: 'string', fix: 'string' }).array(),
     }),
     next: 'confirm-fix',
   })
@@ -39,25 +41,28 @@ export default skill({
         { value: 'skip', label: 'Skip', description: 'Show report without fixing' },
       ],
     }),
-    output: z.object({ choice: z.enum(['apply', 'skip']) }),
-    next: ({ stepOutput }) => (stepOutput.choice === 'apply' ? 'apply-fix' : 'report-issues'),
+    response: type({ choice: "'apply' | 'skip'" }),
+    next: [{ to: 'apply-fix', when: ({ response }) => response.choice === 'apply' }, { to: 'report-issues' }],
   })
 
   .step('apply-fix', {
     prompt: 'Apply the fixes and report results.',
-    output: z.object({ applied: z.number(), failed: z.number() }),
+    response: type({ applied: 'number', failed: 'number' }),
     next: 'report-issues',
   })
 
   .step('report-issues', {
-    prompt: ({ stash }) => `Summarize: found ${stash.issues.length} issue(s). Report the status of each.`,
-    output: z.object({ summary: z.string() }),
+    prompt: ({ store }) => {
+      const issues = store.steps.diagnose?.issues ?? [];
+      return `Summarize: found ${issues.length} issue(s). Report the status of each.`;
+    },
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
 
   .step('report-clean', {
     prompt: 'The space is healthy! Report a clean bill of health.',
-    output: z.object({ summary: z.string() }),
+    response: type({ summary: 'string' }),
     next: { terminal: true },
   })
   .build();
