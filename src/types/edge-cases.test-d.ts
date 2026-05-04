@@ -763,3 +763,79 @@ skill({ name: 'no-action-undefined', entry: 'a' }).step('a', {
   },
   next: { terminal: true },
 });
+
+// ============================================================
+// 28. Nested branch reconvergence: all nested paths converge
+// ============================================================
+// root → [left, merge]
+// left → [merge, mid]   (guaranteed, re-branches merge alongside mid)
+// mid → merge
+// merge is on ALL paths → guaranteed
+
+skill({ name: 'nested-convergence', entry: 'root' })
+  .step('root', {
+    response: type({ ok: 'boolean' }),
+    next: ({ response }) => (response.ok ? 'left' : 'merge'),
+  })
+  .step('left', {
+    response: type({ choice: 'string' }),
+    next: ({ response }) => (response.choice === 'a' ? 'merge' : 'mid'),
+  })
+  .step('mid', { response: type({ v: 'string' }), next: 'merge' })
+  .step('merge', {
+    prompt: ({ store }) => {
+      // merge is guaranteed — on all paths
+      const ok: boolean = store.steps.root.ok;
+      void ok;
+      // left is a branch target (optional)
+      const choice = store.steps.left?.choice;
+      void choice;
+      return 'Merge';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });
+
+// ============================================================
+// 29. Partial nested convergence must NOT promote
+// ============================================================
+// root → [left, target]
+// left → [target, mid]  (re-branches target alongside mid)
+// mid → end              (does NOT route to target!)
+// target is NOT on all paths — mid goes to end, not target
+
+skill({ name: 'partial-nested-no-promote', entry: 'root' })
+  .step('root', {
+    response: type({ ok: 'boolean' }),
+    next: ({ response }) => (response.ok ? 'left' : 'target'),
+  })
+  .step('left', {
+    response: type({ choice: 'string' }),
+    next: ({ response }) => (response.choice === 'a' ? 'target' : 'mid'),
+  })
+  .step('mid', { response: type({ v: 'string' }), next: 'end' })
+  .step('target', {
+    prompt: ({ store }) => {
+      // target is NOT guaranteed — mid doesn't route to it
+      // root is still guaranteed (before the branch)
+      const ok: boolean = store.steps.root.ok;
+      void ok;
+      // left is optional (branch target)
+      const choice = store.steps.left?.choice;
+      void choice;
+      return 'Target';
+    },
+    response: type({}),
+    next: 'end',
+  })
+  .step('end', {
+    prompt: ({ store }) => {
+      // target is optional — assigning to non-optional type errors
+      // @ts-expect-error - target is not guaranteed
+      const t: {} = store.steps.target;
+      void t;
+      return 'End';
+    },
+    response: type({}),
+    next: { terminal: true },
+  });

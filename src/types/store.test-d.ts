@@ -132,6 +132,118 @@ type _sp3 = Expect<
 type _sp4 = Expect<Equal<ShouldPromote<'x', BranchState<'a' | 'b', { a: 'root'; b: 'root' }, 'a->b'>>, false>>;
 
 // ============================================================
+// ShouldPromote — cobranch-based nested reconvergence
+// ============================================================
+
+// Cobranch promotion: guaranteed intermediary re-branches already-branched target
+// alongside new targets, and all cobranch targets route to it
+// edges = deterministic only (string next), anyEdges = all routing (including fn/array next)
+type NestedBranch = BranchState<
+  'apply-creds' | 'review' | 'choose-entry' | 'run-inspection',
+  {
+    'apply-creds': 'confirm-creds';
+    review: 'confirm-creds';
+    'choose-entry': 'triage';
+    'run-inspection': 'choose-entry';
+  },
+  'run-inspection->review',
+  'choose-entry->review' | 'run-inspection->review',
+  'review~choose-entry'
+>;
+type _sp5 = Expect<Equal<ShouldPromote<'review', NestedBranch>, true>>;
+
+// Cobranch: not all cobranch targets route to target → no promotion
+type IncompleteNested = BranchState<'b' | 'c' | 'e', { b: 'a'; c: 'a'; e: 'd' }, never, never, 'c~e'>;
+type _sp6 = Expect<Equal<ShouldPromote<'c', IncompleteNested>, false>>;
+
+// Cobranch with multiple cobranch targets: all must route (via anyEdges)
+type MultiCobranch = BranchState<
+  'x' | 'y' | 'c1' | 'c2',
+  { x: 'root'; y: 'root'; c1: 'mid'; c2: 'mid' },
+  'c1->y' | 'c2->y',
+  'c1->y' | 'c2->y',
+  'y~c1' | 'y~c2'
+>;
+type _sp7 = Expect<Equal<ShouldPromote<'y', MultiCobranch>, true>>;
+
+// Cobranch with multiple cobranch targets: only one routes → no promotion
+type PartialMultiCobranch = BranchState<
+  'x' | 'y' | 'c1' | 'c2',
+  { x: 'root'; y: 'root'; c1: 'mid'; c2: 'mid' },
+  'c1->y',
+  'c1->y',
+  'y~c1' | 'y~c2'
+>;
+type _sp8 = Expect<Equal<ShouldPromote<'y', PartialMultiCobranch>, false>>;
+
+// ============================================================
+// ExtractAnyEdge — function-next and branch-array-next
+// ============================================================
+
+// Branched step with function next → anyEdges records edges, edges stays empty
+type _abe1 = AddStepBranches<
+  BranchState<'a' | 'b' | 'c', { a: 'root'; b: 'root'; c: 'root' }>,
+  'a',
+  () => 'b' | 'c',
+  'a'
+>;
+type _abe1a = Expect<Equal<_abe1['anyEdges'], 'a->b' | 'a->c'>>;
+type _abe1b = Expect<IsNever<_abe1['edges']>>;
+
+// Branched step with branch array next → anyEdges records edges, edges stays empty
+type _abe2 = AddStepBranches<
+  BranchState<'a' | 'b' | 'c', { a: 'root'; b: 'root'; c: 'root' }>,
+  'a',
+  readonly [{ to: 'b'; when: () => boolean }, { to: 'c' }],
+  'a'
+>;
+type _abe2a = Expect<Equal<_abe2['anyEdges'], 'a->b' | 'a->c'>>;
+type _abe2b = Expect<IsNever<_abe2['edges']>>;
+
+// String next → both edges and anyEdges record it
+type _abe3 = AddStepBranches<BranchState<'a' | 'b', { a: 'root'; b: 'root' }>, 'a', 'b', 'a'>;
+type _abe3a = Expect<Equal<_abe3['edges'], 'a->b'>>;
+type _abe3b = Expect<Equal<_abe3['anyEdges'], 'a->b'>>;
+
+// ============================================================
+// AddStepBranches — cobranch tracking
+// ============================================================
+
+// Guaranteed step re-branching already-branched target → records cobranch
+type _cb1 = AddStepBranches<
+  BranchState<'review', { review: 'confirm' }>,
+  'triage',
+  () => 'review' | 'choose-entry',
+  'triage'
+>['cobranches'];
+type _cb1a = Expect<Equal<_cb1, 'review~choose-entry'>>;
+
+// Branched step branching → no cobranch (not guaranteed intermediary)
+type _cb2 = AddStepBranches<
+  BranchState<'review' | 'triage', { review: 'confirm'; triage: 'confirm' }>,
+  'triage',
+  () => 'review' | 'choose-entry',
+  'triage'
+>['cobranches'];
+type _cb2a = Expect<IsNever<_cb2>>;
+
+// ============================================================
+// AddStepBranches — group filtering
+// ============================================================
+
+// Already-branched target excluded from new group entries
+type _gf1 = AddStepBranches<
+  BranchState<'review', { review: 'confirm' }>,
+  'triage',
+  () => 'review' | 'choose-entry',
+  'triage'
+>['groups'];
+// review's group should still be 'confirm', not corrupted
+type _gf1a = Expect<Equal<_gf1['review'], 'confirm'>>;
+// choose-entry gets new group entry
+type _gf1b = Expect<Equal<_gf1['choose-entry'], 'triage'>>;
+
+// ============================================================
 // RequiredSteps / OptionalSteps
 // ============================================================
 
@@ -225,6 +337,20 @@ void (0 as unknown as _sp1);
 void (0 as unknown as _sp2);
 void (0 as unknown as _sp3);
 void (0 as unknown as _sp4);
+void (0 as unknown as _sp5);
+void (0 as unknown as _sp6);
+void (0 as unknown as _sp7);
+void (0 as unknown as _sp8);
+void (0 as unknown as _abe1a);
+void (0 as unknown as _abe1b);
+void (0 as unknown as _abe2a);
+void (0 as unknown as _abe2b);
+void (0 as unknown as _abe3a);
+void (0 as unknown as _abe3b);
+void (0 as unknown as _cb1a);
+void (0 as unknown as _cb2a);
+void (0 as unknown as _gf1a);
+void (0 as unknown as _gf1b);
 void (0 as unknown as _rs1_check);
 void (0 as unknown as _rs1_keys);
 void (0 as unknown as _os1_check);

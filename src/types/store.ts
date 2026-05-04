@@ -451,9 +451,17 @@ type ExtractTo<T> = T extends { readonly to: infer S extends string } ? S : neve
  *   came from the 'choose' step.
  *
  * - `edges`: union of `"source->target"` template literal strings recording
- *   when a branched step routes to another branched step via its `next`.
+ *   deterministic routing — when a branched step routes to another branched
+ *   step via string `next`. These edges power sibling reconvergence detection
+ *   in `ShouldPromote`.
  *   Example: `'path-a->merge' | 'path-b->merge'` — both siblings route to 'merge'.
- *   These edges power reconvergence detection.
+ *
+ * - `anyEdges`: union of `"source->target"` template literal strings recording
+ *   ALL routing from branched steps to branched steps — including non-deterministic
+ *   routing via function-next and branch-array-next. A function returning `'a' | 'b'`
+ *   records edges for each union member in TBranched. These are used by cobranch
+ *   convergence checking but NOT by sibling reconvergence (which requires deterministic
+ *   routing).
  *
  * - `cobranches`: union of `"target~cobranch"` template literal strings recording
  *   when a guaranteed (non-branched) step re-branches an already-branched target
@@ -468,11 +476,13 @@ export type BranchState<
   TBranched extends string = never,
   TGroups extends Record<string, string> = {},
   TEdges extends string = never,
+  TAnyEdges extends string = never,
   TCobranches extends string = never,
 > = {
   branched: TBranched;
   groups: TGroups;
   edges: TEdges;
+  anyEdges: TAnyEdges;
   cobranches: TCobranches;
 };
 
@@ -602,11 +612,15 @@ type AllRouteToTarget<Sources extends string, Target extends string, TEdges exte
  * them to be subtracted from the uncovered set in ShouldPromote), or `never` if not.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CoveredSiblings<Name extends string, Siblings extends string, TBranches extends BranchState<any, any, any, any>> =
+type CoveredSiblings<
+  Name extends string,
+  Siblings extends string,
+  TBranches extends BranchState<any, any, any, any, any>,
+> =
   ExtractCobranch<Name, TBranches['cobranches']> extends infer CoBranched extends string
     ? [CoBranched] extends [never]
       ? never
-      : AllRouteToTarget<CoBranched, Name, TBranches['edges']> extends true
+      : AllRouteToTarget<CoBranched, Name, TBranches['anyEdges']> extends true
         ? Siblings
         : never
     : never;
@@ -634,7 +648,7 @@ type CoveredSiblings<Name extends string, Siblings extends string, TBranches ext
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ShouldPromote<
   Name extends string,
-  TBranches extends BranchState<any, any, any, any>,
+  TBranches extends BranchState<any, any, any, any, any>,
 > = Name extends keyof TBranches['groups']
   ? Exclude<SiblingsOf<Name, TBranches['groups']>, Name> extends infer Siblings extends string
     ? [Siblings] extends [never]
@@ -679,7 +693,7 @@ export type ShouldPromote<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type IsGuaranteed<
   Name extends string,
-  TBranches extends BranchState<any, any, any, any>,
+  TBranches extends BranchState<any, any, any, any, any>,
 > = Name extends TBranches['branched'] ? ShouldPromote<Name, TBranches> : true;
 
 /**
@@ -704,7 +718,7 @@ type IsGuaranteed<
 export type AddStepGuarantees<
   TGuarantees extends GuaranteeState<any, any>,
   Name extends string,
-  TBranches extends BranchState<any, any, any, any>,
+  TBranches extends BranchState<any, any, any, any, any>,
   TSaveStoreWrites extends Record<string, unknown>,
 > =
   IsGuaranteed<Name, TBranches> extends true
@@ -741,7 +755,7 @@ export type AddStepGuarantees<
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AddStepBranches<
-  TBranches extends BranchState<any, any, any, any>,
+  TBranches extends BranchState<any, any, any, any, any>,
   Name extends string,
   TNext,
   TKnownSteps extends string,
@@ -750,6 +764,7 @@ export type AddStepBranches<
   | ExtractBranchTargets<TNext, TKnownSteps>,
   TBranches['groups'] & ExtractBranchGroupEntries<TNext, Name, TKnownSteps, TBranches['branched']>,
   TBranches['edges'] | ExtractBranchEdge<Name, TNext, TBranches['branched']>,
+  TBranches['anyEdges'] | ExtractAnyEdge<Name, TNext, TBranches['branched']>,
   TBranches['cobranches'] | ExtractCobranches<Name, TNext, TBranches['branched'], TKnownSteps>
 >;
 
@@ -803,29 +818,49 @@ type ExtractBranchGroupEntries<
     : {};
 
 /**
- * Records a sibling-to-sibling routing edge for reconvergence detection.
+ * Records a deterministic sibling-to-sibling routing edge for reconvergence.
  *
- * Only produces an edge when the current step (Name) is itself a branch target
- * (in TBranched) and its `next` includes targets that are also in TBranched.
+ * Only produces an edge when ALL of these conditions hold:
+ * 1. The current step (Name) is itself a branch target (in TBranched)
+ * 2. Its `next` is a plain string (deterministic routing)
+ * 3. That string target is also in TBranched (another branch target)
  *
- * Handles three forms of `next`:
- * - **String**: `next: 'merge'` → records `"Name->merge"` if merge is branched
- * - **Function**: `next: () => 'a' | 'b'` → records an edge for each return type
- *   member that is in TBranched (distributive conditional over the union)
- * - **Branch array**: `next: [{ to: 'a' }, { to: 'b' }]` → records an edge for
- *   each `to` value that is in TBranched
+ * String next is deterministic — the step always routes there. Function next
+ * and branch arrays are non-deterministic (conditional), so they are recorded
+ * in `ExtractAnyEdge` instead.
  *
- * Uses template literal types to encode each edge as `"Name->Target"`.
+ * Uses template literal types to encode the edge as `"Name->TNext"`.
  *
  * Example: step 'left' (branched) with `next: 'merge'` where 'merge' is also branched:
  *   ExtractBranchEdge<'left', 'merge', 'left' | 'right' | 'merge'>
  *     → 'left->merge'
+ */
+type ExtractBranchEdge<Name extends string, TNext, TBranched extends string> = Name extends TBranched
+  ? TNext extends string
+    ? TNext extends TBranched
+      ? `${Name}->${TNext}`
+      : never
+    : never
+  : never;
+
+/**
+ * Records ALL routing edges from a branched step to branched targets,
+ * including non-deterministic routing via function-next and branch-array-next.
  *
- *   ExtractBranchEdge<'root', 'next', 'left' | 'right'>
- *     → never  ('root' is not in TBranched)
+ * Unlike `ExtractBranchEdge` (deterministic only), this captures every possible
+ * routing relationship. Used by `CoveredSiblings` for cobranch convergence
+ * checking, where we need to know if a target APPEARS in a step's possible
+ * destinations (not that it's the ONLY destination).
+ *
+ * Handles three forms of `next`:
+ * - **String**: same as ExtractBranchEdge
+ * - **Function**: `next: () => 'a' | 'b'` → records an edge for each return type
+ *   member that is in TBranched (distributive conditional over the union)
+ * - **Branch array**: `next: [{ to: 'a' }, { to: 'b' }]` → records an edge for
+ *   each `to` value that is in TBranched
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ExtractBranchEdge<Name extends string, TNext, TBranched extends string> = Name extends TBranched
+type ExtractAnyEdge<Name extends string, TNext, TBranched extends string> = Name extends TBranched
   ? TNext extends string
     ? TNext extends TBranched
       ? `${Name}->${TNext}`
