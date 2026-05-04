@@ -728,30 +728,31 @@ export type AddStepGuarantees<
 /**
  * Compute the next `BranchState` after adding a step to the builder.
  *
- * Updates all three BranchState fields:
+ * Updates all five BranchState fields:
  *
  * 1. `branched`: union the existing branched set with any new forward branch targets
  *    extracted from this step's `next`.
  *
  * 2. `groups`: intersect the existing groups with new group entries mapping each
- *    forward target to this step (the origin). Uses intersection (`&`) because
- *    each step may add entries for different keys — intersection merges them.
+ *    NEW forward target to this step (the origin). Targets already in `branched`
+ *    are excluded to prevent group corruption when a target appears in multiple
+ *    branch points.
  *
- * 3. `edges`: union the existing edges with any new routing edge. A routing edge
- *    is recorded when a branched step's string `next` points to another branched
- *    step (sibling-to-sibling routing for reconvergence).
+ * 3. `edges`: union the existing deterministic edges with any new routing edge.
+ *    Only recorded for string `next` from a branched step to another branched step.
+ *
+ * 4. `anyEdges`: union the existing any-routing edges with edges from all `next`
+ *    forms (string, function, branch array) from branched steps to branched targets.
+ *    Used by cobranch convergence checking.
+ *
+ * 5. `cobranches`: union existing cobranch entries with new ones from guaranteed
+ *    steps that re-branch an already-branched target alongside new targets.
  *
  * Additionally, if the current step is guaranteed and routes to a branch target
  * via string next, that target is removed from `branched` (`GuaranteedRouteTarget`).
- * This handles transitive reconvergence: a guaranteed step proves all paths reach
- * the target, so the target no longer needs to be optional.
  *
  * `TKnownSteps` is the set of step names already defined in the builder (including
  * the current step). It's used by `ExtractBranchTargets` to identify backward edges.
- *
- * Example: step 'choose' branches to ['path-a', 'path-b']:
- *   AddStepBranches<EmptyBranches, 'choose', readonly [...], 'root' | 'choose'>
- *     → BranchState<'path-a' | 'path-b', { 'path-a': 'choose', 'path-b': 'choose' }, never>
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AddStepBranches<
