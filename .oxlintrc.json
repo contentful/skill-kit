@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn",
+    "style": "off",
+    "pedantic": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "rules": {
+    "no-console": "off",
+    "no-await-in-loop": "off"
+  },
+  "overrides": [
+    {
+      "files": ["*.test-d.ts"],
+      "rules": {
+        "no-unused-vars": "off",
+        "no-unused-expressions": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["docs-site", ".agents", ".claude/skills"]
+}

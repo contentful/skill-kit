@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(cat | jq -r '.tool_input.file_path // empty') && if [ -n \"$file_path\" ] && [ -f \"$file_path\" ]; then cd \"$CLAUDE_PROJECT_DIR\" && npx prettier --write \"$file_path\" 2>&1 || true; fi",
+            "timeout": 30,
+            "statusMessage": "Formatting..."
+          },
+          {
+            "type": "command",
+            "command": "file_path=$(cat | jq -r '.tool_input.file_path // empty') && if [ -n \"$file_path\" ] && echo \"$file_path\" | grep -qE '\\.(ts|tsx|js|mjs)$'; then cd \"$CLAUDE_PROJECT_DIR\" && npx oxlint \"$file_path\" 2>&1 || true; fi",
+            "timeout": 30,
+            "statusMessage": "Linting..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit *)",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && npx prettier --check . 2>&1 && npx oxlint 2>&1; if [ $? -ne 0 ]; then echo 'Lint/format errors found — fix before committing.' >&2; exit 2; fi",
+            "timeout": 60,
+            "statusMessage": "Pre-commit checks..."
+          }
+        ]
+      }
+    ]
+  }
+}

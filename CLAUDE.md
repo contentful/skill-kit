@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Language:** TypeScript 5.9+ (strict mode, ESM)
 - **Schema validation:** Zod 4
 - **Test runner:** `node --test --import tsx/esm`, colocated `*.test.ts` files, `node:assert/strict`
+- **Linting:** oxlint (correctness + suspicious rules; style rules off — Prettier owns formatting)
 - **Formatting:** Prettier (`singleQuote: true`, `printWidth: 120`)
 - **Build/distribution:** `--mode bun` (default) uses `bun build --compile` for standalone executables; `--mode node` uses esbuild for lightweight `.mjs` bundles
 
@@ -26,6 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `node --test --import tsx/esm examples/get-to-know-you/src/skill.test.ts` — run workflow example tests
 - `node --test --import tsx/esm examples/ts-patterns/src/skill.test.ts` — run reference example tests
 - `node --test --import tsx/esm examples/contentful-help/src/skill.test.ts` — run composite example tests
+- `pnpm run lint` — lint with oxlint
+- `pnpm run lint:fix` — lint and auto-fix with oxlint
 - `pnpm exec prettier --check .` — check formatting
 - `pnpm exec prettier --write .` — fix formatting
 - `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill executable (dev, current platform)
@@ -38,7 +41,7 @@ Example skills import `@contentful/skill-kit` which resolves via the `exports` f
 - Follow agents-kit project conventions (no Nx)
 - ESM only (`"type": "module"`)
 - Tests colocated next to source files
-- No ESLint — Prettier only
+- oxlint for correctness linting, Prettier for formatting (no ESLint)
 - Published to GitHub Packages (`@contentful:registry=https://npm.pkg.github.com/`)
 
 ## Workflow
@@ -59,7 +62,7 @@ Example skills import `@contentful/skill-kit` which resolves via the `exports` f
 Run typecheck + tests + format-check at each logical checkpoint — finishing a feature, wrapping a refactor step, before every `git push`. Don't batch to the end; compounding breakage is harder to debug. Fix formatting before committing. Do not push code that fails typecheck or tests.
 
 ```bash
-pnpm exec tsc --noEmit && node --test --import tsx/esm 'src/**/*.test.ts' && pnpm exec prettier --check .
+pnpm exec tsc --noEmit && pnpm run lint && node --test --import tsx/esm 'src/**/*.test.ts' && pnpm exec prettier --check .
 ```
 
 ## Code style
