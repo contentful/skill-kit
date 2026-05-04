@@ -32,6 +32,8 @@ jobs:
         run: node --test --import tsx/esm 'src/**/*.test.ts'
       - name: Format check
         run: pnpm exec prettier --check .
+      - name: Lint
+        run: pnpm run lint
       - name: Build
         run: pnpm run build
       - name: Typecheck examples
