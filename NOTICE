@@ -2,6 +2,12 @@ This project includes the following third-party open-source software components.
 
 Runtime Dependencies (Production)
 
+@modelcontextprotocol/sdk
+    License: MIT
+    https://github.com/modelcontextprotocol/typescript-sdk [npmjs.com]
+arktype
+    License: MIT
+    https://arktype.io [npmjs.com]
 esbuild
     License: MIT
     https://github.com/evanw/esbuild [npmjs.com]
@@ -15,9 +21,15 @@ zod
 
 Development Dependencies
 
+@release-it/conventional-changelog
+    License: MIT
+    https://github.com/release-it/conventional-changelog [npmjs.com]
 @types/node
     License: MIT
     https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node [npmjs.com]
+oxlint
+    License: MIT
+    https://oxc.rs [npmjs.com]
 prettier
     License: MIT
     https://prettier.io [npmjs.com]
