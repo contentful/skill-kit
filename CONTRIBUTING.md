@@ -44,6 +44,10 @@ pnpm run update-licenses
 - Update docs when behavior or usage changes.
 - Do not include secrets or credentials.
 
+## Contribution license
+
+By submitting a contribution to this project, you agree that your contribution is licensed under the MIT License that applies to this repository.
+
 ## Code of conduct
 
 By participating in this project, you agree to follow the Contentful Developer Code of Conduct:
