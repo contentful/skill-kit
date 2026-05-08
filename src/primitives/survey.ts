@@ -57,9 +57,7 @@ export const surveyPrimitive = definePrimitive({
         tool,
         instruction:
           'Batch all `<question>` children into a single tool call. ' +
-          'Each `<question>` maps to one entry in the `questions` array. ' +
-          'Map `header`, `options`, and `multiSelect` attributes to the corresponding parameters. ' +
-          'Map `<preview>` child elements to option preview fields. ' +
+          "Map each question's `header`, `options`, `multiSelect`, and `<preview>` children to the tool's parameters. " +
           'Return each answer keyed by question text.',
       };
     }

@@ -56,8 +56,8 @@ export const askUserPrimitive = definePrimitive({
       tag: '`<ask-user>`',
       tool: tool ?? '—',
       instruction: tool
-        ? 'Present `<option>` children as choices via the tool. Map `header` to the question header. Map `<preview>` child elements to option preview fields. For type="open", ask conversationally. Return selected value(s) verbatim.'
-        : 'For type="structured", present `<option>` children as numbered list. If options have `<preview>` content, display it alongside each option. Accept only exact value matches. For type="open", ask conversationally.',
+        ? '**type="open": no tool — ask in plain text.** type="structured": present `<option>` children as choices via the tool. Map `header` to question header, `<preview>` to preview fields. Return selected value(s) as step output.'
+        : '**type="open": ask in plain text.** type="structured": present `<option>` children as numbered list. If options have `<preview>` content, display it alongside each option. Accept only exact value matches.',
     };
   },
 });
