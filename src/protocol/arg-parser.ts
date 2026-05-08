@@ -1,6 +1,7 @@
 export type CompositeCommand =
   | { mode: 'dispatcher'; command: 'start' | 'advance'; flags: Record<string, string> }
   | { mode: 'subskill'; name: string; command: 'start' | 'advance'; flags: Record<string, string> }
+  | { mode: 'cleanup'; flags: Record<string, string> }
   | { mode: 'topics' }
   | { mode: 'topic'; name: string }
   | { mode: 'help' };
@@ -22,6 +23,9 @@ export function parseCompositeArgs(argv: string[], subskillNames: string[]): Com
       process.exit(1);
     }
     return { mode: 'topic', name };
+  }
+  if (first === 'cleanup') {
+    return { mode: 'cleanup', flags: parseFlags(args, 1) };
   }
 
   if (subskillNames.includes(first)) {

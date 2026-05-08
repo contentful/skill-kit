@@ -81,6 +81,16 @@ export async function compositeMain(def: SkillDefinition, refsBasePath?: string)
         await handleSubskill(def, parsed, refs, session, writer);
         break;
       }
+
+      case 'cleanup': {
+        const sessionFlag = parsed.flags['session'];
+        if (!sessionFlag) {
+          process.stderr.write('error: --session is required for cleanup\n');
+          process.exit(1);
+        }
+        SessionManager.cleanup(sessionFlag, parsed.flags['session-dir']);
+        break;
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

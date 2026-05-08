@@ -1,10 +1,19 @@
 import { randomBytes } from 'node:crypto';
-import { readFileSync, appendFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import {
+  readFileSync,
+  appendFileSync,
+  existsSync,
+  unlinkSync,
+  openSync,
+  closeSync,
+  writeSync,
+  constants,
+} from 'node:fs';
 import { join } from 'node:path';
 import type { SessionHeader, SessionOutputMode, SessionPointer, CliResult } from '../types.js';
+import { getSecureSessionDir } from './secure-tmp.js';
 
-const SESSION_ID_LENGTH = 4;
+const SESSION_ID_LENGTH = 16;
 
 function isStepResultShaped(value: unknown): value is { step: string; response: unknown; actionResult?: unknown } {
   return (
@@ -140,7 +149,7 @@ export class SessionFile {
 
 export class SessionManager {
   static create(options: CreateSessionOptions): SessionFile {
-    const sessionDir = options.sessionDir ?? tmpdir();
+    const sessionDir = options.sessionDir ?? getSecureSessionDir();
     const sessionId = generateSessionId();
     const filePath = sessionFilePath(sessionDir, sessionId);
 
@@ -156,12 +165,16 @@ export class SessionManager {
       outputMode: options.outputMode ?? 'file',
     };
 
-    writeFileSync(filePath, JSON.stringify(header) + '\n');
+    const content = JSON.stringify(header) + '\n';
+    const fd = openSync(filePath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+    writeSync(fd, content);
+    closeSync(fd);
+
     return new SessionFile(sessionId, filePath, header);
   }
 
   static open(sessionId: string, sessionDir?: string): SessionFile {
-    const dir = sessionDir ?? tmpdir();
+    const dir = sessionDir ?? getSecureSessionDir();
     const filePath = sessionFilePath(dir, sessionId);
 
     if (!existsSync(filePath)) {
@@ -183,7 +196,7 @@ export class SessionManager {
   }
 
   static cleanup(sessionId: string, sessionDir?: string): void {
-    const dir = sessionDir ?? tmpdir();
+    const dir = sessionDir ?? getSecureSessionDir();
     const filePath = sessionFilePath(dir, sessionId);
     if (existsSync(filePath)) {
       unlinkSync(filePath);

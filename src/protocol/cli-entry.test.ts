@@ -223,3 +223,42 @@ test('CLI session stateless mode still works without --session', async () => {
   assert.equal(result.done, true);
   assert.deepEqual(result.finalOutput, { message: 'hello' });
 });
+
+test('CLI cleanup removes session file', async () => {
+  const dir = createTempDir();
+  const { stdout: startOut } = await exec(
+    'npx',
+    ['tsx', fixturePath, 'start', '--params', '{}', '--session', 'new', '--session-dir', dir],
+    { cwd: join(__dirname, '..', '..') },
+  );
+  const pointer = JSON.parse(startOut.trim());
+
+  const { existsSync } = await import('node:fs');
+  assert.ok(existsSync(pointer.file));
+
+  await exec('npx', ['tsx', fixturePath, 'cleanup', '--session', pointer.sessionId, '--session-dir', dir], {
+    cwd: join(__dirname, '..', '..'),
+  });
+
+  assert.ok(!existsSync(pointer.file));
+});
+
+test('CLI cleanup is idempotent', async () => {
+  const dir = createTempDir();
+  const { stdout: startOut } = await exec(
+    'npx',
+    ['tsx', fixturePath, 'start', '--params', '{}', '--session', 'new', '--session-dir', dir],
+    { cwd: join(__dirname, '..', '..') },
+  );
+  const pointer = JSON.parse(startOut.trim());
+
+  // First cleanup
+  await exec('npx', ['tsx', fixturePath, 'cleanup', '--session', pointer.sessionId, '--session-dir', dir], {
+    cwd: join(__dirname, '..', '..'),
+  });
+
+  // Second cleanup should not throw
+  await exec('npx', ['tsx', fixturePath, 'cleanup', '--session', pointer.sessionId, '--session-dir', dir], {
+    cwd: join(__dirname, '..', '..'),
+  });
+});
