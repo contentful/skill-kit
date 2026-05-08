@@ -59,6 +59,16 @@ export async function main(skill: SkillDefinition): Promise<void> {
         await handleAdvance(skill, ctx);
         break;
       }
+
+      case 'cleanup': {
+        const sessionFlag = flags['session'];
+        if (!sessionFlag) {
+          process.stderr.write('error: --session is required for cleanup\n');
+          process.exit(1);
+        }
+        SessionManager.cleanup(sessionFlag, flags['session-dir']);
+        break;
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
