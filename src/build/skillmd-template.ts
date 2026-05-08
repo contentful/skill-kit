@@ -208,9 +208,13 @@ export function generateSkillMd(skill: SkillDefinition, protocol: BuildProtocol 
   const body = `
 # ${skill.name}
 
-This skill is a structured workflow driven by a compiled CLI binary. You interact with it
-by calling the binary, reading its JSON output, following the instructions in the \`prompt\`
-field, and passing your response back. **Do not show the raw JSON or Bash commands to the user.**
+This skill is a structured workflow. You interact with it via MCP tools (preferred) or a
+CLI binary (fallback), reading its JSON output, following the instructions in the \`prompt\`
+field, and passing your response back. **Do not show the raw JSON or tool calls to the user.**
+
+**Use MCP tools if available.** If you have \`mcp__${skill.name}__start\` and
+\`mcp__${skill.name}__advance\`, use MCP mode. Only fall back to CLI mode if MCP tools
+are not available in your environment.
 
 ## How this skill works
 

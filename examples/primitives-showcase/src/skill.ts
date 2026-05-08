@@ -39,13 +39,59 @@ export default skill({
         question: 'Which framework?',
         header: 'Framework',
         options: [
-          { value: 'react', label: 'React' },
-          { value: 'vue', label: 'Vue' },
-          { value: 'svelte', label: 'Svelte' },
+          {
+            value: 'react',
+            label: 'React',
+            preview: 'import { memo, useMemo } from "react";\n// Virtual DOM reconciliation',
+          },
+          {
+            value: 'vue',
+            label: 'Vue',
+            preview:
+              '// Composition API + SFCs\nconst count = ref(0);\nconst doubled = computed(() => count.value * 2);',
+          },
+          {
+            value: 'svelte',
+            label: 'Svelte',
+            preview: '// Compile-time reactivity\nlet count = $state(0);\nlet doubled = $derived(count * 2);',
+          },
         ],
       },
     ]),
     response: type({ theme: 'string', framework: 'string' }),
+    next: 'choose-format',
+  })
+
+  // --- askUser (structured + previews): format selection with visual preview ---
+  .step('choose-format', {
+    prompt: act.askUser({
+      type: 'structured',
+      question: 'Which report format do you prefer?',
+      header: 'Format',
+      options: [
+        {
+          value: 'detailed',
+          label: 'Detailed',
+          description: 'Full narrative with examples',
+          preview:
+            '# Executive Summary\n\nIn-depth analysis with code samples,\nbenchmarks, and step-by-step guidance.',
+        },
+        {
+          value: 'brief',
+          label: 'Brief',
+          description: 'Bullet points and key takeaways',
+          preview: '## Key Findings\n\n- Finding 1: …\n- Finding 2: …\n\n## Actions\n\n- [ ] Item 1\n- [ ] Item 2',
+        },
+      ],
+    }),
+    response: type({ format: 'string' }),
+    next: 'ask-focus',
+  })
+
+  // --- askUser (open): free-form question on the happy path ---
+  .step('ask-focus', {
+    prompt: act.askUser({ type: 'open', question: 'Any specific areas you want the report to focus on?' }),
+    response: type({ focus: 'string' }),
     next: 'research',
   })
 

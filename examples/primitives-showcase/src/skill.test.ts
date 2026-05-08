@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { runSkill, mockModel } from '@contentful/skill-kit/test';
 import skill from './skill.js';
 
-test('happy path: survey → research → plan → write → confirm → summary', async () => {
+test('happy path: survey → choose-format → ask-focus → research → plan → write → confirm → summary', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'gather-preferences': { theme: 'performance', framework: 'react' },
+      'choose-format': { format: 'detailed' },
+      'ask-focus': { focus: 'Bundle size reduction' },
       research: { summary: 'Use code splitting, lazy loading, and memoization.' },
       'plan-report': { approved: true },
       'write-report': { title: 'Performance Report', body: 'React performance best practices.' },
@@ -17,6 +19,8 @@ test('happy path: survey → research → plan → write → confirm → summary
 
   assert.deepEqual(result.path, [
     'gather-preferences',
+    'choose-format',
+    'ask-focus',
     'research',
     'plan-report',
     'write-report',
@@ -29,6 +33,8 @@ test('plan rejected → ask-changes → plan again', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'gather-preferences': { theme: 'security', framework: 'vue' },
+      'choose-format': { format: 'brief' },
+      'ask-focus': { focus: 'Dependency vulnerabilities' },
       research: { summary: 'Use CSP headers, sanitize inputs, audit deps.' },
       'plan-report': [{ approved: false }, { approved: true }],
       'ask-changes': { feedback: 'Add a section on dependency auditing.' },
@@ -46,6 +52,8 @@ test('confirm-publish declined → ask-changes loop', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'gather-preferences': { theme: 'accessibility', framework: 'svelte' },
+      'choose-format': { format: 'detailed' },
+      'ask-focus': { focus: 'Screen reader support' },
       research: { summary: 'Use semantic HTML, ARIA labels, focus management.' },
       'plan-report': { approved: true },
       'write-report': { title: 'A11y Report', body: 'Svelte accessibility.' },
@@ -63,6 +71,8 @@ test('store accumulates data across steps', async () => {
   const result = await runSkill(skill, {
     model: mockModel({
       'gather-preferences': { theme: 'performance', framework: 'svelte' },
+      'choose-format': { format: 'brief' },
+      'ask-focus': { focus: 'Initial load time' },
       research: { summary: 'Compile-time optimizations.' },
       'plan-report': { approved: true },
       'write-report': { title: 'Perf', body: 'Content.' },
