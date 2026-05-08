@@ -81,5 +81,11 @@
     "prettier": "^3.8.1",
     "release-it": "^19.0.0",
     "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": ">=6.24.0",
+      "ip-address": ">=10.1.1"
+    }
   }
 }
