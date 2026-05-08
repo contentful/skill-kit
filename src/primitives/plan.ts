@@ -29,7 +29,7 @@ export const planPrimitive = definePrimitive({
       tag: '`<plan>`',
       tool: tool ?? '—',
       instruction: tool
-        ? 'Present summary + `<step>` children via the tool. Wait for approval.'
+        ? 'Submit summary + `<step>` children to the tool to enter plan mode. Await user approval or revision before continuing.'
         : 'Present as numbered list. Ask to proceed or revise.',
     };
   },

@@ -1,6 +1,11 @@
 import type { ChecklistConfig } from '../types.js';
 import { definePrimitive } from './primitive.js';
 
+const UPDATE_TOOLS: Record<string, string> = {
+  TaskCreate: 'TaskUpdate',
+  'tracker-create-task': 'tracker-update-task',
+};
+
 export interface ChecklistInput {
   create: Array<{ title: string; status: string }>;
 }
@@ -23,11 +28,18 @@ export const checklistPrimitive = definePrimitive({
   },
 
   preambleRow(tool) {
+    if (tool && tool in UPDATE_TOOLS) {
+      return {
+        tag: '`<checklist>`',
+        tool,
+        instruction: `Create \`<item>\` children via ${tool}. Mark done via ${UPDATE_TOOLS[tool]} as each completes.`,
+      };
+    }
     return {
       tag: '`<checklist>`',
       tool: tool ?? '—',
       instruction: tool
-        ? 'Register `<item>` children via the tool. Update status as each completes.'
+        ? 'Register `<item>` children via the tool. Re-invoke to update status as each completes.'
         : 'Maintain visible checklist. Update status as items complete.',
     };
   },
