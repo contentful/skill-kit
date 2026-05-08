@@ -145,6 +145,14 @@ This returns a single line number (e.g., `4`). Read **exactly and only that line
 Keep advancing until the line you read contains `"type":"done"`. The `finalOutput` field
 contains the skill's result. Present it to the user.
 
+### Step 5: Cleanup
+
+After presenting the result, remove the session file:
+
+```bash
+<skill>/scripts/run cleanup --session <session-id> 2>/dev/null
+```
+
 ### Important
 
 - **Never show raw JSON output or Bash commands to the user.** The user sees your natural
