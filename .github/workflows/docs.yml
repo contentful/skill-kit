@@ -8,6 +8,8 @@ on:
       - 'docs-site/**'
       - 'docs/**'
       - 'README.md'
+      - 'SPEC.md'
+      - 'scripts/generate-llms-txt.mjs'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 

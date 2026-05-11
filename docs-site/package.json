@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.24.0",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node ../scripts/generate-llms-txt.mjs",
     "preview": "astro preview"
   },
   "dependencies": {
