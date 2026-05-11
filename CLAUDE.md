@@ -42,7 +42,7 @@ Example skills import `@contentful/skill-kit` which resolves via the `exports` f
 - ESM only (`"type": "module"`)
 - Tests colocated next to source files
 - oxlint for correctness linting, Prettier for formatting (no ESLint)
-- Published to GitHub Packages (`@contentful:registry=https://npm.pkg.github.com/`)
+- Published to npm (`@contentful:registry=https://registry.npmjs.org`)
 
 ## Workflow
 
