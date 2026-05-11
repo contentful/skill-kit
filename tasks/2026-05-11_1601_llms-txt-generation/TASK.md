@@ -19,19 +19,22 @@ A standalone post-build script (`scripts/generate-llms-txt.mjs`) using only `nod
 ### Sources for `llms-full.txt`
 
 1. `README.md` (HTML badges stripped)
-2. `SPEC.md` (canonical spec, 2000 lines)
-3. `docs/api.md` (API reference)
-4. `docs/architecture.md` (internals)
-5. `docs/hosts.md` (host tool mappings)
+2. `docs/api.md` (API reference)
+
+Excluded after sub-agent evaluation showed ~35-40% redundancy with API reference:
+
+- `SPEC.md` — design rationale duplicates API content; agents need signatures, not philosophy
+- `docs/architecture.md` — internals not needed to build skills
+- `docs/hosts.md` — host tool inventories not needed for skill authoring
 
 ### `llms.txt` structure
 
-Follows the standard: H1 title, blockquote summary, "Instructions for LLM Agents" section, H2 sections with `- [Title](url): description` links pointing to docs site pages and GitHub source files.
+Follows the standard: H1 title, blockquote summary, "Instructions for LLM Agents" section, Quick Start snippets (all three skill types), H2 sections with `- [Title](url): description` links pointing to docs site pages and GitHub source files.
 
 ### Integration
 
 - `docs-site/package.json` build script chains the generator
-- `.github/workflows/docs.yml` adds `SPEC.md` to trigger paths
+- `.github/workflows/docs.yml` adds `SPEC.md` and `scripts/generate-llms-txt.mjs` to trigger paths
 
 ### Alternatives rejected
 
@@ -43,14 +46,27 @@ Follows the standard: H1 title, blockquote summary, "Instructions for LLM Agents
 ## Steps
 
 - [x] Create task file
-- [ ] Create `scripts/generate-llms-txt.mjs`
-- [ ] Modify `docs-site/package.json` build script
-- [ ] Add `SPEC.md` to docs workflow trigger paths
-- [ ] Build and verify output
-- [ ] Create branch and commit
+- [x] Create `scripts/generate-llms-txt.mjs`
+- [x] Modify `docs-site/package.json` build script
+- [x] Add `SPEC.md` and script to docs workflow trigger paths
+- [x] Build and verify output
+- [x] Create branch and commit
+- [x] Sub-agent evaluation round 1 (7/7) — identified redundancy from SPEC
+- [x] Remove SPEC, architecture, hosts from full dump
+- [x] Sub-agent evaluation round 2 (8/9) — suggested ArkType primer, refs docs, retry docs
+- [x] Add ArkType schema syntax primer to api.md
+- [x] Add `references/` directory conventions to api.md
+- [x] Add response validation retry semantics to api.md
+- [x] Add reference + composite snippets to llms.txt Quick Start
+- [x] Sub-agent evaluation round 3 — confirmed improvements
+- [x] Fix stray 4-backtick fence in SPEC.md
+- [x] Push and open PR (#73)
 
 ## Notes
 
 - Base URL: `https://contentful.github.io/skill-kit/`
 - GitHub source URL: `https://github.com/contentful/skill-kit/blob/main/`
-- Total llms-full.txt estimate: ~5100 lines / ~130KB — within all major agent context windows
+- Final sizes: `llms.txt` = 3.6 KB, `llms-full.txt` = 74.5 KB
+- Sub-agent evaluation progression: 7/7 → 8/9 → 8/10 (llms.txt) and 9/10 (llms-full.txt)
+- Key insight: public interface only (README + API reference) eliminates redundancy while retaining everything needed to build all three skill types
+- SPEC.md had a rendering bug (stray 4-backtick fence at line 317 wrapping ~1700 lines in a code block) — fixed as a drive-by
