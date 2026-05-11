@@ -1,0 +1,22 @@
+# @contentful/skill-kit
+
+> TypeScript SDK for building agent skills with CLI-driven workflows.
+
+Start with the README for the product overview and installation flow. Use the API reference for author-facing builder signatures and the architecture doc for runtime protocol and build behavior. The links below point directly to markdown sources so they are easy for LLM tooling to consume.
+
+## Core Docs
+
+- [README](https://raw.githubusercontent.com/contentful/skill-kit/main/README.md): Overview, installation, quick start, examples, and package layout.
+- [API Reference](https://raw.githubusercontent.com/contentful/skill-kit/main/docs/api.md): Full author-facing SDK reference.
+- [Architecture](https://raw.githubusercontent.com/contentful/skill-kit/main/docs/architecture.md): Internal model, CLI protocol, and build pipeline.
+
+## Examples
+
+- [get-to-know-you SKILL.md](https://raw.githubusercontent.com/contentful/skill-kit/main/examples/get-to-know-you/skill/SKILL.md): Workflow skill example with branching and interactive primitives.
+- [ts-patterns SKILL.md](https://raw.githubusercontent.com/contentful/skill-kit/main/examples/ts-patterns/skill/SKILL.md): Reference skill example with progressive disclosure.
+- [contentful-help SKILL.md](https://raw.githubusercontent.com/contentful/skill-kit/main/examples/contentful-help/skill/SKILL.md): Composite skill example that routes across topics and sub-skills.
+
+## Optional
+
+- [SPEC.md](https://raw.githubusercontent.com/contentful/skill-kit/main/SPEC.md): Full SDK design specification and source of truth.
+- [Agent Host Reference](https://raw.githubusercontent.com/contentful/skill-kit/main/docs/hosts.md): Host capability inventory and primitive mapping notes.
