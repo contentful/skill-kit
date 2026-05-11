@@ -138,6 +138,10 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
 }
 ```
 
+### Response validation and retry
+
+When the agent's JSON response fails the `response` schema, the engine re-prompts automatically with the validation error. The agent sees the error message and tries again. This loop continues until the response passes or the step hits its `maxVisits` limit. The `onStepValidationFailed` observer fires on each failed attempt. No author code is needed to handle retries — the engine manages it.
+
 `PromptFn` is `(ctx: PromptContext) => PromptReturn`, where `PromptReturn = string | PromptPiece | PromptPiece[]`.
 
 A `PromptPiece` is one of:
@@ -410,6 +414,23 @@ Registers a topic. `content` is a lazy function receiving `{ refs: ReferenceLoad
 ```
 
 At least one topic is required. `build()` throws if name, description, or topics are missing.
+
+### `refs.load(path)` and the `references/` directory
+
+Topic content often lives in separate markdown files. Place them in a `references/` directory next to your skill source:
+
+```
+src/
+  skill.ts
+  references/
+    auth.md
+    errors.md
+    rate-limits.md
+```
+
+The build copies `references/` into the output package. At runtime, `refs.load('auth.md')` reads `references/auth.md` relative to the skill executable and returns its content as a string.
+
+Files in `references/` that aren't loaded by any topic trigger an `orphan-references` lint warning.
 
 ---
 
