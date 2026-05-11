@@ -314,8 +314,6 @@ The `act` and `system` helpers are injected via `PromptContext`, not imported. A
 })
 ```
 
-````
-
 **`system`** — creates a system segment for persona or framing. Used as a template tag (`system\`...\``) or called as a function (`system('...')`).
 
 **`act`** — provides methods for each primitive:
@@ -416,7 +414,7 @@ step({
   next: [
     { to: 'ask-stack', when: ({ response }) => response.role === 'dev' },
     { to: 'ask-tools', when: ({ response }) => response.role === 'designer' },
-    { to: 'ask-specialty' },  // fallback — no condition
+    { to: 'ask-specialty' }, // fallback — no condition
   ],
 });
 ```
@@ -429,13 +427,13 @@ Cycles detected by the graph analyzer apply an implicit visit limit (10) at runt
 
 When `next` is a function, it receives the following fields:
 
-| Field          | Description                                                                     |
-| -------------- | ------------------------------------------------------------------------------- |
-| `response`     | The validated response of this step (typed by the step's `response` schema)     |
-| `actionResult` | The action's result, if an action was configured (typed by action's schema)      |
-| `attempts`     | How many times this step has been visited (for bounded-loop patterns)            |
-| `params`       | Skill params — the external data passed at invocation                            |
-| `store`        | State accessor — step results via `store.steps.*`, sub-stores via `store.*`       |
+| Field          | Description                                                                 |
+| -------------- | --------------------------------------------------------------------------- |
+| `response`     | The validated response of this step (typed by the step's `response` schema) |
+| `actionResult` | The action's result, if an action was configured (typed by action's schema) |
+| `attempts`     | How many times this step has been visited (for bounded-loop patterns)       |
+| `params`       | Skill params — the external data passed at invocation                       |
+| `store`        | State accessor — step results via `store.steps.*`, sub-stores via `store.*` |
 
 ### Declarative branching (`NextBranch[]`)
 
@@ -732,14 +730,14 @@ The store has two namespaces: `store.steps.*` for step-keyed results, and top-le
 
 ```typescript
 // Step results live under store.steps
-store.steps.greet.name              // guaranteed step — non-optional
-store.steps['ask-stack']?.answer    // branch target — optional
-store.steps.all('ask-hobby')        // loop visits
-store.steps.ran('ask-stack')        // boolean check
-store.steps.history                 // raw records
+store.steps.greet.name; // guaranteed step — non-optional
+store.steps['ask-stack']?.answer; // branch target — optional
+store.steps.all('ask-hobby'); // loop visits
+store.steps.ran('ask-stack'); // boolean check
+store.steps.history; // raw records
 
 // Sub-stores live at the top level
-store.environment?.apiA?.host       // sub-store — optional until narrowed
+store.environment?.apiA?.host; // sub-store — optional until narrowed
 ```
 
 Skills can declare named sub-stores for domain-structured state that doesn't belong to any single step. Sub-stores are typed by their schema and accessed at the top level of `store` (everything outside `steps`):
@@ -749,7 +747,7 @@ skill({
   stores: {
     environment: type({ apiA: { host: 'string', key: 'string' } }),
   },
-})
+});
 ```
 
 Steps write to sub-stores via the `save` callback (see below). Sub-store writes are deep-merged — each step can contribute a slice without overwriting the rest.
@@ -782,7 +780,7 @@ Sub-store writes use the same callback — top-level keys matching declared stor
 ```typescript
 save: ({ actionResult }) => ({
   environment: { apiA: { host: actionResult.host } },
-})
+});
 ```
 
 A single `save` callback can write to both the step store and sub-stores simultaneously. The `save` callback receives `{ response, actionResult, store, params }` — the step's validated response, the action's result (if any), the current store accessor, and the skill params.
@@ -803,14 +801,14 @@ Sub-store narrowing follows a similar principle. When a guaranteed predecessor w
 
 The builder's type narrowing is computed at compile time via generic accumulators. Each `.step()` call adds an intersection layer to `TSteps` and updates `BranchState`/`GuaranteeState`. The practical limits:
 
-| Dimension | Tested up to | Notes |
-|-----------|-------------|-------|
-| Linear chain (sequential steps) | 300 steps in ~24s, 500 in ~108s | The only bottleneck. Each step adds an intersection layer to `TSteps`. |
-| Branch width | 100-way branch in <6s | Union extraction and reconvergence checking scale linearly. |
-| Independent branches | 20+ branch points in <4s | `BranchState.groups` record accumulates cheaply. |
-| Reconvergence cycles | 30 branch-reconverge pairs in <4s | Template literal edge tracking handles large edge sets. |
-| Sub-store nesting depth | 10 levels in <4s | `DeepPartial`/`DeepReadonly` traverse schema shape, not the accumulator. |
-| Combined (branches + stores + saves) | 15 steps, 3 branches, 2 reconvergences, 2 stores in <5s | Representative real-world skill. |
+| Dimension                            | Tested up to                                            | Notes                                                                    |
+| ------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Linear chain (sequential steps)      | 300 steps in ~24s, 500 in ~108s                         | The only bottleneck. Each step adds an intersection layer to `TSteps`.   |
+| Branch width                         | 100-way branch in <6s                                   | Union extraction and reconvergence checking scale linearly.              |
+| Independent branches                 | 20+ branch points in <4s                                | `BranchState.groups` record accumulates cheaply.                         |
+| Reconvergence cycles                 | 30 branch-reconverge pairs in <4s                       | Template literal edge tracking handles large edge sets.                  |
+| Sub-store nesting depth              | 10 levels in <4s                                        | `DeepPartial`/`DeepReadonly` traverse schema shape, not the accumulator. |
+| Combined (branches + stores + saves) | 15 steps, 3 branches, 2 reconvergences, 2 stores in <5s | Representative real-world skill.                                         |
 
 The only practical limit is the linear step chain depth, because TypeScript must resolve the accumulated intersection type `{} & { s01: T1 } & { s02: T2 } & ...` at each step. Real-world skills rarely exceed 20 steps, so the ~300-step wall is a non-issue. Branches, reconvergence, and sub-stores add negligible overhead.
 
@@ -968,13 +966,13 @@ skill({
 
 Available observer events, deliberately kept to five:
 
-| Event                    | Fires when                                                         |
-| ------------------------ | ------------------------------------------------------------------ |
-| `onStepStart`            | Before the step's prompt is emitted to the model                   |
+| Event                    | Fires when                                                           |
+| ------------------------ | -------------------------------------------------------------------- |
+| `onStepStart`            | Before the step's prompt is emitted to the model                     |
 | `onStepComplete`         | After the step's response is validated (and action, if any, has run) |
-| `onStepValidationFailed` | When the model's response doesn't match the schema (before retry)  |
-| `onTransition`           | When the CLI routes from one step to another, including terminal   |
-| `onSkillComplete`        | When the skill reaches a terminal state, successfully or otherwise |
+| `onStepValidationFailed` | When the model's response doesn't match the schema (before retry)    |
+| `onTransition`           | When the CLI routes from one step to another, including terminal     |
+| `onSkillComplete`        | When the skill reaches a terminal state, successfully or otherwise   |
 
 **Observers do not mutate state.** If you need to transform data between steps, declare a step or an action — the transformation belongs in the workflow, not hidden in an observer. This is load-bearing: observers that mutate create non-local data flow that breaks replay and makes skills hard to reason about.
 
@@ -1049,7 +1047,13 @@ The compiled skill binary is invoked by agents via Bash — one call per step. E
 **Validation error:**
 
 ```json
-{ "kind": "error", "error": "validation", "step": "diagnose", "message": "Expected object, received string", "retry": true }
+{
+  "kind": "error",
+  "error": "validation",
+  "step": "diagnose",
+  "message": "Expected object, received string",
+  "retry": true
+}
 ```
 
 All CLI result types carry a `kind` field that serves as a discriminant for the `CliResult` union: `'prompt'`, `'done'`, `'error'`, or `'redirect'`. The SDK exports type guard helpers (`isPrompt`, `isDone`, `isError`, `isRedirect`) for narrowing.
@@ -1058,12 +1062,12 @@ All CLI result types carry a `kind` field that serves as a discriminant for the 
 
 | Flag            | Required     | Description                                                                                                                                                                    |
 | --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--params`     | On `start`   | JSON string. Validated against the skill's params schema.                                                                                                                      |
+| `--params`      | On `start`   | JSON string. Validated against the skill's params schema.                                                                                                                      |
 | `--step`        | On `advance` | Name of the step whose response is being submitted. Not needed with `--session` in file mode.                                                                                  |
 | `--output`      | On `advance` | JSON string. The agent's response for the step. Not needed with `--session` in file mode.                                                                                      |
 | `--history`     | On `advance` | JSON array of `{"step": string, "output": unknown}` objects. Full conversation history. Not needed with `--session`.                                                           |
 | `--host`        | Optional     | Host identifier for tool resolution. Defaults to `generic`. Known values: `claude-code`, `codex`, `opencode`, `gemini-cli`, `cline`, `roo-code`, `kilo-code`, `cursor`, `amp`. |
-| `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.           |
+| `--tools`       | Optional     | Comma-separated list of available tools (merged with host registry; authoritative with `--subagent`). E.g., `--tools AskUserQuestion,EnterPlanMode,TaskCreate,Agent`.          |
 | `--subagent`    | Optional     | Boolean flag. Indicates a subagent with a genuine tool subset — `--tools` becomes authoritative (no registry merge).                                                           |
 | `--session`     | Optional     | `new` to create a session (start), or session ID (advance). See [Session protocol](#session-protocol-file-based).                                                              |
 | `--session-dir` | Optional     | Directory for session files. Default: OS temp directory.                                                                                                                       |
@@ -1128,13 +1132,13 @@ The session file is JSONL. Line 1 is the header; line 2 is the first prompt.
 
 **Session JSONL format:**
 
-| Line type | `type` field | Description                                                                          |
-| --------- | ------------ | ------------------------------------------------------------------------------------ |
-| Header    | `header`     | Session metadata: `sessionId`, `skill`, `host`, `params`, `createdAt`, `outputMode`  |
-| Prompt    | `prompt`     | Step prompt with `step`, `prompt`, `schema`, optional `preamble` and `completed`     |
-| Output    | `output`     | Agent's step response: `step`, `output`                                              |
-| Done      | `done`       | Terminal: `done: true`, `finalOutput`, `completed`                                   |
-| Error     | `error`      | Validation error: `error`, `step`, `message`, `retry`                                |
+| Line type | `type` field | Description                                                                         |
+| --------- | ------------ | ----------------------------------------------------------------------------------- |
+| Header    | `header`     | Session metadata: `sessionId`, `skill`, `host`, `params`, `createdAt`, `outputMode` |
+| Prompt    | `prompt`     | Step prompt with `step`, `prompt`, `schema`, optional `preamble` and `completed`    |
+| Output    | `output`     | Agent's step response: `step`, `output`                                             |
+| Done      | `done`       | Terminal: `done: true`, `finalOutput`, `completed`                                  |
+| Error     | `error`      | Validation error: `error`, `step`, `message`, `retry`                               |
 
 Example session file:
 
@@ -1962,11 +1966,13 @@ The `--host` flag and optional `--tools` flag work the same as in CLI mode (§14
 The MCP server registers two tools with short names. MCP clients namespace them by server name (e.g., `mcp__repo_doctor__start`).
 
 **`start`** — begins a new workflow session:
+
 - Input: `{ params?: object }` — skill params, validated against the skill's param schema
 - Result: `{ session, status: "prompt", step, prompt, schema, preamble }`
 - The `preamble` maps XML tags to host tools, same as in CLI mode
 
 **`advance`** — submits the step response and retrieves the next prompt:
+
 - Input: `{ session: string, step: string, output: object }`
 - Result: `{ status: "prompt", step, prompt, schema }` | `{ status: "done", finalOutput }` | `{ status: "error", step, message, retry }`
 
@@ -2000,4 +2006,7 @@ Direct subskill access is available via the `subskill` parameter on `start`.
 4. **Shared-step versioning.** When `gatherRepoFacts` changes its response schema, how do consuming skills pin?
 5. **Model-agnosticism.** Does the SDK assume anything about the model, or strictly harness-agnostic?
 6. **Skill vs. skill-bundle.** If related skills want to share fragments and actions, is that a monorepo convention or a first-class concept?
-````
+
+```
+
+```

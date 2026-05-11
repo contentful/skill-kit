@@ -4,6 +4,41 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 
 ---
 
+## Schema Syntax (`type()`)
+
+skill-kit uses [ArkType](https://arktype.io/) for runtime validation. The `type()` helper is re-exported from `@contentful/skill-kit` — you don't need to install ArkType directly.
+
+```typescript
+import { type } from '@contentful/skill-kit';
+```
+
+### Common patterns
+
+| Expression                                                  | Validates                            | Notes                                |
+| ----------------------------------------------------------- | ------------------------------------ | ------------------------------------ |
+| `type({ name: 'string' })`                                  | `{ name: string }`                   | Required string field                |
+| `type({ 'age?': 'number' })`                                | `{ age?: number }`                   | Optional field (trailing `?` in key) |
+| `type({ tags: 'string[]' })`                                | `{ tags: string[] }`                 | Array of strings                     |
+| `type({ status: "'active' \| 'archived'" })`                | `{ status: 'active' \| 'archived' }` | String literal union                 |
+| `type({ count: 'number.integer' })`                         | `{ count: number }`                  | Integer constraint                   |
+| `type({ items: { name: 'string', 'done?': 'boolean' }[] })` | Nested object array                  | Inline nested shapes                 |
+
+### Reusable schemas
+
+```typescript
+const Profile = type({ name: 'string', 'role?': 'string', 'stack?': 'string[]' });
+
+// Use in step response:
+.step('confirm', {
+  response: type({ approved: 'boolean', profile: Profile }),
+  // ...
+})
+```
+
+ArkType infers TypeScript types from schema definitions — `ctx.response` in step callbacks is fully typed without manual annotations.
+
+---
+
 ## Workflow Builder
 
 ```typescript
@@ -102,6 +137,10 @@ The full shape of a step's config object, passed to `.step()` or `step()`:
   onMaxVisits?: string,
 }
 ```
+
+### Response validation and retry
+
+When the agent's JSON response fails the `response` schema, the engine re-prompts automatically with the validation error. The agent sees the error message and tries again. This loop continues until the response passes or the step hits its `maxVisits` limit. The `onStepValidationFailed` observer fires on each failed attempt. No author code is needed to handle retries — the engine manages it.
 
 `PromptFn` is `(ctx: PromptContext) => PromptReturn`, where `PromptReturn = string | PromptPiece | PromptPiece[]`.
 
@@ -375,6 +414,23 @@ Registers a topic. `content` is a lazy function receiving `{ refs: ReferenceLoad
 ```
 
 At least one topic is required. `build()` throws if name, description, or topics are missing.
+
+### `refs.load(path)` and the `references/` directory
+
+Topic content often lives in separate markdown files. Place them in a `references/` directory next to your skill source:
+
+```
+src/
+  skill.ts
+  references/
+    auth.md
+    errors.md
+    rate-limits.md
+```
+
+The build copies `references/` into the output package. At runtime, `refs.load('auth.md')` reads `references/auth.md` relative to the skill executable and returns its content as a string.
+
+Files in `references/` that aren't loaded by any topic trigger an `orphan-references` lint warning.
 
 ---
 
