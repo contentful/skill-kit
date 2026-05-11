@@ -4,6 +4,41 @@ Full reference for `@contentful/skill-kit`. Start with the [README](../README.md
 
 ---
 
+## Schema Syntax (`type()`)
+
+skill-kit uses [ArkType](https://arktype.io/) for runtime validation. The `type()` helper is re-exported from `@contentful/skill-kit` — you don't need to install ArkType directly.
+
+```typescript
+import { type } from '@contentful/skill-kit';
+```
+
+### Common patterns
+
+| Expression                                                  | Validates                            | Notes                                |
+| ----------------------------------------------------------- | ------------------------------------ | ------------------------------------ |
+| `type({ name: 'string' })`                                  | `{ name: string }`                   | Required string field                |
+| `type({ 'age?': 'number' })`                                | `{ age?: number }`                   | Optional field (trailing `?` in key) |
+| `type({ tags: 'string[]' })`                                | `{ tags: string[] }`                 | Array of strings                     |
+| `type({ status: "'active' \| 'archived'" })`                | `{ status: 'active' \| 'archived' }` | String literal union                 |
+| `type({ count: 'number.integer' })`                         | `{ count: number }`                  | Integer constraint                   |
+| `type({ items: { name: 'string', 'done?': 'boolean' }[] })` | Nested object array                  | Inline nested shapes                 |
+
+### Reusable schemas
+
+```typescript
+const Profile = type({ name: 'string', 'role?': 'string', 'stack?': 'string[]' });
+
+// Use in step response:
+.step('confirm', {
+  response: type({ approved: 'boolean', profile: Profile }),
+  // ...
+})
+```
+
+ArkType infers TypeScript types from schema definitions — `ctx.response` in step callbacks is fully typed without manual annotations.
+
+---
+
 ## Workflow Builder
 
 ```typescript
