@@ -9,6 +9,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
+  packages: read
 
 jobs:
   ci:
@@ -20,9 +21,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.pkg.github.com/
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Typecheck
         run: pnpm exec tsc --noEmit
       - name: Test
