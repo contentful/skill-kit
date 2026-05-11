@@ -9,25 +9,10 @@ const GITHUB_URL = 'https://github.com/contentful/skill-kit/blob/main/';
 const SOURCES = [
   { path: 'README.md', title: 'Overview', description: 'Project overview, quick start, and skill types' },
   {
-    path: 'SPEC.md',
-    title: 'SDK Specification',
-    description: 'Canonical spec: primitives, transitions, rendering, testing, runtime protocol, build pipeline',
-  },
-  {
     path: 'docs/api.md',
     title: 'API Reference',
     description:
       'Full API: workflow builder, step config, reference builder, modules, composites, primitives, testing, CLI',
-  },
-  {
-    path: 'docs/architecture.md',
-    title: 'Architecture',
-    description: 'Internal workings: CLI protocol, MCP transport, host-aware prose, build pipeline, engine internals',
-  },
-  {
-    path: 'docs/hosts.md',
-    title: 'Agent Host Reference',
-    description: 'Complete tool inventories for Claude Code, Cursor, Windsurf, Cline, and SDK primitive mappings',
   },
 ];
 
@@ -72,10 +57,7 @@ const PAGES = [
   },
   {
     section: 'Reference',
-    items: [
-      { title: 'API Reference', url: 'api/', desc: 'Complete API documentation' },
-      { title: 'Architecture', url: 'architecture/', desc: 'Internals and design decisions' },
-    ],
+    items: [{ title: 'API Reference', url: 'api/', desc: 'Complete API documentation' }],
   },
   {
     section: 'Examples',
@@ -111,8 +93,26 @@ function generateIndex() {
     '- Start with the Overview for quick start patterns',
     '- Use the API Reference for exact function signatures and options',
     '- Check Examples for full working implementations of each skill type',
-    '- The SDK Specification is the canonical source of truth for design decisions',
     `- For all documentation inlined in a single file: ${BASE_URL}llms-full.txt`,
+    '',
+    '## Quick Start',
+    '',
+    '```typescript',
+    "import { skill, type, terminal } from '@contentful/skill-kit';",
+    '',
+    'export default skill({ name: "greet", entry: "ask" })',
+    '  .step("ask", {',
+    '    prompt: "Ask the user their name.",',
+    '    response: type({ name: "string" }),',
+    '    next: "farewell",',
+    '  })',
+    '  .step("farewell", {',
+    '    prompt: (ctx) => `Say goodbye to ${ctx.response.name}.`,',
+    '    response: type({ message: "string" }),',
+    '    next: terminal,',
+    '  })',
+    '  .build();',
+    '```',
     '',
   ];
 
