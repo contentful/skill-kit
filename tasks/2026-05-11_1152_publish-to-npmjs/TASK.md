@@ -27,8 +27,8 @@
 
 ### Community files
 
-- `CODE_OF_CONDUCT.md` — Contributor Covenant v2.1
-- `.github/CODEOWNERS` — `@contentful/team-optimization`
+- `CODE_OF_CONDUCT.md` — Contentful standard (links to contentful.com/developers/code-of-conduct/)
+- `.github/CODEOWNERS` — `@TimBeyer`
 
 ### Prerequisites (manual, outside PR)
 
@@ -38,16 +38,22 @@
 ## Steps
 
 - [x] Create branch and task file
-- [ ] Update `.npmrc`
-- [ ] Update `package.json` publishConfig
-- [ ] Update `.github/workflows/ci.yml`
-- [ ] Update `.github/workflows/ci-cd.yml`
-- [ ] Update `CLAUDE.md`
-- [ ] Create `CODE_OF_CONDUCT.md`
-- [ ] Create `.github/CODEOWNERS`
-- [ ] Run verification (typecheck, lint, format)
-- [ ] Commit and push
+- [x] Update `.npmrc`
+- [x] Update `package.json` publishConfig
+- [x] Update `.github/workflows/ci.yml`
+- [x] Update `.github/workflows/ci-cd.yml`
+- [x] Update `CLAUDE.md`
+- [x] Create `CODE_OF_CONDUCT.md`
+- [x] Create `.github/CODEOWNERS`
+- [x] Run verification (typecheck, lint, format)
+- [x] Commit and push
+- [x] Open PR
 
 ## Notes
 
-(Running log of decisions during implementation)
+- CODE_OF_CONDUCT.md uses Contentful's standard format (from github.com/contentful/.github) rather than inlining the full Contributor Covenant. This matches other Contentful open-source repos.
+- CODEOWNERS set to `@TimBeyer` rather than a team for now.
+- Removed the "Restore .npmrc" step from ci-cd.yml release job — it was only needed to undo pnpm's injection of GitHub Packages auth into .npmrc.
+- Audited against Confluence's "Open Source Repository Guidelines" (page 5567283282). All items pass except branch protections (GitHub setting) and SAST (currently disabled in catalog-info.yaml).
+- NPM org access is managed by IT (admin: Michael Pearce). OIDC trusted publishing must be configured on npmjs.org before first release — see https://contentful.atlassian.net/wiki/pages/viewpage.action?pageId=776045263
+- PR: https://github.com/contentful/skill-kit/pull/68
