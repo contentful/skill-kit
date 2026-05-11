@@ -37,8 +37,7 @@
     "bin"
   ],
   "publishConfig": {
-    "registry": "https://registry.npmjs.org/",
-    "access": "public"
+    "registry": "https://npm.pkg.github.com/"
   },
   "packageManager": "pnpm@10.24.0",
   "engines": {
