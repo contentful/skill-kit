@@ -39,7 +39,7 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
   },
-  "packageManager": "pnpm@10.34.4",
+  "packageManager": "pnpm@11.5.3",
   "engines": {
     "node": ">=24"
   },
