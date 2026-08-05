@@ -2,7 +2,7 @@
   "name": "@contentful/skill-kit-docs",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.34.4",
+  "packageManager": "pnpm@11.5.3",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build && node ../scripts/generate-llms-txt.mjs",
