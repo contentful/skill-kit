@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides Claude-specific guidance when working with code in this repository. `AGENTS.md` is the canonical cross-agent instruction file and takes precedence if the two disagree.
 
 ## Project
 
@@ -12,8 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Runtime:** Node.js 24+ with tsx for dev
 - **Package manager:** pnpm
-- **Language:** TypeScript 5.9+ (strict mode, ESM)
-- **Schema validation:** Zod 4
+- **Language:** TypeScript 7 for repository checks (strict mode, ESM)
+- **Schema validation:** ArkType for public/runtime schemas; Zod 4 for MCP tool input schemas
 - **Test runner:** `node --test --import tsx/esm`, colocated `*.test.ts` files, `node:assert/strict`
 - **Linting:** oxlint (correctness + suspicious rules; style rules off — Prettier owns formatting)
 - **Formatting:** Prettier (`singleQuote: true`, `printWidth: 120`)
@@ -87,8 +87,9 @@ The docs site (`docs-site/`) is an Astro static site deployed to GitHub Pages. I
 3. `docs/architecture.md` — pipeline steps, output structure
 4. `docs-site/src/pages/` — the corresponding MDX pages that mirror the above
 5. `README.md` — API signatures in the overview section
+6. `ARCHITECTURE.md` — stable repository overview, boundaries, and operational summary
 
-The five locations are not auto-synced. When you add a field to a config table in `docs/api.md`, the same field must appear in `docs-site/src/pages/api/index.mdx`. When you change a build pipeline step in `docs/architecture.md`, the same change goes in `docs-site/src/pages/architecture/index.mdx`. Grep for the old text across all five locations to make sure nothing is missed.
+The six locations are not auto-synced. When you add a field to a config table in `docs/api.md`, the same field must appear in `docs-site/src/pages/api/index.mdx`. When you change a build pipeline step in `docs/architecture.md`, the same change goes in `docs-site/src/pages/architecture/index.mdx` and the root overview when relevant. Grep for the old text across all six locations to make sure nothing is missed.
 
 **Known issue:** Pages is private, so GitHub assigns a random `*.pages.github.io` domain and serves at root (no base path). The `contentful.github.io/skill-kit/` URL 301-redirects there. Fix by either making Pages public (serves at `contentful.github.io/skill-kit/`, re-add `base: '/skill-kit/'` to `astro.config.mjs`) or configuring a custom domain.
 
@@ -96,4 +97,4 @@ The five locations are not auto-synced. When you add a field to a config table i
 
 - `SPEC.md` — the full SDK specification
 - https://agentskills.io/specification — agentskills.io skill format spec
-- `/Users/tim/Development/contentful/agents-kit` — related project for conventions
+- https://github.com/contentful/agents-kit — related public project for conventions
