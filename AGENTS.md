@@ -1,31 +1,72 @@
 # Agent Guide
 
-Read [`SPEC.md`](./SPEC.md) before substantive changes. It is the design source of truth for the SDK's builder API, workflow semantics, protocol, and build output.
+This is the canonical instruction file for all coding agents working in this repository.
 
-| What you need                     | Where to look                                             |
-| --------------------------------- | --------------------------------------------------------- |
-| System structure and data flow    | [`ARCHITECTURE.md`](./ARCHITECTURE.md)                    |
-| Setup and verification            | [`CONTRIBUTING.md`](./CONTRIBUTING.md)                    |
-| Detailed author-facing behavior   | [`SPEC.md`](./SPEC.md) and [`docs/api.md`](./docs/api.md) |
-| Historical decisions              | [`docs/ADRs/`](./docs/ADRs/) and [`tasks/`](./tasks/)     |
-| Public overview and examples      | [`README.md`](./README.md)                                |
-| Detailed task and commit workflow | [`CLAUDE.md`](./CLAUDE.md)                                |
+## Project
 
-## Guardrails
+`@contentful/skill-kit` — TypeScript SDK for building agent skills with CLI-driven workflows. Companion to `@contentful/agents-kit`.
 
-- Use pnpm and the Node.js 24 release pinned in `.nvmrc` for development. `package.json` declares the published package's Node.js 24+ minimum; `.npmrc` enforces it for local installs and disables dependency install scripts.
+**Read `SPEC.md` before any substantive work.** It is the source of truth for the SDK's design, primitives, and protocol. The notes below are a reading guide, not a replacement.
+
+## Tech stack
+
+- **Runtime:** Node.js 24+ with tsx for dev
+- **Package manager:** pnpm
+- **Language:** TypeScript 7 for repository checks (strict mode, ESM)
+- **Schema validation:** ArkType for public/runtime schemas; Zod 4 for MCP tool input schemas
+- **Test runner:** `node --test --import tsx/esm`, colocated `*.test.ts` files, `node:assert/strict`
+- **Linting:** oxlint (correctness + suspicious rules; style rules off — Prettier owns formatting)
+- **Formatting:** Prettier (`singleQuote: true`, `printWidth: 120`)
+- **Build/distribution:** `--mode bun` (default) uses `bun build --compile` for standalone executables; `--mode node` uses esbuild for lightweight `.mjs` bundles
+
+## Commands
+
+- `pnpm install` — install dependencies
+- `pnpm exec tsc --noEmit` — type check
+- `node --test --import tsx/esm 'src/**/*.test.ts'` — run all SDK tests
+- `node --test --import tsx/esm examples/get-to-know-you/src/skill.test.ts` — run workflow example tests
+- `node --test --import tsx/esm examples/ts-patterns/src/skill.test.ts` — run reference example tests
+- `node --test --import tsx/esm examples/contentful-help/src/skill.test.ts` — run composite example tests
+- `pnpm run lint` — lint with oxlint
+- `pnpm run lint:fix` — lint and auto-fix with oxlint
+- `pnpm exec prettier --check .` — check formatting
+- `pnpm exec prettier --write .` — fix formatting
+- `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --single` — build a skill executable (dev, current platform)
+- `node --import tsx/esm bin/skill-kit.js build <entry.ts> -o <outdir> --mode node` — build a skill as a Node.js bundle
+
+Example skills import `@contentful/skill-kit` which resolves via the `exports` field in the local `package.json`, not from a published npm package. After changing SDK source, run `pnpm run build` to compile the library before rebuilding examples.
+
+## Conventions
+
+- Follow agents-kit project conventions (no Nx)
+- ESM only (`"type": "module"`)
+- Tests colocated next to source files
+- oxlint for correctness linting, Prettier for formatting (no ESLint)
+- Published to GitHub Packages (`@contentful:registry=https://npm.pkg.github.com/`)
+
+## Workflow
+
+- **Always work on a branch** — never commit or push directly to main, not even single-line fixes. One branch per task, land via PR. Descriptive names: `feat/builder-api`, `fix/preamble-wiring`.
+- **Conventional commits, committed frequently.** Commit the task doc first, then the code changes it produced. _Frequent_ means each logical stage gets its own commit as soon as it compiles on its own — not one giant `feat:` at the end containing a whole iteration. Target one commit per coherent slice: a refactor, a new pure module, a data-layer change, a test suite. When in doubt, commit. A reviewer should be able to read the branch top-to-bottom and follow the thinking; they should not have to diff 1200 lines in one shot.
+- **Each commit must stand on its own.** Typecheck and tests pass at every commit — not just at the tip. If the stage you're committing depends on something you haven't written yet (e.g., a type export referenced by a module that doesn't exist), land the dependency first. This keeps `git bisect` useful and keeps `git revert` from unravelling the whole iteration.
+- **Unrelated cleanups go in their own commit.** A `style:` / `chore:` commit for incidental Prettier or lint fixups on files you didn't otherwise touch. Don't smuggle them into a feature commit where they bloat the diff and muddle the history.
+- **Task directories** for non-trivial work: `tasks/YYYY-MM-DD_hhmm_descriptive-kebab-case/TASK.md`. Get the timestamp from `date +%Y-%m-%d_%H%M` — do not guess. A task is a concrete, completable unit, not an epic.
+- Every TASK.md has: **Scope** (what's in / explicitly out), **Context** (the _why_ — problem, constraint, user input that triggered it), **Plan** (approach + alternatives rejected + trade-offs), **Steps** (checkbox list), **Notes** (running log of decisions made _during_ implementation, written as you go).
+- Task documents are the project's decision log. When someone later asks "why did we do X?", the answer should be findable in Context / Plan / Notes — not locked in a chat transcript.
+- **The TASK.md is the only durable record.** Claude Code plan files (`~/.claude/plans/`) are ephemeral — they vanish when the session ends. Everything that matters for picking up an interrupted implementation must live in TASK.md: the agreed API/SDK design, type signatures, protocol changes, user feedback and design choices, rejected alternatives and why. Don't reference plan files from TASK.md — inline the substance.
+- **Design specs belong in TASK.md.** When the work involves API or SDK design (new types, builder methods, protocol changes, CLI behavior), the Plan section must include the concrete design: type definitions, builder API examples, protocol invocation patterns. This is not excessive detail — it's the specification that the implementation follows. A future session picking up the task must be able to read the Plan and implement without re-deriving the design.
+- Because plan mode often precedes a context clear, the Plan section must capture user inputs, feedback, and explicit design choices verbatim — anything the implementation phase will need after context is gone.
+
+## Repository guardrails
+
+- Use pnpm and the Node.js 24 release pinned in `.nvmrc`. `package.json` declares the published package's Node.js 24+ minimum; `.npmrc` enforces it for local installs and disables dependency install scripts.
 - Preserve ESM and NodeNext module semantics. Source imports use `.js` extensions so compiled output resolves correctly.
-- Treat the public TypeScript types as product behavior. Fix incorrect inference instead of adding casts or `any` workarounds.
 - Keep workflow state append-only. Changes to state, transitions, or replay must preserve deterministic reconstruction.
-- Keep `ARCHITECTURE.md`, `SPEC.md`, `README.md`, `docs/`, and matching `docs-site/src/pages/` content synchronized when public behavior changes.
-- Do not hand-edit generated example skill output without also changing its source or build generator.
 - Keep stdout machine-readable for CLI protocol operations; write diagnostics to stderr.
 - Preserve both protocol families: MCP and CLI share the same workflow engine, and the CLI must retain both session and stateless modes.
 - Treat `src/skill-builder.ts`, `src/types.ts`, `src/types/`, `src/runtime/engine.ts`, `src/protocol/`, and `src/build/` as high-blast-radius surfaces. Run the full verification set for changes there; if generated output changes, also run `pnpm build:examples` and review the generated skill diffs.
-- For non-trivial work, keep a timestamped `tasks/YYYY-MM-DD_hhmm_<slug>/TASK.md` as the durable record of scope, context, plan, steps, and implementation decisions.
-- Use conventional commits in coherent slices that compile independently; keep unrelated cleanup in a separate commit.
+- Do not hand-edit generated example skill output without also changing its source or build generator.
 - Ask before changing release credentials, package registry configuration, or GitHub Actions permissions.
-- Never commit or push directly to `main`; use a focused branch and pull request.
 
 ## Safety and permissions
 
@@ -33,12 +74,52 @@ Read [`SPEC.md`](./SPEC.md) before substantive changes. It is the design source 
 - Build code writes temporary wrappers and generated output. Confirm target paths before changing deletion or overwrite behavior.
 - Do not include secrets, credentials, private URLs, or internal incident details in this public repository.
 
-## Verification
+## Build checkpoints
 
-```sh
-pnpm typecheck && pnpm test && pnpm lint && pnpm run format:check && pnpm build
+Run typecheck + tests + format-check at each logical checkpoint — finishing a feature, wrapping a refactor step, before every `git push`. Don't batch to the end; compounding breakage is harder to debug. Fix formatting before committing. Do not push code that fails typecheck or tests.
+
+```bash
+pnpm exec tsc --noEmit && pnpm run lint && node --test --import tsx/esm 'src/**/*.test.ts' && pnpm exec prettier --check .
+```
+
+For a full review-ready verification, also run:
+
+```bash
+pnpm build
 pnpm run typecheck:examples && pnpm run test:examples
 pnpm --dir docs-site install --frozen-lockfile && pnpm --dir docs-site run build
 ```
 
-This is the full review-ready check set; `CONTRIBUTING.md` lists the shorter contributor baseline.
+## Code style
+
+- **Name non-obvious expressions.** Extract into named variables or constants. No magic numbers — keep thresholds as named constants rather than inline literals.
+- **Options objects for 3+ parameters.** Positional args are unreadable at the call site. Define a named interface and pass one object.
+- **async/await over `.then()` chains**, including inside callbacks.
+- **Comment the _why_, not the _what_.** If a line isn't self-evidently necessary (a seemingly redundant `finally`, a deliberate reset), note why. Don't narrate what the code does.
+- **Refactor proactively, don't over-engineer.** When you notice two or three call sites doing the same small transformation — extract a helper before adding the fourth. When a function is growing a second responsibility — split it. You don't need permission for these passes, and you shouldn't wait until a reviewer points it out. The counterweight: don't hoist a helper for a single call site, and don't split files just to feel tidy. "Three similar lines is better than a premature abstraction" still holds — act on repetition that already exists, not repetition you're speculating about.
+- **Known future requirements are fair game.** _Hypothetical_ future needs (speculation, "what if we eventually…") don't justify abstractions — but requirements written down in `SPEC.md` or a `TASK.md` are not hypothetical, and designing for them now is usually cheaper than retrofitting later. The rule is: the requirement must be _documented_, not imagined.
+- **This is an SDK — the API surface IS the product.** No `as` casts, no `any` hacks, no workarounds for shortcomings in our own type system. If a developer would need a cast to use a feature, the types are wrong — fix the types. If a type doesn't narrow correctly, that's a bug, not a cosmetic issue. Examples must type-check cleanly without casts.
+- **Type-level code is code.** Structure types like you structure runtime code: small reusable helpers, clear names, tested independently. Complex conditional types belong in dedicated files (`src/types/`) with their own type-level tests (`*.test-d.ts`). Type tests are checked by `tsc --noEmit` — `@ts-expect-error` asserts that an expression _does_ error.
+
+## Documentation
+
+The docs site (`docs-site/`) is an Astro static site deployed to GitHub Pages. Its content pages are adapted from `docs/api.md`, `docs/architecture.md`, and the README. These are **not** auto-synced — when you change the markdown docs, update the corresponding MDX pages in `docs-site/src/pages/` and vice versa.
+
+**Documentation is part of the feature, not a follow-up.** Every change touching public API or build behavior must update all affected docs before the branch is considered complete:
+
+1. `SPEC.md` — the source of truth for the SDK design
+2. `docs/api.md` — config tables, builder signatures, CLI reference
+3. `docs/architecture.md` — pipeline steps, output structure
+4. `docs-site/src/pages/` — the corresponding MDX pages that mirror the above
+5. `README.md` — API signatures in the overview section
+6. `ARCHITECTURE.md` — repository-level index of the authoritative architecture sources
+
+The mirrored documentation locations are not auto-synced. When you add a field to a config table in `docs/api.md`, the same field must appear in `docs-site/src/pages/api/index.mdx`. When you change a build pipeline step in `docs/architecture.md`, the same change goes in `docs-site/src/pages/architecture/index.mdx`; update the root index only when its document map or system boundary changes. Grep for the old text across all affected locations to make sure nothing is missed.
+
+**Known issue:** Pages is private, so GitHub assigns a random `*.pages.github.io` domain and serves at root (no base path). The `contentful.github.io/skill-kit/` URL 301-redirects there. Fix by either making Pages public (serves at `contentful.github.io/skill-kit/`, re-add `base: '/skill-kit/'` to `astro.config.mjs`) or configuring a custom domain.
+
+## Key references
+
+- `SPEC.md` — the full SDK specification
+- https://agentskills.io/specification — agentskills.io skill format spec
+- https://github.com/contentful/agents-kit — related public project for conventions
