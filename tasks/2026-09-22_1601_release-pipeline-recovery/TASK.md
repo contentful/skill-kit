@@ -102,12 +102,12 @@ current version.
 
 - [x] Read `SPEC.md` and existing release task/history
 - [x] Reconstruct the failing run sequence from GitHub Actions logs
-- [ ] Commit this task record
-- [ ] Disable npm publishing in release-it and serialize release creation
-- [ ] Add release-triggered and manually dispatchable package publishing workflow
-- [ ] Validate YAML, formatting, and the repository checkpoint
-- [ ] Review the diff and update implementation notes
-- [ ] Commit each coherent workflow change
+- [x] Commit this task record
+- [x] Disable npm publishing in release-it and serialize release creation
+- [x] Add release-triggered and manually dispatchable package publishing workflow
+- [x] Validate YAML, formatting, and the repository checkpoint
+- [x] Review the diff and update implementation notes
+- [x] Commit each coherent workflow change
 - [ ] Push the branch and open a PR
 
 ## Notes
@@ -119,3 +119,16 @@ current version.
   release jobs since the incident fail while trying to republish `1.10.2`.
 - Unrelated user changes in `docs-site/src/layouts/BaseLayout.astro`, `docs-site/src/styles/global.css`, and `.DS_Store`
   were present before this task and must remain untouched.
+- The release job uses `queue: max` so a burst of main pushes keeps all pending release jobs. It also checks out the
+  latest `main` only after acquiring the concurrency slot, allowing the first queued job to release all commits that
+  have landed by then. Subsequent jobs safely find no additional release when appropriate.
+- The publish workflow uses `release.published` rather than tag push as its automatic gate. A maintainer can create a
+  missing GitHub Release from an existing tag to trigger publishing, or dispatch the Publish workflow with that tag to
+  retry directly. Both paths require the GitHub Release to exist and be non-draft.
+- A release-it dry run calculated `1.10.2`, included all commits since `v1.10.1`, performed the version/commit/tag/push
+  phases, and did not include `npm publish`. The current `v1.10.1` release passed the new tag/version/non-draft
+  validation logic locally.
+- The required checkpoint passed on Node 24.21.0 and pnpm 10.34.5: TypeScript, oxlint (19 existing warnings, no
+  errors), all 427 SDK tests, and repository-wide Prettier.
+- Review-ready verification also passed: package build, example typecheck, all 22 example tests, and the Astro docs
+  production build with all 15 pages generated.
