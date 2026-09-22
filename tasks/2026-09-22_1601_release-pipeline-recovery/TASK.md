@@ -125,6 +125,9 @@ current version.
 - The publish workflow uses `release.published` rather than tag push as its automatic gate. A maintainer can create a
   missing GitHub Release from an existing tag to trigger publishing, or dispatch the Publish workflow with that tag to
   retry directly. Both paths require the GitHub Release to exist and be non-draft.
+- Publish jobs share a repository-wide `queue: max` concurrency group. Serializing across versions preserves registry
+  publication order and prevents an older version that finishes late from moving the `latest` dist-tag backward;
+  retaining every queued job also avoids dropping a version during a burst of releases.
 - A release-it dry run calculated `1.10.2`, included all commits since `v1.10.1`, performed the version/commit/tag/push
   phases, and did not include `npm publish`. The current `v1.10.1` release passed the new tag/version/non-draft
   validation logic locally.
