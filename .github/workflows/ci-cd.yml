@@ -44,6 +44,10 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
     needs: ci
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
+      queue: max
     steps:
       - name: Retrieve Secrets from Vault
         id: vault
@@ -60,6 +64,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+          ref: main
           token: ${{ steps.vault.outputs.GITHUB_TOKEN }}
 
       - name: Get Automation Bot User ID
@@ -93,8 +98,7 @@ jobs:
         run: pnpm run build
       - name: Restore .npmrc
         run: git checkout -- .npmrc
-      - name: Release
+      - name: Create release
         run: pnpm exec release-it --ci
         env:
           GITHUB_TOKEN: ${{ steps.vault.outputs.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

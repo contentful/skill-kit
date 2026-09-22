@@ -10,7 +10,7 @@
     "pushArgs": ["--follow-tags"]
   },
   "npm": {
-    "publish": true
+    "publish": false
   },
   "github": {
     "release": true,
