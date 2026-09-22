@@ -108,7 +108,7 @@ current version.
 - [x] Validate YAML, formatting, and the repository checkpoint
 - [x] Review the diff and update implementation notes
 - [x] Commit each coherent workflow change
-- [ ] Push the branch and open a PR
+- [x] Push the branch and open a PR
 
 ## Notes
 
