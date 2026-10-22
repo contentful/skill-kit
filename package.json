@@ -1,6 +1,6 @@
 {
   "name": "@contentful/skill-kit",
-  "version": "1.10.9",
+  "version": "1.10.10",
   "description": "TypeScript SDK for building agent skills with CLI-driven workflows",
   "license": "MIT",
   "repository": {
